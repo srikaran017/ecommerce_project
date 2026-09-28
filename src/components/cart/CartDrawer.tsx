@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { X, Trash2, Plus, Minus, ShoppingBag, ArrowRight, Tag } from "lucide-react";
 import { useCartStore } from "@/stores/cart.store";
+import { useAuthStore } from "@/stores/auth.store";
 import { storeConfig } from "@/config/store.config";
 import { featureConfig } from "@/config/feature.config";
 import { Button } from "@/components/ui/Button";
@@ -23,6 +24,8 @@ export function CartDrawer() {
     applyCoupon,
     removeCoupon,
   } = useCartStore();
+
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
   const [couponCode, setCouponCode] = useState("");
   const [couponError, setCouponError] = useState("");
@@ -268,8 +271,12 @@ export function CartDrawer() {
                 </div>
               </div>
 
-              {/* Checkout CTA */}
-              <Link href="/checkout" onClick={closeCart} className="block w-full">
+              {/* Checkout CTA - Auth Guarded */}
+              <Link
+                href={isAuthenticated ? "/checkout" : "/login?redirect=/checkout"}
+                onClick={closeCart}
+                className="block w-full"
+              >
                 <Button variant="primary" size="lg" className="w-full" rightIcon={<ArrowRight className="w-4 h-4" />}>
                   PROCEED TO CHECKOUT
                 </Button>

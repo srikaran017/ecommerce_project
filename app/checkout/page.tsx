@@ -14,6 +14,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { useCartStore } from "@/stores/cart.store";
+import { useAuthStore } from "@/stores/auth.store";
 import { storeConfig } from "@/config/store.config";
 import { featureConfig } from "@/config/feature.config";
 import { paymentConfig } from "@/config/payment.config";
@@ -22,6 +23,7 @@ import { Input } from "@/components/ui/Input";
 
 export default function CheckoutPage() {
   const router = useRouter();
+  const { user, isAuthenticated } = useAuthStore();
   const {
     items,
     getSubtotal,
@@ -34,6 +36,13 @@ export default function CheckoutPage() {
     clearCart,
   } = useCartStore();
 
+  // Redirect unauthenticated guests to login while preserving destination
+  React.useEffect(() => {
+    if (!isAuthenticated) {
+      router.push("/login?redirect=/checkout");
+    }
+  }, [isAuthenticated, router]);
+
   const subtotal = getSubtotal();
   const shipping = getShippingAmount();
   const discount = getDiscountAmount();
@@ -41,10 +50,10 @@ export default function CheckoutPage() {
 
   // Checkout Form State
   const [formData, setFormData] = useState({
-    email: "customer@example.com",
-    firstName: "Aarav",
-    lastName: "Sharma",
-    phone: "+91 98765 00002",
+    email: user?.email || "customer@example.com",
+    firstName: user?.name?.split(" ")[0] || "Aarav",
+    lastName: user?.name?.split(" ").slice(1).join(" ") || "Sharma",
+    phone: user?.phone || "+91 98765 00002",
     street: "102, Skyline Residency, Bandra West",
     city: "Mumbai",
     state: "Maharashtra",
