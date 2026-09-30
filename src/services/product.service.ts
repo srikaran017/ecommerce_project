@@ -1,4 +1,3 @@
-import { prisma } from "@/lib/prisma";
 import {
   FALLBACK_PRODUCTS,
   FALLBACK_COLLECTIONS,
@@ -27,42 +26,6 @@ export class ProductService {
     newArrivals?: boolean;
     bestSellers?: boolean;
   }): Promise<ProductData[]> {
-    try {
-      if (process.env.DATABASE_URL && !process.env.DATABASE_URL.includes("localhost:5432")) {
-        const dbProducts = await prisma.product.findMany({
-          where: {
-            status: "ACTIVE",
-            ...(filters?.category ? { category: { slug: filters.category } } : {}),
-            ...(filters?.gender ? { gender: filters.gender.toUpperCase() as any } : {}),
-            ...(filters?.featured ? { isFeatured: true } : {}),
-            ...(filters?.newArrivals ? { isNewArrival: true } : {}),
-            ...(filters?.bestSellers ? { isBestSeller: true } : {}),
-          },
-          include: {
-            images: { orderBy: { displayOrder: "asc" } },
-            variants: true,
-            category: true,
-            reviews: true,
-          },
-        });
-        if (dbProducts && dbProducts.length > 0) {
-          return dbProducts.map((p: any) => ({
-            ...p,
-            categorySlug: p.category.slug,
-            categoryName: p.category.name,
-            gender: p.gender || "WOMEN",
-            tags: p.tags || [],
-            reviewsCount: p.reviews?.length || 0,
-            averageRating: p.reviews?.length
-              ? p.reviews.reduce((acc: number, r: any) => acc + r.rating, 0) / p.reviews.length
-              : 5.0,
-          }));
-        }
-      }
-    } catch (e) {
-      // Fall back to memory catalog
-    }
-
     let products = [...FALLBACK_PRODUCTS];
 
     if (filters?.category) {
@@ -149,35 +112,6 @@ export class ProductService {
   }
 
   static async getProductBySlug(slug: string): Promise<ProductData | null> {
-    try {
-      if (process.env.DATABASE_URL && !process.env.DATABASE_URL.includes("localhost:5432")) {
-        const product = await prisma.product.findFirst({
-          where: { slug, status: "ACTIVE" },
-          include: {
-            images: { orderBy: { displayOrder: "asc" } },
-            variants: true,
-            category: true,
-            reviews: true,
-          },
-        });
-        if (product) {
-          return {
-            ...product,
-            categorySlug: product.category.slug,
-            categoryName: product.category.name,
-            gender: (product as any).gender || "WOMEN",
-            tags: product.tags || [],
-            reviewsCount: product.reviews?.length || 0,
-            averageRating: product.reviews?.length
-              ? product.reviews.reduce((acc: number, r: any) => acc + r.rating, 0) / product.reviews.length
-              : 5.0,
-          };
-        }
-      }
-    } catch (e) {
-      // Fallback
-    }
-
     return FALLBACK_PRODUCTS.find((p) => p.slug === slug) || null;
   }
 

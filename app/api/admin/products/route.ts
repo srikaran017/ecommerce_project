@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { prisma } from "@/lib/prisma";
 import { FALLBACK_PRODUCTS } from "@/services/product.service";
 
 const productSchema = z.object({
