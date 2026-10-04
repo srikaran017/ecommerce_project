@@ -13,7 +13,7 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const redirectTarget = searchParams.get("redirect") || "/";
 
-  const { login, isLoading, error, clearError } = useAuthStore();
+  const { login, socialLogin, isLoading, error, clearError } = useAuthStore();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -28,6 +28,11 @@ function LoginForm() {
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotFeedback, setForgotFeedback] = useState<string | null>(null);
   const [isForgotLoading, setIsForgotLoading] = useState(false);
+
+  // Social login modal state
+  const [socialModalProvider, setSocialModalProvider] = useState<"google" | "github" | "facebook" | null>(null);
+  const [socialTokenInput, setSocialTokenInput] = useState("");
+  const [socialLoading, setSocialLoading] = useState(false);
 
   const validate = () => {
     const errs: { email?: string; password?: string } = {};
@@ -56,6 +61,25 @@ function LoginForm() {
 
     const success = await login({ email, password, rememberMe });
     if (success) {
+      router.push(redirectTarget);
+    }
+  };
+
+  const handleSocialSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!socialModalProvider || !socialTokenInput.trim()) return;
+
+    setSocialLoading(true);
+    clearError();
+    const success = await socialLogin({
+      provider: socialModalProvider,
+      token: socialTokenInput.trim(),
+    });
+    setSocialLoading(false);
+
+    if (success) {
+      setSocialModalProvider(null);
+      setSocialTokenInput("");
       router.push(redirectTarget);
     }
   };
@@ -223,6 +247,60 @@ function LoginForm() {
               )}
             </button>
           </div>
+
+          {/* Social Sign-In Options (Google, GitHub) */}
+          <div className="pt-2">
+            <div className="relative flex py-2 items-center">
+              <div className="flex-grow border-t border-neutral-200"></div>
+              <span className="flex-shrink mx-3 text-[10px] uppercase font-bold tracking-widest text-neutral-400">
+                Or Continue With
+              </span>
+              <div className="flex-grow border-t border-neutral-200"></div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setSocialModalProvider("google")}
+                className="py-2.5 px-3 border border-neutral-200 hover:border-neutral-900 bg-white hover:bg-neutral-50 rounded-2xl flex items-center justify-center gap-2 text-xs font-semibold text-neutral-800 transition-all cursor-pointer shadow-xs"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24">
+                  <path
+                    fill="#4285F4"
+                    d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.8-2.4 3.66v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.15z"
+                  />
+                  <path
+                    fill="#34A853"
+                    d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.27v3.15C3.25 21.36 7.34 24 12 24z"
+                  />
+                  <path
+                    fill="#FBBC05"
+                    d="M5.28 14.27a7.2 7.2 0 0 1 0-4.54V6.58H1.27a11.98 11.98 0 0 0 0 10.84l4.01-3.15z"
+                  />
+                  <path
+                    fill="#EA4335"
+                    d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.34 0 3.25 2.64 1.27 6.58l4.01 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
+                  />
+                </svg>
+                <span>Google</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSocialModalProvider("github")}
+                className="py-2.5 px-3 border border-neutral-200 hover:border-neutral-900 bg-white hover:bg-neutral-50 rounded-2xl flex items-center justify-center gap-2 text-xs font-semibold text-neutral-800 transition-all cursor-pointer shadow-xs"
+              >
+                <svg className="w-4 h-4 fill-current text-neutral-900" viewBox="0 0 24 24">
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
+                  />
+                </svg>
+                <span>GitHub</span>
+              </button>
+            </div>
+          </div>
         </form>
 
         {/* Footer Link */}
@@ -239,6 +317,53 @@ function LoginForm() {
         </div>
 
       </div>
+
+      {/* Social Login Token Modal */}
+      {socialModalProvider && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white max-w-sm w-full p-6 rounded-3xl border border-neutral-100 shadow-2xl space-y-4">
+            <div>
+              <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-900 flex items-center gap-2">
+                <span>Sign in with {socialModalProvider === "google" ? "Google" : "GitHub"}</span>
+              </h3>
+              <p className="text-xs text-neutral-500 mt-1">
+                Enter your OAuth credential / ID token received from {socialModalProvider} to verify with the backend API.
+              </p>
+            </div>
+
+            <form onSubmit={handleSocialSubmit} className="space-y-3 text-xs">
+              <textarea
+                rows={3}
+                required
+                placeholder="Paste OAuth token / ID token here..."
+                value={socialTokenInput}
+                onChange={(e) => setSocialTokenInput(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl focus:bg-white focus:outline-none text-neutral-900 font-mono text-[11px]"
+              />
+
+              <div className="flex items-center justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSocialModalProvider(null);
+                    setSocialTokenInput("");
+                  }}
+                  className="px-3 py-2 text-neutral-600 font-bold hover:bg-neutral-100 rounded-xl cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={socialLoading || !socialTokenInput.trim()}
+                  className="px-4 py-2 bg-neutral-900 hover:bg-amber-600 text-white font-bold rounded-xl transition-colors cursor-pointer disabled:opacity-60"
+                >
+                  {socialLoading ? "Verifying..." : "Verify & Continue"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Forgot Password Modal */}
       {isForgotModalOpen && (

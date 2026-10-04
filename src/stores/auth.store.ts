@@ -2,9 +2,15 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { AuthService, AuthUser, LoginCredentials, SignupCredentials } from "@/services/auth.service";
+import {
+  AuthService,
+  AuthUser,
+  LoginCredentials,
+  SignupCredentials,
+  SocialLoginCredentials,
+} from "@/services/auth.service";
 
-interface AuthState {
+export interface AuthState {
   user: AuthUser | null;
   isAuthenticated: boolean;
   isLoading: boolean;
@@ -13,6 +19,7 @@ interface AuthState {
   // Actions
   login: (credentials: LoginCredentials) => Promise<boolean>;
   signup: (credentials: SignupCredentials) => Promise<boolean>;
+  socialLogin: (credentials: SocialLoginCredentials) => Promise<boolean>;
   logout: () => Promise<void>;
   clearError: () => void;
   setUser: (user: AuthUser | null) => void;
@@ -92,6 +99,34 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
+      socialLogin: async (credentials) => {
+        set({ isLoading: true, error: null });
+        try {
+          const res = await AuthService.socialLogin(credentials);
+          if (res.success && res.user) {
+            set({
+              user: res.user,
+              isAuthenticated: true,
+              isLoading: false,
+              error: null,
+            });
+            return true;
+          } else {
+            set({
+              error: res.message || "Social login failed.",
+              isLoading: false,
+            });
+            return false;
+          }
+        } catch (err: any) {
+          set({
+            error: err.message || "An unexpected error occurred during social login.",
+            isLoading: false,
+          });
+          return false;
+        }
+      },
+
       logout: async () => {
         set({ isLoading: true });
         try {
@@ -108,9 +143,21 @@ export const useAuthStore = create<AuthState>()(
 
       checkSession: async () => {
         try {
+          const token = AuthService.getAccessToken();
+          if (!token) {
+            // No token stored
+            if (get().isAuthenticated) {
+              set({ user: null, isAuthenticated: false });
+            }
+            return;
+          }
+
           const currentUser = await AuthService.getCurrentUser();
           if (currentUser) {
             set({ user: currentUser, isAuthenticated: true });
+          } else {
+            // Token expired or invalid
+            set({ user: null, isAuthenticated: false });
           }
         } catch {
           // Session check silent failure

@@ -8,6 +8,7 @@ import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { CartDrawer } from "@/components/cart/CartDrawer";
 import { SearchModal } from "@/components/layout/SearchModal";
+import { AuthInitializer } from "@/components/auth/AuthInitializer";
 
 const playfair = Playfair_Display({
   subsets: ["latin"],
@@ -68,6 +69,7 @@ export default function RootLayout({
         <ThemeScript />
       </head>
       <body className="min-h-full flex flex-col bg-[var(--background)] text-[var(--foreground)] selection:bg-[var(--primary)] selection:text-[var(--primary-foreground)]">
+        <AuthInitializer />
         <AnnouncementBar />
         <Navbar />
         <main className="flex-1">{children}</main>

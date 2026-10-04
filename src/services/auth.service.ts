@@ -1,11 +1,14 @@
+export type UserRole = "CUSTOMER" | "STORE_ADMIN" | "STAFF" | "SUPER_ADMIN";
+
 export interface AuthUser {
   id: string;
   name: string;
   email: string;
   phone?: string;
-  role?: string;
+  role?: UserRole | string;
   avatarUrl?: string;
   createdAt?: string;
+  isActive?: boolean;
 }
 
 export interface LoginCredentials {
@@ -17,9 +20,15 @@ export interface LoginCredentials {
 export interface SignupCredentials {
   name: string;
   email: string;
-  phone?: string;
   password: string;
-  role?: "CUSTOMER" | "STORE_ADMIN" | "STAFF" | "SUPER_ADMIN";
+  phone?: string;
+  role?: UserRole;
+}
+
+export interface SocialLoginCredentials {
+  provider: "google" | "facebook" | "github";
+  token: string;
+  role?: UserRole;
 }
 
 export interface AuthResponse {
@@ -38,6 +47,13 @@ export class AuthService {
   private static tokenKey = "auth_access_token";
 
   /**
+   * Get API Base URL
+   */
+  static getBaseUrl(): string {
+    return API_BASE_URL;
+  }
+
+  /**
    * Get cached access token from memory/localStorage
    */
   static getAccessToken(): string | null {
@@ -54,6 +70,27 @@ export class AuthService {
       localStorage.setItem(this.tokenKey, token);
     } else {
       localStorage.removeItem(this.tokenKey);
+    }
+  }
+
+  /**
+   * Check Server Health
+   * GET /health
+   */
+  static async checkHealth(): Promise<{ status: string; message: string; isLive: boolean }> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/health`);
+      if (!res.ok) {
+        return { status: "error", message: `HTTP ${res.status}`, isLive: false };
+      }
+      const data = await res.json().catch(() => ({}));
+      return {
+        status: data.status || "ok",
+        message: data.message || "E-commerce API is running",
+        isLive: data.status === "ok",
+      };
+    } catch (err: any) {
+      return { status: "error", message: err.message || "Failed to reach backend", isLive: false };
     }
   }
 
@@ -78,7 +115,7 @@ export class AuthService {
         }),
       });
 
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
 
       if (response.ok && data.success) {
         const user: AuthUser = data.data?.user || {
@@ -87,9 +124,9 @@ export class AuthService {
           email: credentials.email.toLowerCase().trim(),
           phone: credentials.phone?.trim(),
           role: credentials.role || "CUSTOMER",
+          createdAt: data.data?.createdAt,
         };
 
-        // If register also returns token or requires immediate login
         if (data.data?.accessToken) {
           this.setAccessToken(data.data.accessToken);
         }
@@ -102,16 +139,19 @@ export class AuthService {
         };
       }
 
+      // Extract specific validation message if present
+      const validationMsg =
+        data.error?.details?.[0]?.message ||
+        data.message ||
+        "Registration failed. Please check your information.";
+
       return {
         success: false,
-        message:
-          data.message ||
-          (data.error?.details?.[0]?.message ?? "Registration failed. Please check your details."),
+        message: validationMsg,
         error: data.error,
       };
     } catch (err: any) {
-      console.warn("Live API signup connection error:", err);
-      // Fallback in case backend is offline/sleeping
+      console.warn("API signup connection error:", err);
       return {
         success: false,
         message:
@@ -138,7 +178,7 @@ export class AuthService {
         }),
       });
 
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
 
       if (response.ok && data.success) {
         const token = data.data?.accessToken;
@@ -167,11 +207,67 @@ export class AuthService {
         error: data.error,
       };
     } catch (err: any) {
-      console.warn("Live API login connection error:", err);
+      console.warn("API login connection error:", err);
       return {
         success: false,
         message:
           "Unable to connect to the authentication server. Please try again in a moment.",
+      };
+    }
+  }
+
+  /**
+   * Social Login (Google, Facebook, GitHub)
+   * POST /auth/social-login
+   */
+  static async socialLogin(credentials: SocialLoginCredentials): Promise<AuthResponse> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/social-login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          provider: credentials.provider,
+          token: credentials.token,
+          role: credentials.role || "CUSTOMER",
+        }),
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (response.ok && data.success) {
+        const token = data.data?.accessToken;
+        if (token) {
+          this.setAccessToken(token);
+        }
+
+        const user: AuthUser = data.data?.user || {
+          id: `usr_${Date.now()}`,
+          name: `${credentials.provider} User`,
+          email: "user@social.com",
+          role: credentials.role || "CUSTOMER",
+        };
+
+        return {
+          success: true,
+          user,
+          accessToken: token,
+          message: data.message || "Social login successful.",
+        };
+      }
+
+      return {
+        success: false,
+        message: data.message || `Unable to authenticate with ${credentials.provider}.`,
+        error: data.error,
+      };
+    } catch (err: any) {
+      console.warn("API social login connection error:", err);
+      return {
+        success: false,
+        message: "Failed to connect to the authentication service.",
       };
     }
   }
@@ -223,7 +319,7 @@ export class AuthService {
         return null;
       }
 
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
       if (data.success && data.data?.user) {
         return data.data.user;
       }
@@ -235,15 +331,33 @@ export class AuthService {
   }
 
   /**
+   * Helper to perform authenticated fetch calls
+   */
+  static async fetchWithAuth(url: string, options: RequestInit = {}): Promise<Response> {
+    const token = this.getAccessToken();
+    const headers = new Headers(options.headers || {});
+    headers.set("Content-Type", "application/json");
+    if (token) {
+      headers.set("Authorization", `Bearer ${token}`);
+    }
+
+    return fetch(url, {
+      ...options,
+      headers,
+      credentials: "include",
+    });
+  }
+
+  /**
    * Request Password Reset Link
    */
   static async forgotPassword(email: string): Promise<{ success: boolean; message: string }> {
     try {
-      // If backend has /auth/forgot-password endpoint
       await fetch(`${API_BASE_URL}/auth/forgot-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        credentials: "include",
+        body: JSON.stringify({ email: email.toLowerCase().trim() }),
       }).catch(() => null);
     } catch {
       // Graceful fallback
@@ -253,19 +367,5 @@ export class AuthService {
       success: true,
       message: `Password reset instructions have been sent to ${email}.`,
     };
-  }
-
-  /**
-   * Check Server Health
-   * GET /health
-   */
-  static async checkHealth(): Promise<boolean> {
-    try {
-      const res = await fetch(`${API_BASE_URL}/health`);
-      const data = await res.json();
-      return data.status === "ok";
-    } catch {
-      return false;
-    }
   }
 }

@@ -74,25 +74,56 @@ export default function AccountPage() {
         
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 sm:p-8 rounded-3xl border border-neutral-200/80 shadow-sm">
-          <div>
-            <span className="text-[11px] font-bold uppercase tracking-[0.25em] text-amber-700 block mb-1">
-              CLIENT PORTAL
-            </span>
-            <h1 className="font-heading text-2xl sm:text-3xl font-bold uppercase tracking-tight text-neutral-900">
-              Welcome, {displayName}
-            </h1>
-            <p className="text-xs text-neutral-500 mt-0.5">
-              {displayEmail} • Atelier Member
-            </p>
+          <div className="flex items-center gap-4">
+            {user?.avatarUrl ? (
+              <img
+                src={user.avatarUrl}
+                alt={displayName}
+                className="w-14 h-14 rounded-2xl border border-neutral-200 object-cover"
+              />
+            ) : (
+              <div className="w-14 h-14 bg-amber-50 rounded-2xl flex items-center justify-center text-amber-800 font-bold text-lg border border-amber-200">
+                {displayName.charAt(0).toUpperCase()}
+              </div>
+            )}
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-amber-800 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">
+                  {user?.role || "CUSTOMER"}
+                </span>
+                {user?.isActive !== false && (
+                  <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-1 border border-emerald-200">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+                    Active
+                  </span>
+                )}
+              </div>
+              <h1 className="font-heading text-xl sm:text-2xl font-bold uppercase tracking-tight text-neutral-900">
+                Welcome, {displayName}
+              </h1>
+              <p className="text-xs text-neutral-500 mt-0.5">
+                {displayEmail}
+              </p>
+            </div>
           </div>
 
-          <button
-            onClick={handleSignOut}
-            className="px-4 py-2.5 bg-neutral-100 hover:bg-rose-50 text-neutral-700 hover:text-rose-600 text-xs font-bold uppercase tracking-wider rounded-xl transition-all flex items-center gap-2 cursor-pointer border border-neutral-200"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-            <span>Sign Out</span>
-          </button>
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            {(user?.role === "STORE_ADMIN" || user?.role === "SUPER_ADMIN") && (
+              <Link
+                href="/admin"
+                className="px-4 py-2.5 bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all flex items-center gap-2"
+              >
+                <span>Admin Console</span>
+              </Link>
+            )}
+            <button
+              onClick={handleSignOut}
+              className="px-4 py-2.5 bg-neutral-100 hover:bg-rose-50 text-neutral-700 hover:text-rose-600 text-xs font-bold uppercase tracking-wider rounded-xl transition-all flex items-center gap-2 cursor-pointer border border-neutral-200"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>Sign Out</span>
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
