@@ -1,8 +1,8 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   ShoppingBag,
@@ -14,8 +14,11 @@ import {
   Sliders,
   Store,
   ArrowLeft,
+  ShieldAlert,
+  Lock,
 } from "lucide-react";
 import { storeConfig } from "@/config/store.config";
+import { useAuthStore } from "@/stores/auth.store";
 
 export default function AdminLayout({
   children,
@@ -23,6 +26,93 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { user, isAuthenticated } = useAuthStore();
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  const isAdmin = Boolean(
+    isAuthenticated &&
+    user?.role &&
+    (user.role === "STORE_ADMIN" ||
+      user.role === "SUPER_ADMIN" ||
+      user.role === "STAFF" ||
+      user.role.toUpperCase().includes("ADMIN"))
+  );
+
+  useEffect(() => {
+    if (!isMounted) return;
+
+    if (!isAuthenticated) {
+      // Logged-out user -> Redirect to existing Login page
+      const redirectParam = pathname ? `?redirect=${encodeURIComponent(pathname)}` : "?redirect=/admin";
+      router.replace(`/login${redirectParam}`);
+    } else if (!isAdmin) {
+      // Logged-in normal customer -> Cannot access Admin page -> Redirect to non-admin home page
+      router.replace("/");
+    }
+  }, [isMounted, isAuthenticated, isAdmin, router, pathname]);
+
+  // Loading state during hydration
+  if (!isMounted) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+        <div className="text-center space-y-3">
+          <div className="w-10 h-10 rounded-full border-2 border-slate-700 border-t-amber-400 animate-spin mx-auto" />
+          <p className="text-xs text-slate-400 font-medium">Verifying authorization...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Logged-out state: Redirecting to login
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 text-center">
+        <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-8 space-y-4 shadow-2xl">
+          <div className="w-12 h-12 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center mx-auto">
+            <Lock className="w-6 h-6" />
+          </div>
+          <h2 className="text-base font-bold text-white uppercase tracking-wider">
+            Sign In Required
+          </h2>
+          <p className="text-xs text-slate-400">
+            Please sign in with administrator credentials to access this console.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Normal Customer trying to access Admin: Access Denied
+  if (!isAdmin) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 text-center">
+        <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-8 space-y-4 shadow-2xl">
+          <div className="w-12 h-12 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 flex items-center justify-center mx-auto">
+            <ShieldAlert className="w-6 h-6" />
+          </div>
+          <h2 className="text-base font-bold text-white uppercase tracking-wider">
+            Access Restricted
+          </h2>
+          <p className="text-xs text-slate-400">
+            You are signed in as a customer ({user?.email}). Administrator privileges are required to access this portal.
+          </p>
+          <div className="pt-2">
+            <Link
+              href="/"
+              className="inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs uppercase tracking-wider transition-colors"
+            >
+              Return to Storefront
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const mainNav = [
     { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
