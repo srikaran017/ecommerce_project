@@ -16,6 +16,7 @@ interface AuthState {
   logout: () => Promise<void>;
   clearError: () => void;
   setUser: (user: AuthUser | null) => void;
+  checkSession: () => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -40,7 +41,7 @@ export const useAuthStore = create<AuthState>()(
             return true;
           } else {
             set({
-              error: res.message || "Invalid credentials.",
+              error: res.message || "Invalid email or password.",
               isLoading: false,
             });
             return false;
@@ -59,6 +60,15 @@ export const useAuthStore = create<AuthState>()(
         try {
           const res = await AuthService.signup(credentials);
           if (res.success && res.user) {
+            // Attempt auto-login to obtain session & tokens if not returned directly
+            if (!res.accessToken) {
+              const loginSuccess = await get().login({
+                email: credentials.email,
+                password: credentials.password,
+              });
+              if (loginSuccess) return true;
+            }
+
             set({
               user: res.user,
               isAuthenticated: true,
@@ -93,6 +103,17 @@ export const useAuthStore = create<AuthState>()(
             isLoading: false,
             error: null,
           });
+        }
+      },
+
+      checkSession: async () => {
+        try {
+          const currentUser = await AuthService.getCurrentUser();
+          if (currentUser) {
+            set({ user: currentUser, isAuthenticated: true });
+          }
+        } catch {
+          // Session check silent failure
         }
       },
 

@@ -60,8 +60,10 @@ function SignupForm() {
 
     if (!password) {
       errs.password = "Password is required.";
-    } else if (password.length < 6) {
-      errs.password = "Password must be at least 6 characters.";
+    } else if (password.length < 8) {
+      errs.password = "Password must be at least 8 characters long.";
+    } else if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
+      errs.password = "Password must contain at least 1 letter and 1 number.";
     }
 
     if (!confirmPassword) {
