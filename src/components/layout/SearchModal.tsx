@@ -7,6 +7,8 @@ import { useUIStore } from "@/stores/ui.store";
 import { FALLBACK_PRODUCTS, ProductData } from "@/data/products.data";
 import { storeConfig } from "@/config/store.config";
 
+import { ProductService } from "@/services/product.service";
+
 export function SearchModal() {
   const { isSearchOpen, closeSearch } = useUIStore();
   const [query, setQuery] = useState("");
@@ -18,17 +20,25 @@ export function SearchModal() {
       return;
     }
 
-    const q = query.toLowerCase();
-    const matched = FALLBACK_PRODUCTS.filter(
-      (p) =>
-        p.name.toLowerCase().includes(q) ||
-        p.description.toLowerCase().includes(q) ||
-        p.brand.toLowerCase().includes(q) ||
-        p.categoryName.toLowerCase().includes(q) ||
-        p.tags.some((t) => t.toLowerCase().includes(q))
-    ).slice(0, 4);
+    const timer = setTimeout(async () => {
+      try {
+        const matched = await ProductService.getAllProducts({ search: query });
+        setResults(matched.slice(0, 6));
+      } catch {
+        const q = query.toLowerCase();
+        const matched = FALLBACK_PRODUCTS.filter(
+          (p) =>
+            p.name.toLowerCase().includes(q) ||
+            p.description.toLowerCase().includes(q) ||
+            p.brand.toLowerCase().includes(q) ||
+            p.categoryName.toLowerCase().includes(q) ||
+            p.tags.some((t) => t.toLowerCase().includes(q))
+        ).slice(0, 4);
+        setResults(matched);
+      }
+    }, 200);
 
-    setResults(matched);
+    return () => clearTimeout(timer);
   }, [query]);
 
   // Handle ESC key
@@ -170,6 +180,43 @@ export function SearchModal() {
                   >
                     {term}
                   </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Direct Category Shortcuts */}
+            <div className="pt-4 border-t border-[var(--border)]">
+              <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)] mb-3">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-amber-700" />
+                  <span>BROWSE BY CATEGORY</span>
+                </div>
+                <Link
+                  href="/categories"
+                  onClick={closeSearch}
+                  className="text-amber-700 hover:underline flex items-center gap-1 text-[11px]"
+                >
+                  <span>Category Directory</span>
+                  <ArrowRight className="w-3 h-3" />
+                </Link>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { name: "Women's Couture", slug: "womens-couture" },
+                  { name: "Evening Gowns", slug: "evening-gowns" },
+                  { name: "Royal Sarees", slug: "sarees" },
+                  { name: "Men's Apparel", slug: "mens-apparel" },
+                  { name: "Suits & Blazers", slug: "mens-suits" },
+                  { name: "Cotton Shirts", slug: "mens-shirts" },
+                ].map((cat) => (
+                  <Link
+                    key={cat.slug}
+                    href={`/categories/${cat.slug}`}
+                    onClick={closeSearch}
+                    className="px-3 py-1.5 rounded-full bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 text-xs font-semibold transition-colors cursor-pointer"
+                  >
+                    {cat.name}
+                  </Link>
                 ))}
               </div>
             </div>

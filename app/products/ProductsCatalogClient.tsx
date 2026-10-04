@@ -1,12 +1,14 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   SlidersHorizontal,
   X,
   Check,
   ChevronDown,
+  ChevronRight,
   Sparkles,
   ArrowRight,
   Search,
@@ -56,25 +58,27 @@ export function ProductsCatalogClient({
     ...INITIAL_OCCASIONS.map((o) => ({ label: o.name, value: o.slug })),
   ];
 
-  const sizes = ["XS", "S", "M", "L", "XL", "XXL", "Free Size"];
+  const sizes = ["S", "M", "L", "XL", "Free Size"];
 
   const colors = [
-    { name: "Emerald Green", hex: "#046307" },
-    { name: "Champagne Gold", hex: "#d4af37" },
-    { name: "Rose Blush", hex: "#ffb6c1" },
-    { name: "Royal Magenta", hex: "#800080" },
-    { name: "Mustard Gold", hex: "#ffae42" },
-    { name: "Crisp Ivory", hex: "#ffffff" },
-    { name: "Onyx Black", hex: "#111111" },
+    { name: "Emerald Green", slug: "emerald-green", hex: "#046307" },
+    { name: "Crimson Red", slug: "crimson-red", hex: "#990000" },
+    { name: "Navy Blue", slug: "navy-blue", hex: "#000080" },
+    { name: "Ivory White", slug: "ivory-white", hex: "#ffffff" },
+    { name: "Champagne Gold", slug: "champagne-gold", hex: "#d4af37" },
+    { name: "Onyx Black", slug: "onyx-black", hex: "#111111" },
   ];
 
   const sortOptions = [
     { label: "Recommended", value: "featured" },
     { label: "Newest Arrivals", value: "newest" },
-    { label: "Price: Low to High", value: "price-low" },
-    { label: "Price: High to Low", value: "price-high" },
-    { label: "Best Selling", value: "best-selling" },
-    { label: "Highest Discount", value: "discount" },
+    { label: "Best Sellers", value: "bestselling" },
+    { label: "Sale & Offers", value: "best_deals" },
+    { label: "Price: Low to High", value: "price_asc" },
+    { label: "Price: High to Low", value: "price_desc" },
+    { label: "Top Rated", value: "rating" },
+    { label: "Alphabetical: A to Z", value: "name_asc" },
+    { label: "Alphabetical: Z to A", value: "name_desc" },
   ];
 
   const updateFilters = (overrides: Record<string, string | null>) => {
@@ -102,13 +106,14 @@ export function ProductsCatalogClient({
   };
 
   const handleSizeChange = (s: string) => {
-    const nextSize = selectedSize === s ? "" : s;
+    const sizeSlug = s.toLowerCase();
+    const nextSize = selectedSize === sizeSlug ? "" : sizeSlug;
     setSelectedSize(nextSize);
     updateFilters({ size: nextSize || null });
   };
 
-  const handleColorChange = (c: string) => {
-    const nextColor = selectedColor === c ? "" : c;
+  const handleColorChange = (colorSlug: string) => {
+    const nextColor = selectedColor === colorSlug ? "" : colorSlug;
     setSelectedColor(nextColor);
     updateFilters({ color: nextColor || null });
   };
@@ -184,6 +189,13 @@ export function ProductsCatalogClient({
               </button>
             );
           })}
+          <Link
+            href="/categories"
+            className="px-4 py-2.5 rounded-full text-xs font-bold uppercase tracking-wider bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 transition-all cursor-pointer whitespace-nowrap shadow-sm flex items-center gap-1.5"
+          >
+            <span>Directory Hub</span>
+            <ChevronRight className="w-3.5 h-3.5" />
+          </Link>
         </div>
 
         {/* Filter Bar & Sort Controller */}
@@ -370,11 +382,11 @@ export function ProductsCatalogClient({
                 </h3>
                 <div className="flex flex-wrap gap-2">
                   {colors.map((col) => {
-                    const isSelected = selectedColor === col.name;
+                    const isSelected = selectedColor === col.slug;
                     return (
                       <button
-                        key={col.name}
-                        onClick={() => handleColorChange(col.name)}
+                        key={col.slug}
+                        onClick={() => handleColorChange(col.slug)}
                         title={col.name}
                         className={`w-7 h-7 rounded-full border transition-all cursor-pointer relative flex items-center justify-center ${
                           isSelected ? "ring-2 ring-neutral-900 scale-110" : "border-neutral-300"

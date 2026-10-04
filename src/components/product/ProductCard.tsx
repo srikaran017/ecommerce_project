@@ -2,7 +2,8 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { Heart, ShoppingBag, Eye, Check } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Heart, ShoppingBag, Eye, Check, SlidersHorizontal, Sparkles } from "lucide-react";
 import { storeConfig } from "@/config/store.config";
 import { featureConfig } from "@/config/feature.config";
 import { useCartStore } from "@/stores/cart.store";
@@ -14,8 +15,10 @@ export interface ProductCardProps {
 }
 
 export function ProductCard({ product }: ProductCardProps) {
+  const router = useRouter();
   const primaryImg =
     product.images[0]?.url ||
+    product.thumbnail ||
     "https://images.unsplash.com/photo-1610030469983-98e550d6193c?q=80&w=800";
   const hoverImg = product.images[1]?.url || primaryImg;
 
@@ -31,19 +34,31 @@ export function ProductCard({ product }: ProductCardProps) {
   };
 
   const [selectedVariant, setSelectedVariant] = useState<ProductVariantData>(defaultVariant);
-  const [isWishlisted, setIsWishlisted] = useState(false);
+  const [isWishlisted, setIsWishlisted] = useState(product.isWishlisted ?? false);
   const [isQuickViewOpen, setIsQuickViewOpen] = useState(false);
   const [added, setAdded] = useState(false);
   const addItem = useCartStore((state) => state.addItem);
 
   const availableSizes = Array.from(
-    new Set(product.variants?.map((v) => v.size) || ["S", "M", "L"])
+    new Set(product.variants?.map((v) => v.size) || [])
   );
 
+  // 3-Tier Pricing Model
+  const effectivePrice = product.priceObject?.effective ?? product.price;
+  const regularPrice = product.priceObject?.regular ?? product.compareAtPrice ?? product.price;
   const discountPercentage =
-    product.compareAtPrice && product.compareAtPrice > product.price
-      ? Math.round(((product.compareAtPrice - product.price) / product.compareAtPrice) * 100)
+    product.priceObject?.discountPercentage !== undefined && product.priceObject.discountPercentage > 0
+      ? product.priceObject.discountPercentage
+      : regularPrice > effectivePrice
+      ? Math.round(((regularPrice - effectivePrice) / regularPrice) * 100)
       : null;
+  const hasSpecialOffer = product.priceObject?.offer !== null && product.priceObject?.offer !== undefined;
+
+  // Add-to-Cart Readiness
+  const requiresConfig = Boolean(
+    product.requiresConfiguration ??
+      ((product.variants && product.variants.length > 1) || Boolean(product.modifierGroups?.length))
+  );
 
   const handleQuickAdd = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -53,8 +68,8 @@ export function ProductCard({ product }: ProductCardProps) {
       productId: product.id,
       variantId: selectedVariant.id,
       name: product.name,
-      price: selectedVariant.price,
-      compareAtPrice: selectedVariant.compareAtPrice || undefined,
+      price: selectedVariant.price || effectivePrice,
+      compareAtPrice: selectedVariant.compareAtPrice || regularPrice,
       size: selectedVariant.size,
       colorName: selectedVariant.colorName,
       colorHex: selectedVariant.colorHex,
@@ -94,12 +109,17 @@ export function ProductCard({ product }: ProductCardProps) {
             />
           </Link>
 
-          {/* Discount Badge */}
-          {discountPercentage && (
-            <div className="absolute top-3 left-3 bg-rose-600 text-white text-[11px] font-bold px-2.5 py-1 rounded-full shadow-sm">
-              {discountPercentage}% OFF
+          {/* Badges: Special Offer or Discount */}
+          {hasSpecialOffer ? (
+            <div className="absolute top-3 left-3 bg-amber-600 text-white text-[10px] font-bold px-2.5 py-1 rounded-full shadow-sm flex items-center gap-1 uppercase tracking-wider">
+              <Sparkles className="w-3 h-3" />
+              <span>Special Deal</span>
             </div>
-          )}
+          ) : discountPercentage ? (
+            <div className="absolute top-3 left-3 bg-rose-600 text-white text-[11px] font-bold px-2.5 py-1 rounded-full shadow-sm">
+              -{discountPercentage}% OFF
+            </div>
+          ) : null}
 
           {/* Wishlist Button */}
           {featureConfig.wishlist && (
@@ -143,12 +163,12 @@ export function ProductCard({ product }: ProductCardProps) {
             <div className="flex items-center gap-2 mt-1">
               <span className="text-base font-extrabold text-neutral-900">
                 {storeConfig.currency.symbol}
-                {product.price.toLocaleString()}
+                {effectivePrice.toLocaleString()}
               </span>
-              {product.compareAtPrice && product.compareAtPrice > product.price && (
+              {regularPrice > effectivePrice && (
                 <span className="text-xs text-neutral-400 line-through">
                   {storeConfig.currency.symbol}
-                  {product.compareAtPrice.toLocaleString()}
+                  {regularPrice.toLocaleString()}
                 </span>
               )}
             </div>
@@ -178,27 +198,38 @@ export function ProductCard({ product }: ProductCardProps) {
             </div>
           )}
 
-          {/* Big Simple Add to Bag Button */}
-          <button
-            onClick={handleQuickAdd}
-            className={`w-full py-2.5 rounded-xl text-xs font-bold tracking-wider uppercase flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm ${
-              added
-                ? "bg-emerald-600 text-white"
-                : "bg-neutral-900 text-white hover:bg-amber-600"
-            }`}
-          >
-            {added ? (
-              <>
-                <Check className="w-4 h-4" />
-                <span>Added to Bag!</span>
-              </>
-            ) : (
-              <>
-                <ShoppingBag className="w-3.5 h-3.5" />
-                <span>Add to Bag</span>
-              </>
-            )}
-          </button>
+          {/* Action Button: Choose Options vs Add to Bag based on requiresConfiguration */}
+          {requiresConfig ? (
+            <Link
+              href={`/products/${product.slug}`}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full py-2.5 rounded-xl text-xs font-bold tracking-wider uppercase flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm bg-neutral-900 text-white hover:bg-amber-700"
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5" />
+              <span>Choose Options</span>
+            </Link>
+          ) : (
+            <button
+              onClick={handleQuickAdd}
+              className={`w-full py-2.5 rounded-xl text-xs font-bold tracking-wider uppercase flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm ${
+                added
+                  ? "bg-emerald-600 text-white"
+                  : "bg-neutral-900 text-white hover:bg-amber-600"
+              }`}
+            >
+              {added ? (
+                <>
+                  <Check className="w-4 h-4" />
+                  <span>Added to Bag!</span>
+                </>
+              ) : (
+                <>
+                  <ShoppingBag className="w-3.5 h-3.5" />
+                  <span>Add to Bag</span>
+                </>
+              )}
+            </button>
+          )}
         </div>
 
       </div>
@@ -212,3 +243,4 @@ export function ProductCard({ product }: ProductCardProps) {
     </>
   );
 }
+

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import {
   Search,
@@ -10,7 +10,8 @@ import {
   Menu,
   X,
   ShieldAlert,
-  Sparkles,
+  ChevronDown,
+  ArrowRight,
 } from "lucide-react";
 import { storeConfig } from "@/config/store.config";
 import { featureConfig } from "@/config/feature.config";
@@ -22,6 +23,8 @@ export function Navbar() {
   const openCart = useCartStore((state) => state.openCart);
   const { isMobileMenuOpen, toggleMobileMenu, closeMobileMenu, toggleSearch } = useUIStore();
   const [isScrolled, setIsScrolled] = useState(false);
+  const [isCategoryMenuOpen, setIsCategoryMenuOpen] = useState(false);
+  const closeTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -31,10 +34,21 @@ export function Navbar() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
+  const handleMouseEnter = () => {
+    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    setIsCategoryMenuOpen(true);
+  };
+
+  const handleMouseLeave = () => {
+    closeTimerRef.current = setTimeout(() => {
+      setIsCategoryMenuOpen(false);
+    }, 150);
+  };
+
   return (
     <header
       className={`sticky top-0 z-40 bg-[var(--background)]/95 backdrop-blur-md border-b border-[var(--border)] transition-all duration-300 ${
-        isScrolled ? "shadow-md py-0" : "py-1"
+        isScrolled ? "shadow-sm py-0" : "py-1"
       }`}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -51,39 +65,132 @@ export function Navbar() {
             </button>
           </div>
 
-          {/* Left Navigation Links (Desktop) - Clean & Minimal */}
-          <nav className="hidden lg:flex items-center gap-8">
+          {/* Left Navigation Links (Desktop) - Clean & Focused */}
+          <nav className="hidden lg:flex items-center gap-7">
             <Link
-              href="/"
+              href="/categories/womens-couture"
               className="text-xs font-semibold uppercase tracking-widest text-[var(--foreground)] hover:text-amber-700 transition-colors"
             >
-              HOME
+              WOMEN
             </Link>
+
+            <Link
+              href="/categories/mens-apparel"
+              className="text-xs font-semibold uppercase tracking-widest text-[var(--foreground)] hover:text-amber-700 transition-colors"
+            >
+              MEN
+            </Link>
+
+            {/* Simple, Non-Intrusive Categories Dropdown */}
+            <div
+              className="relative"
+              onMouseEnter={handleMouseEnter}
+              onMouseLeave={handleMouseLeave}
+            >
+              <Link
+                href="/categories"
+                className={`text-xs font-semibold uppercase tracking-widest transition-colors flex items-center gap-1 py-2 cursor-pointer ${
+                  isCategoryMenuOpen ? "text-amber-700" : "text-[var(--foreground)] hover:text-amber-700"
+                }`}
+              >
+                <span>CATEGORIES</span>
+                <ChevronDown
+                  className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                    isCategoryMenuOpen ? "rotate-180 text-amber-700" : ""
+                  }`}
+                />
+              </Link>
+
+              {/* Clean Lightweight Dropdown Menu */}
+              {isCategoryMenuOpen && (
+                <div className="absolute top-full left-0 w-80 bg-white border border-neutral-200 rounded-2xl shadow-xl p-5 animate-in fade-in slide-in-from-top-2 duration-150 z-50 text-neutral-900">
+                  <div className="space-y-4">
+                    {/* Women's Quick Links */}
+                    <div>
+                      <Link
+                        href="/categories/womens-couture"
+                        onClick={() => setIsCategoryMenuOpen(false)}
+                        className="text-[11px] font-bold uppercase tracking-wider text-amber-800 hover:text-amber-900 block mb-2"
+                      >
+                        Women&apos;s Couture
+                      </Link>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <Link
+                          href="/categories/evening-gowns"
+                          onClick={() => setIsCategoryMenuOpen(false)}
+                          className="text-neutral-600 hover:text-amber-700 transition-colors py-0.5"
+                        >
+                          Evening Gowns
+                        </Link>
+                        <Link
+                          href="/categories/sarees"
+                          onClick={() => setIsCategoryMenuOpen(false)}
+                          className="text-neutral-600 hover:text-amber-700 transition-colors py-0.5"
+                        >
+                          Royal Sarees
+                        </Link>
+                        <Link
+                          href="/categories/dresses"
+                          onClick={() => setIsCategoryMenuOpen(false)}
+                          className="text-neutral-600 hover:text-amber-700 transition-colors py-0.5 col-span-2"
+                        >
+                          Designer Dresses
+                        </Link>
+                      </div>
+                    </div>
+
+                    <div className="border-t border-neutral-100 pt-3">
+                      {/* Men's Quick Links */}
+                      <Link
+                        href="/categories/mens-apparel"
+                        onClick={() => setIsCategoryMenuOpen(false)}
+                        className="text-[11px] font-bold uppercase tracking-wider text-amber-800 hover:text-amber-900 block mb-2"
+                      >
+                        Men&apos;s Apparel
+                      </Link>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <Link
+                          href="/categories/mens-suits"
+                          onClick={() => setIsCategoryMenuOpen(false)}
+                          className="text-neutral-600 hover:text-amber-700 transition-colors py-0.5"
+                        >
+                          Suits & Blazers
+                        </Link>
+                        <Link
+                          href="/categories/mens-shirts"
+                          onClick={() => setIsCategoryMenuOpen(false)}
+                          className="text-neutral-600 hover:text-amber-700 transition-colors py-0.5"
+                        >
+                          Cotton Shirts
+                        </Link>
+                      </div>
+                    </div>
+
+                    {/* All Categories Link */}
+                    <div className="border-t border-neutral-100 pt-3">
+                      <Link
+                        href="/categories"
+                        onClick={() => setIsCategoryMenuOpen(false)}
+                        className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-neutral-900 hover:text-amber-700 transition-colors"
+                      >
+                        <span>All Categories</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
 
             <Link
               href="/products"
-              className="text-xs font-bold uppercase tracking-widest text-[var(--foreground)] hover:text-amber-700 transition-colors flex items-center gap-1.5"
-            >
-              <span>SHOP</span>
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-600 inline-block" />
-            </Link>
-
-            <Link
-              href="/products?sort=newest"
               className="text-xs font-semibold uppercase tracking-widest text-[var(--foreground)] hover:text-amber-700 transition-colors"
             >
-              NEW ARRIVALS
+              SHOP ALL
             </Link>
 
             <Link
-              href="/collections"
-              className="text-xs font-semibold uppercase tracking-widest text-[var(--foreground)] hover:text-amber-700 transition-colors"
-            >
-              COLLECTIONS
-            </Link>
-
-            <Link
-              href="/products?sort=discount"
+              href="/products?sort=best_deals"
               className="text-xs font-bold uppercase tracking-widest text-rose-600 hover:text-rose-800 transition-colors"
             >
               SALE
@@ -155,21 +262,37 @@ export function Navbar() {
         </div>
       </div>
 
-      {/* Mobile Drawer Menu - Clean & Minimal */}
+      {/* Mobile Drawer Menu - Clean, Intuitive & Spacious */}
       {isMobileMenuOpen && (
         <div className="lg:hidden bg-[var(--background)] border-b border-[var(--border)] px-6 py-6 space-y-4 animate-in slide-in-from-top-2">
           <Link
-            href="/"
+            href="/categories/womens-couture"
             onClick={closeMobileMenu}
-            className="block text-sm font-semibold uppercase tracking-widest text-[var(--foreground)]"
+            className="block text-sm font-semibold uppercase tracking-widest text-[var(--foreground)] hover:text-amber-700 transition-colors"
           >
-            Home
+            Women&apos;s Couture
+          </Link>
+
+          <Link
+            href="/categories/mens-apparel"
+            onClick={closeMobileMenu}
+            className="block text-sm font-semibold uppercase tracking-widest text-[var(--foreground)] hover:text-amber-700 transition-colors"
+          >
+            Men&apos;s Apparel
+          </Link>
+
+          <Link
+            href="/categories"
+            onClick={closeMobileMenu}
+            className="block text-sm font-semibold uppercase tracking-widest text-amber-800 hover:text-amber-900 transition-colors"
+          >
+            All Categories
           </Link>
 
           <Link
             href="/products"
             onClick={closeMobileMenu}
-            className="block text-sm font-bold uppercase tracking-widest text-amber-700"
+            className="block text-sm font-semibold uppercase tracking-widest text-[var(--foreground)] hover:text-amber-700 transition-colors"
           >
             Shop All
           </Link>
@@ -177,46 +300,40 @@ export function Navbar() {
           <Link
             href="/products?sort=newest"
             onClick={closeMobileMenu}
-            className="block text-sm font-semibold uppercase tracking-widest text-[var(--foreground)]"
+            className="block text-sm font-semibold uppercase tracking-widest text-[var(--foreground)] hover:text-amber-700 transition-colors"
           >
             New Arrivals
           </Link>
 
           <Link
-            href="/collections"
+            href="/products?sort=best_deals"
             onClick={closeMobileMenu}
-            className="block text-sm font-semibold uppercase tracking-widest text-[var(--foreground)]"
+            className="block text-sm font-bold uppercase tracking-widest text-rose-600 hover:text-rose-800 transition-colors"
           >
-            Collections
+            Sale & Special Deals
           </Link>
 
-          <Link
-            href="/products?sort=discount"
-            onClick={closeMobileMenu}
-            className="block text-sm font-bold uppercase tracking-widest text-rose-600"
-          >
-            Sale
-          </Link>
+          <div className="border-t border-[var(--border)] pt-4 space-y-3">
+            {featureConfig.wishlist && (
+              <Link
+                href="/wishlist"
+                onClick={closeMobileMenu}
+                className="block text-sm font-semibold uppercase tracking-widest text-[var(--foreground)]"
+              >
+                Saved Wishlist
+              </Link>
+            )}
 
-          {featureConfig.wishlist && (
-            <Link
-              href="/wishlist"
-              onClick={closeMobileMenu}
-              className="block text-sm font-semibold uppercase tracking-widest text-[var(--foreground)] border-t border-[var(--border)] pt-3"
-            >
-              Saved Wishlist
-            </Link>
-          )}
-
-          {featureConfig.customerAccounts && (
-            <Link
-              href="/account"
-              onClick={closeMobileMenu}
-              className="block text-sm font-semibold uppercase tracking-widest text-[var(--foreground)]"
-            >
-              My Account
-            </Link>
-          )}
+            {featureConfig.customerAccounts && (
+              <Link
+                href="/account"
+                onClick={closeMobileMenu}
+                className="block text-sm font-semibold uppercase tracking-widest text-[var(--foreground)]"
+              >
+                My Account
+              </Link>
+            )}
+          </div>
         </div>
       )}
     </header>

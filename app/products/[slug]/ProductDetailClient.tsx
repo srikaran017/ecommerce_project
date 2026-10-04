@@ -88,6 +88,27 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
   const [newComment, setNewComment] = useState("");
   const [newAuthor, setNewAuthor] = useState("");
 
+  // Selected modifier options: { [groupId: string]: optionId }
+  const [selectedModifiers, setSelectedModifiers] = useState<Record<string, string>>(() => {
+    const initial: Record<string, string> = {};
+    if (product.modifierGroups) {
+      product.modifierGroups.forEach((g) => {
+        const defaultOpt = g.options.find((o) => o.isDefault) || g.options[0];
+        if (defaultOpt) {
+          initial[g.id] = defaultOpt.id;
+        }
+      });
+    }
+    return initial;
+  });
+
+  // Calculate modifier price delta
+  const modifierDelta = Object.entries(selectedModifiers).reduce((sum, [groupId, optId]) => {
+    const group = product.modifierGroups?.find((g) => g.id === groupId);
+    const option = group?.options.find((o) => o.id === optId);
+    return sum + (option?.priceDelta || 0);
+  }, 0);
+
   // Group unique colors & sizes
   const uniqueColors = Array.from(
     new Map(product.variants?.map((v) => [v.colorName, v])).values()
@@ -96,6 +117,21 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
   const uniqueSizes = Array.from(
     new Set(product.variants?.map((v) => v.size) || ["S", "M", "L", "XL"])
   );
+
+  // 3-Tier Active Pricing
+  const activePrice = selectedVariant.priceObject || {
+    regular: selectedVariant.compareAtPrice || selectedVariant.price,
+    sale: selectedVariant.price,
+    offer: null,
+    effective: selectedVariant.price,
+    discountPercentage:
+      selectedVariant.compareAtPrice && selectedVariant.compareAtPrice > selectedVariant.price
+        ? Math.round(((selectedVariant.compareAtPrice - selectedVariant.price) / selectedVariant.compareAtPrice) * 100)
+        : 0,
+  };
+
+  const finalDisplayPrice = activePrice.effective + modifierDelta;
+  const hasOffer = activePrice.offer !== null && activePrice.offer !== undefined;
 
   // Update active image when variant color changes
   const handleColorSelect = (colorVariant: ProductVariantData) => {
@@ -129,8 +165,8 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
       productId: product.id,
       variantId: selectedVariant.id,
       name: product.name,
-      price: selectedVariant.price,
-      compareAtPrice: selectedVariant.compareAtPrice || undefined,
+      price: finalDisplayPrice,
+      compareAtPrice: activePrice.regular > finalDisplayPrice ? activePrice.regular : undefined,
       size: selectedVariant.size,
       colorName: selectedVariant.colorName,
       colorHex: selectedVariant.colorHex,
@@ -180,11 +216,27 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
     <div className="py-10 bg-[var(--background)]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
-        {/* Breadcrumb Navigation */}
-        <nav className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-widest text-[var(--muted-foreground)] mb-8">
+        {/* Breadcrumb Navigation with Hierarchy */}
+        <nav className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-widest text-[var(--muted-foreground)] mb-8 flex-wrap">
           <Link href="/" className="hover:text-[var(--foreground)]">Home</Link>
           <ChevronRight className="w-3 h-3" />
           <Link href="/products" className="hover:text-[var(--foreground)]">Collections</Link>
+          {product.categoryData?.parent?.parent && (
+            <>
+              <ChevronRight className="w-3 h-3" />
+              <Link href={`/products?category=${product.categoryData.parent.parent.slug}`} className="hover:text-[var(--foreground)]">
+                {product.categoryData.parent.parent.name}
+              </Link>
+            </>
+          )}
+          {product.categoryData?.parent && (
+            <>
+              <ChevronRight className="w-3 h-3" />
+              <Link href={`/products?category=${product.categoryData.parent.slug}`} className="hover:text-[var(--foreground)]">
+                {product.categoryData.parent.name}
+              </Link>
+            </>
+          )}
           <ChevronRight className="w-3 h-3" />
           <Link href={`/products?category=${product.categorySlug}`} className="hover:text-[var(--foreground)]">
             {product.categoryName}
@@ -225,10 +277,10 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
                 alt={product.name}
                 className="w-full h-full object-cover object-top transition-transform duration-700 group-hover:scale-105"
               />
-              {product.compareAtPrice && product.compareAtPrice > product.price && (
+              {activePrice.discountPercentage > 0 && (
                 <div className="absolute top-4 left-4">
                   <Badge variant="sale">
-                    SAVE {Math.round(((product.compareAtPrice - product.price) / product.compareAtPrice) * 100)}%
+                    SAVE {activePrice.discountPercentage}%
                   </Badge>
                 </div>
               )}
@@ -255,13 +307,25 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
                 {product.name}
               </h1>
 
-              <div className="flex items-baseline gap-3 mt-3">
+              {/* 3-Tier Price Display */}
+              <div className="flex items-baseline gap-3 mt-3 flex-wrap">
                 <span className="text-xl sm:text-2xl font-bold text-[var(--foreground)]">
-                  {storeConfig.currency.symbol}{selectedVariant.price.toLocaleString()}
+                  {storeConfig.currency.symbol}{finalDisplayPrice.toLocaleString()}
                 </span>
-                {selectedVariant.compareAtPrice && selectedVariant.compareAtPrice > selectedVariant.price && (
+                {activePrice.regular > activePrice.effective && (
                   <span className="text-sm text-[var(--muted-foreground)] line-through">
-                    {storeConfig.currency.symbol}{selectedVariant.compareAtPrice.toLocaleString()}
+                    {storeConfig.currency.symbol}{activePrice.regular.toLocaleString()}
+                  </span>
+                )}
+                {activePrice.discountPercentage > 0 && (
+                  <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-600 text-white shadow-sm">
+                    -{activePrice.discountPercentage}% OFF
+                  </span>
+                )}
+                {hasOffer && (
+                  <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-600 text-white shadow-sm uppercase tracking-wider flex items-center gap-1">
+                    <Sparkles className="w-3 h-3" />
+                    Special Deal
                   </span>
                 )}
                 <span className="text-[11px] text-[var(--muted-foreground)] ml-auto">
@@ -349,6 +413,73 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
                 })}
               </div>
             </div>
+
+            {/* Modifier Groups (e.g. Luxury Gift Box, Custom Tailoring) */}
+            {product.modifierGroups && product.modifierGroups.length > 0 && (
+              <div className="space-y-4 pt-4 border-t border-[var(--border)]">
+                {product.modifierGroups.map((group) => (
+                  <div key={group.id} className="space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold uppercase tracking-wider text-[var(--foreground)] flex items-center gap-1.5">
+                        <span>{group.name}</span>
+                        {group.isRequired && (
+                          <span className="text-rose-500 font-normal">*Required</span>
+                        )}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {group.options.map((opt) => {
+                        const isSelected = selectedModifiers[group.id] === opt.id;
+                        return (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            onClick={() =>
+                              setSelectedModifiers((prev) => ({
+                                ...prev,
+                                [group.id]: opt.id,
+                              }))
+                            }
+                            className={`p-3 rounded-[var(--radius)] border text-left text-xs transition-all cursor-pointer flex items-center justify-between ${
+                              isSelected
+                                ? "border-[var(--foreground)] bg-[var(--muted)]/50 ring-1 ring-[var(--foreground)] shadow-sm"
+                                : "border-[var(--border)] hover:border-[var(--foreground)]"
+                            }`}
+                          >
+                            <span className="font-medium text-[var(--foreground)]">{opt.name}</span>
+                            <span className="text-[11px] font-bold text-amber-700">
+                              {opt.priceDelta > 0 ? `+${storeConfig.currency.symbol}${opt.priceDelta}` : "Included"}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Dynamic Product Attributes (Fabric, Occasion, Material, etc.) */}
+            {product.dynamicAttributes && product.dynamicAttributes.length > 0 && (
+              <div className="pt-4 border-t border-[var(--border)]">
+                <span className="text-xs font-bold uppercase tracking-wider text-[var(--foreground)] block mb-2.5">
+                  Garment Attributes
+                </span>
+                <div className="grid grid-cols-2 gap-2.5">
+                  {product.dynamicAttributes.map((attr, idx) => (
+                    <div key={idx} className="p-2.5 rounded-xl bg-[var(--muted)]/30 border border-[var(--border)] text-xs">
+                      <span className="text-[10px] uppercase tracking-wider text-[var(--muted-foreground)] block">
+                        {attr.attribute}
+                      </span>
+                      <span className="font-semibold text-[var(--foreground)] mt-0.5 block">
+                        {attr.value}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Dynamic Stock Notification Banner */}
             {isLowStock && (
