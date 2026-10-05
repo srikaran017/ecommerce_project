@@ -118,15 +118,19 @@ function transformApiItemToStoreItem(apiItem: ApiCartItem): CartItem {
     (a) => a.attributeSlug === "color" || a.attribute.toLowerCase() === "color"
   );
 
+  const unitPrice = apiItem.pricing?.unitPrice ?? 0;
+  const modifierUnitTotal = apiItem.pricing?.modifierTotal ?? 0;
+  const effectiveUnitPrice = unitPrice + modifierUnitTotal;
+
   return {
     id: apiItem.id,
     productId: apiItem.productId,
     variantId: apiItem.variantId,
     name: apiItem.product.name,
-    price: apiItem.pricing.unitPrice,
+    price: effectiveUnitPrice,
     compareAtPrice:
-      apiItem.pricing.regularPrice > apiItem.pricing.unitPrice
-        ? apiItem.pricing.regularPrice
+      apiItem.pricing?.regularPrice && apiItem.pricing.regularPrice > unitPrice
+        ? apiItem.pricing.regularPrice + modifierUnitTotal
         : undefined,
     size: sizeAttr?.value || "Standard",
     colorName: colorAttr?.value || "Default",
@@ -135,7 +139,7 @@ function transformApiItemToStoreItem(apiItem: ApiCartItem): CartItem {
       "https://images.unsplash.com/photo-1566174053879-31528523f8ae?w=800",
     sku: apiItem.variant?.sku || apiItem.product.sku || "",
     quantity: apiItem.quantity,
-    maxStock: apiItem.availability.availableQuantity || 99,
+    maxStock: apiItem.availability?.availableQuantity || 99,
     selectedModifiers: apiItem.selectedModifiers || [],
     pricing: apiItem.pricing,
     availability: apiItem.availability,
@@ -376,10 +380,13 @@ export const useCartStore = create<CartState>()(
         if (apiCart && typeof apiCart.subtotal === "number") {
           return apiCart.subtotal;
         }
-        return get().items.reduce(
-          (sum, item) => sum + item.price * item.quantity,
-          0
-        );
+        return get().items.reduce((sum, item) => {
+          const unitPrice =
+            item.pricing?.unitPrice !== undefined
+              ? item.pricing.unitPrice
+              : item.price - (item.pricing?.modifierTotal || 0);
+          return sum + unitPrice * item.quantity;
+        }, 0);
       },
 
       getModifiersTotal: () => {
@@ -387,18 +394,30 @@ export const useCartStore = create<CartState>()(
         if (apiCart && typeof apiCart.modifiersTotal === "number") {
           return apiCart.modifiersTotal;
         }
-        return 0;
+        return get().items.reduce((sum, item) => {
+          if (item.pricing?.modifierTotal !== undefined) {
+            return sum + item.pricing.modifierTotal * item.quantity;
+          }
+          if (item.selectedModifiers && item.selectedModifiers.length > 0) {
+            const modSum = item.selectedModifiers.reduce(
+              (acc, m) => acc + (m.priceDelta || 0),
+              0
+            );
+            return sum + modSum * item.quantity;
+          }
+          return sum;
+        }, 0);
       },
 
       getDiscountAmount: () => {
-        const subtotal = get().getSubtotal();
+        const merchandise = get().getSubtotal() + get().getModifiersTotal();
         const coupon = get().appliedCoupon;
-        if (!coupon) return 0;
+        if (!coupon || merchandise <= 0) return 0;
 
         if (coupon.discountType === "PERCENTAGE") {
-          return Math.round((subtotal * coupon.discountValue) / 100);
+          return Math.round((merchandise * coupon.discountValue) / 100);
         } else {
-          return Math.min(coupon.discountValue, subtotal);
+          return Math.min(coupon.discountValue, merchandise);
         }
       },
 
@@ -407,9 +426,9 @@ export const useCartStore = create<CartState>()(
         if (apiCart && apiCart.shipping !== null && apiCart.shipping !== undefined) {
           return apiCart.shipping;
         }
-        const subtotal = get().getSubtotal();
-        if (subtotal === 0) return 0;
-        if (subtotal >= storeConfig.shipping.freeShippingThreshold) return 0;
+        const merchandise = get().getSubtotal() + get().getModifiersTotal();
+        if (merchandise === 0) return 0;
+        if (merchandise >= storeConfig.shipping.freeShippingThreshold) return 0;
         return storeConfig.shipping.flatRate;
       },
 
@@ -418,9 +437,10 @@ export const useCartStore = create<CartState>()(
         if (apiCart && apiCart.tax !== null && apiCart.tax !== undefined) {
           return apiCart.tax;
         }
-        const subtotal = get().getSubtotal();
-        const discount = get().getDiscountAmount();
-        const taxableAmount = Math.max(0, subtotal - discount);
+        const taxableAmount = Math.max(
+          0,
+          get().getSubtotal() + get().getModifiersTotal() - get().getDiscountAmount()
+        );
         if (storeConfig.tax.includedInPrice) return 0;
         return Math.round(
           (taxableAmount * storeConfig.tax.defaultTaxRatePercentage) / 100
@@ -429,17 +449,16 @@ export const useCartStore = create<CartState>()(
 
       getTotal: () => {
         const apiCart = get().apiCart;
-        if (apiCart && typeof apiCart.total === "number") {
-          const discount = get().getDiscountAmount();
-          const shipping = get().getShippingAmount();
-          const tax = get().getTaxAmount();
-          return Math.max(0, apiCart.total - discount + (shipping || 0) + (tax || 0));
-        }
-        const subtotal = get().getSubtotal();
         const discount = get().getDiscountAmount();
         const shipping = get().getShippingAmount();
         const tax = get().getTaxAmount();
-        return Math.max(0, subtotal - discount + shipping + tax);
+
+        if (apiCart && typeof apiCart.total === "number") {
+          return Math.max(0, apiCart.total - discount + (shipping || 0) + (tax || 0));
+        }
+
+        const merchandise = get().getSubtotal() + get().getModifiersTotal();
+        return Math.max(0, merchandise - discount + (shipping || 0) + (tax || 0));
       },
 
       getItemCount: () => {
@@ -473,6 +492,7 @@ export const useCartStore = create<CartState>()(
       name: "maison_cart_store",
       partialize: (state) => ({
         items: state.items,
+        apiCart: state.apiCart,
         appliedCoupon: state.appliedCoupon,
       }),
     }

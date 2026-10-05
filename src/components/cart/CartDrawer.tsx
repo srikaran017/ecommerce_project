@@ -453,7 +453,7 @@ export function CartDrawer() {
                 href={
                   hasOutOfStock
                     ? "#"
-                    : isAuthenticated
+                    : featureConfig.guestCheckout || isAuthenticated
                     ? "/checkout"
                     : "/login?redirect=/checkout"
                 }

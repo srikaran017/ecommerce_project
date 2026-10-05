@@ -22,7 +22,8 @@ export default async function OrderSuccessPage({
   const { orderId } = await params;
   const { method, amount, email, phone } = await searchParams;
 
-  const total = amount ? Number(amount) : 18999;
+  const parsedAmount = amount ? Number(amount.replace(/[^0-9.]/g, "")) : 0;
+  const total = isNaN(parsedAmount) ? 0 : parsedAmount;
   const customerEmail = email || "customer@example.com";
   const customerPhone = phone || "+91 98765 43210";
 

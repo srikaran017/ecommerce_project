@@ -26,7 +26,10 @@ export default function CheckoutPage() {
   const { user, isAuthenticated } = useAuthStore();
   const {
     items,
+    apiCart,
+    fetchCart,
     getSubtotal,
+    getModifiersTotal,
     getShippingAmount,
     getDiscountAmount,
     getTotal,
@@ -36,24 +39,30 @@ export default function CheckoutPage() {
     clearCart,
   } = useCartStore();
 
-  // Redirect unauthenticated guests to login while preserving destination
+  // Ensure cart is fresh and synchronized with backend on mount
   React.useEffect(() => {
-    if (!isAuthenticated) {
+    fetchCart().catch(() => {});
+  }, [fetchCart]);
+
+  // Redirect unauthenticated guests to login only if guest checkout is disabled
+  React.useEffect(() => {
+    if (!featureConfig.guestCheckout && !isAuthenticated) {
       router.push("/login?redirect=/checkout");
     }
   }, [isAuthenticated, router]);
 
   const subtotal = getSubtotal();
+  const modifiersTotal = getModifiersTotal();
   const shipping = getShippingAmount();
   const discount = getDiscountAmount();
   const total = getTotal();
 
   // Checkout Form State
   const [formData, setFormData] = useState({
-    email: user?.email || "customer@example.com",
-    firstName: user?.name?.split(" ")[0] || "Aarav",
-    lastName: user?.name?.split(" ").slice(1).join(" ") || "Sharma",
-    phone: user?.phone || "+91 98765 00002",
+    email: user?.email || "",
+    firstName: user?.name?.split(" ")[0] || "",
+    lastName: user?.name?.split(" ").slice(1).join(" ") || "",
+    phone: user?.phone || "",
     street: "102, Skyline Residency, Bandra West",
     city: "Mumbai",
     state: "Maharashtra",
@@ -61,6 +70,19 @@ export default function CheckoutPage() {
     country: "India",
     paymentMethod: "razorpay" as "razorpay" | "cod",
   });
+
+  // Sync form data when user logs in
+  React.useEffect(() => {
+    if (user) {
+      setFormData((prev) => ({
+        ...prev,
+        email: prev.email || user.email || "",
+        firstName: prev.firstName || user.name?.split(" ")[0] || "",
+        lastName: prev.lastName || user.name?.split(" ").slice(1).join(" ") || "",
+        phone: prev.phone || user.phone || "",
+      }));
+    }
+  }, [user]);
 
   const [couponInput, setCouponInput] = useState("");
   const [couponError, setCouponError] = useState("");
@@ -74,12 +96,14 @@ export default function CheckoutPage() {
     e.preventDefault();
     setCouponError("");
     const code = couponInput.trim().toUpperCase();
+    const merchandiseBase = subtotal + modifiersTotal;
+
     if (code === "LUXE10") {
       applyCoupon({
         code: "LUXE10",
         discountType: "PERCENTAGE",
         discountValue: 10,
-        calculatedDiscount: Math.round((subtotal * 10) / 100),
+        calculatedDiscount: Math.round((merchandiseBase * 10) / 100),
       });
       setCouponInput("");
     } else if (code === "WELCOME1000") {
@@ -87,7 +111,7 @@ export default function CheckoutPage() {
         code: "WELCOME1000",
         discountType: "FIXED",
         discountValue: 1000,
-        calculatedDiscount: Math.min(1000, subtotal),
+        calculatedDiscount: Math.min(1000, merchandiseBase),
       });
       setCouponInput("");
     } else {
@@ -102,14 +126,18 @@ export default function CheckoutPage() {
     setIsProcessing(true);
 
     try {
-      // Create mock or real order ID
       const orderId = `ORD-${Date.now().toString().slice(-6)}`;
+      const finalAmount = total;
 
       // Simulate network latency for payment gateway handshake
       await new Promise((resolve) => setTimeout(resolve, 1500));
 
       clearCart();
-      router.push(`/order-success/${orderId}?method=${formData.paymentMethod}&amount=${total}&email=${encodeURIComponent(formData.email)}&phone=${encodeURIComponent(formData.phone)}`);
+      router.push(
+        `/order-success/${orderId}?method=${formData.paymentMethod}&amount=${finalAmount}&email=${encodeURIComponent(
+          formData.email
+        )}&phone=${encodeURIComponent(formData.phone)}`
+      );
     } catch (error) {
       console.error("Payment processing error:", error);
       setIsProcessing(false);
@@ -358,28 +386,43 @@ export default function CheckoutPage() {
 
             {/* Item List */}
             <div className="space-y-4 max-h-72 overflow-y-auto pr-2 scrollbar-none divide-y divide-[var(--border)]">
-              {items.map((item) => (
-                <div key={item.id} className="pt-3 first:pt-0 flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-3">
-                    <img
-                      src={item.imageUrl}
-                      alt={item.name}
-                      className="w-12 h-16 object-cover rounded-[var(--radius)] flex-shrink-0"
-                    />
-                    <div>
-                      <h4 className="text-xs font-bold uppercase tracking-wide text-[var(--foreground)] line-clamp-1">
-                        {item.name}
-                      </h4>
-                      <p className="text-[11px] text-[var(--muted-foreground)]">
-                        Size: {item.size} • Qty: {item.quantity}
-                      </p>
+              {items.map((item) => {
+                const lineTotal = item.pricing?.lineTotal ?? item.price * item.quantity;
+                return (
+                  <div key={item.id} className="pt-3 first:pt-0 flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-3">
+                      <img
+                        src={item.imageUrl}
+                        alt={item.name}
+                        className="w-12 h-16 object-cover rounded-[var(--radius)] flex-shrink-0"
+                      />
+                      <div>
+                        <h4 className="text-xs font-bold uppercase tracking-wide text-[var(--foreground)] line-clamp-1">
+                          {item.name}
+                        </h4>
+                        <p className="text-[11px] text-[var(--muted-foreground)]">
+                          Size: {item.size} • Qty: {item.quantity}
+                        </p>
+                        {item.selectedModifiers && item.selectedModifiers.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {item.selectedModifiers.map((mod) => (
+                              <span
+                                key={mod.id}
+                                className="text-[9px] text-amber-800 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded font-medium"
+                              >
+                                +{mod.name} (+{storeConfig.currency.symbol}{mod.priceDelta})
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
+                    <span className="text-xs font-bold text-[var(--foreground)] whitespace-nowrap">
+                      {storeConfig.currency.symbol}{lineTotal.toLocaleString()}
+                    </span>
                   </div>
-                  <span className="text-xs font-bold text-[var(--foreground)]">
-                    {storeConfig.currency.symbol}{(item.price * item.quantity).toLocaleString()}
-                  </span>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* Coupon Application (Respecting feature flag) */}
@@ -388,7 +431,7 @@ export default function CheckoutPage() {
                 {appliedCoupon ? (
                   <div className="flex items-center justify-between bg-emerald-100 text-emerald-950 px-3 py-2 text-xs rounded-[var(--radius)]">
                     <span className="font-bold">Code {appliedCoupon.code} applied!</span>
-                    <button onClick={removeCoupon} className="underline text-xs">Remove</button>
+                    <button onClick={removeCoupon} className="underline text-xs cursor-pointer">Remove</button>
                   </div>
                 ) : (
                   <form onSubmit={handleApplyCoupon} className="flex gap-2">
@@ -411,19 +454,29 @@ export default function CheckoutPage() {
             {/* Cost Breakdown */}
             <div className="pt-4 border-t border-[var(--border)] space-y-2.5 text-xs">
               <div className="flex justify-between text-[var(--muted-foreground)]">
-                <span>Subtotal</span>
+                <span>Product Subtotal</span>
                 <span>{storeConfig.currency.symbol}{subtotal.toLocaleString()}</span>
               </div>
+
+              {modifiersTotal > 0 && (
+                <div className="flex justify-between text-amber-800 font-medium">
+                  <span>Add-ons & Packaging</span>
+                  <span>+{storeConfig.currency.symbol}{modifiersTotal.toLocaleString()}</span>
+                </div>
+              )}
+
               {discount > 0 && (
                 <div className="flex justify-between text-emerald-700 font-semibold">
-                  <span>Discount</span>
+                  <span>Coupon Discount</span>
                   <span>-{storeConfig.currency.symbol}{discount.toLocaleString()}</span>
                 </div>
               )}
+
               <div className="flex justify-between text-[var(--muted-foreground)]">
                 <span>Express Shipping</span>
                 <span>{shipping === 0 ? "COMPLIMENTARY" : `${storeConfig.currency.symbol}${shipping}`}</span>
               </div>
+
               <div className="flex justify-between text-sm font-bold text-[var(--foreground)] pt-3 border-t border-[var(--border)]">
                 <span>Total Due</span>
                 <span>{storeConfig.currency.symbol}{total.toLocaleString()}</span>
