@@ -174,6 +174,7 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
       sku: selectedVariant.sku,
       quantity,
       maxStock: selectedVariant.stock,
+      modifierOptionIds: Object.values(selectedModifiers).filter(Boolean),
     });
 
     setAddedAnimation(true);

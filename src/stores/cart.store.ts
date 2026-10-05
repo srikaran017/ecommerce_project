@@ -1,11 +1,21 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { storeConfig } from "@/config/store.config";
+import {
+  Cart as ApiCart,
+  CartItem as ApiCartItem,
+  CartApi,
+  SelectedModifier,
+  AvailabilityStatus,
+  CartMetafield,
+  getSavedGuestCartToken,
+  setSavedGuestCartToken,
+} from "@/services/cartApi";
 
 export interface CartItem {
-  id: string; // unique item identifier (productId + variantId)
+  id: string; // Line item identifier
   productId: string;
-  variantId: string;
+  variantId?: string | null;
   name: string;
   price: number;
   compareAtPrice?: number;
@@ -16,6 +26,22 @@ export interface CartItem {
   sku: string;
   quantity: number;
   maxStock: number;
+
+  // Authoritative Backend Metadata
+  selectedModifiers?: SelectedModifier[];
+  pricing?: {
+    unitPrice: number;
+    regularPrice: number;
+    salePrice: number | null;
+    offerPrice: number | null;
+    modifierTotal: number;
+    lineTotal: number;
+  };
+  availability?: {
+    status: AvailabilityStatus;
+    availableQuantity: number;
+  };
+  metafields?: CartMetafield[];
 }
 
 export interface AppliedCoupon {
@@ -25,16 +51,44 @@ export interface AppliedCoupon {
   calculatedDiscount: number;
 }
 
+export interface AddItemInput {
+  productId: string;
+  variantId?: string | null;
+  name?: string;
+  price?: number;
+  compareAtPrice?: number;
+  size?: string;
+  colorName?: string;
+  colorHex?: string;
+  imageUrl?: string;
+  sku?: string;
+  quantity?: number;
+  maxStock?: number;
+  modifierOptionIds?: string[];
+  metafields?: Array<{
+    namespace: string;
+    key: string;
+    value: string;
+  }>;
+}
+
 interface CartState {
   items: CartItem[];
+  apiCart: ApiCart | null;
   appliedCoupon: AppliedCoupon | null;
   isOpen: boolean;
+  isLoading: boolean;
+  error: string | null;
 
   // Actions
-  addItem: (item: Omit<CartItem, "id">) => void;
-  removeItem: (id: string) => void;
-  updateQuantity: (id: string, quantity: number) => void;
-  clearCart: () => void;
+  fetchCart: () => Promise<void>;
+  addItem: (item: AddItemInput) => Promise<void>;
+  removeItem: (id: string) => Promise<void>;
+  updateQuantity: (id: string, quantity: number) => Promise<void>;
+  updateModifiers: (id: string, modifierOptionIds: string[]) => Promise<void>;
+  clearCart: () => Promise<void>;
+  mergeGuestCartOnLogin: (token?: string) => Promise<void>;
+  saveGiftMessage: (message: string) => Promise<boolean>;
   applyCoupon: (coupon: AppliedCoupon) => void;
   removeCoupon: () => void;
   openCart: () => void;
@@ -43,61 +97,258 @@ interface CartState {
 
   // Computed Getters
   getSubtotal: () => number;
+  getModifiersTotal: () => number;
   getTaxAmount: () => number;
   getShippingAmount: () => number;
   getDiscountAmount: () => number;
   getTotal: () => number;
   getItemCount: () => number;
+  getLineItemCount: () => number;
+  getAvailabilityIssues: () => {
+    hasOutOfStock: boolean;
+    hasInsufficientStock: boolean;
+  };
+}
+
+function transformApiItemToStoreItem(apiItem: ApiCartItem): CartItem {
+  const sizeAttr = apiItem.variant?.attributes?.find(
+    (a) => a.attributeSlug === "size" || a.attribute.toLowerCase() === "size"
+  );
+  const colorAttr = apiItem.variant?.attributes?.find(
+    (a) => a.attributeSlug === "color" || a.attribute.toLowerCase() === "color"
+  );
+
+  return {
+    id: apiItem.id,
+    productId: apiItem.productId,
+    variantId: apiItem.variantId,
+    name: apiItem.product.name,
+    price: apiItem.pricing.unitPrice,
+    compareAtPrice:
+      apiItem.pricing.regularPrice > apiItem.pricing.unitPrice
+        ? apiItem.pricing.regularPrice
+        : undefined,
+    size: sizeAttr?.value || "Standard",
+    colorName: colorAttr?.value || "Default",
+    imageUrl:
+      apiItem.product.thumbnail ||
+      "https://images.unsplash.com/photo-1566174053879-31528523f8ae?w=800",
+    sku: apiItem.variant?.sku || apiItem.product.sku || "",
+    quantity: apiItem.quantity,
+    maxStock: apiItem.availability.availableQuantity || 99,
+    selectedModifiers: apiItem.selectedModifiers || [],
+    pricing: apiItem.pricing,
+    availability: apiItem.availability,
+    metafields: apiItem.metafields || [],
+  };
 }
 
 export const useCartStore = create<CartState>()(
   persist(
     (set, get) => ({
       items: [],
+      apiCart: null,
       appliedCoupon: null,
       isOpen: false,
+      isLoading: false,
+      error: null,
 
-      addItem: (newItem) => {
-        const id = `${newItem.productId}_${newItem.variantId}`;
-        const existingIndex = get().items.findIndex((item) => item.id === id);
-
-        if (existingIndex > -1) {
-          const updatedItems = [...get().items];
-          const existingItem = updatedItems[existingIndex];
-          const newQty = Math.min(
-            existingItem.quantity + newItem.quantity,
-            newItem.maxStock || 99
-          );
-          updatedItems[existingIndex] = { ...existingItem, quantity: newQty };
-          set({ items: updatedItems, isOpen: true });
-        } else {
-          set({
-            items: [...get().items, { ...newItem, id }],
-            isOpen: true,
-          });
+      fetchCart: async () => {
+        try {
+          set({ isLoading: true, error: null });
+          const cart = await CartApi.getActiveCart();
+          if (cart) {
+            const mappedItems = (cart.items || []).map(transformApiItemToStoreItem);
+            set({
+              apiCart: cart,
+              items: mappedItems,
+              isLoading: false,
+            });
+          } else {
+            set({ isLoading: false });
+          }
+        } catch (err: any) {
+          set({ isLoading: false, error: err.message });
         }
       },
 
-      removeItem: (id) => {
-        set({ items: get().items.filter((item) => item.id !== id) });
+      addItem: async (input) => {
+        const qty = input.quantity && input.quantity > 0 ? input.quantity : 1;
+        set({ isOpen: true, error: null });
+
+        // Optimistic local update fallback
+        const tempId = `temp_${input.productId}_${input.variantId || "default"}_${Date.now()}`;
+        const fallbackItem: CartItem = {
+          id: tempId,
+          productId: input.productId,
+          variantId: input.variantId,
+          name: input.name || "Handcrafted Luxury Garment",
+          price: input.price || 0,
+          compareAtPrice: input.compareAtPrice,
+          size: input.size || "Standard",
+          colorName: input.colorName || "Default",
+          colorHex: input.colorHex,
+          imageUrl:
+            input.imageUrl ||
+            "https://images.unsplash.com/photo-1566174053879-31528523f8ae?w=800",
+          sku: input.sku || "",
+          quantity: qty,
+          maxStock: input.maxStock || 99,
+          selectedModifiers: [],
+        };
+
+        try {
+          const updatedCart = await CartApi.addItem({
+            productId: input.productId,
+            variantId: input.variantId || null,
+            quantity: qty,
+            modifierOptionIds: input.modifierOptionIds || [],
+            metafields: input.metafields,
+          });
+
+          if (updatedCart) {
+            set({
+              apiCart: updatedCart,
+              items: (updatedCart.items || []).map(transformApiItemToStoreItem),
+            });
+            return;
+          }
+        } catch (err: any) {
+          console.warn("Backend add item failed, using local fallback:", err.message);
+          set({ error: err.message });
+        }
+
+        // Local state fallback if backend request failed
+        const existingIdx = get().items.findIndex(
+          (i) => i.productId === input.productId && i.variantId === input.variantId
+        );
+
+        if (existingIdx > -1) {
+          const updated = [...get().items];
+          updated[existingIdx].quantity += qty;
+          set({ items: updated });
+        } else {
+          set({ items: [...get().items, fallbackItem] });
+        }
       },
 
-      updateQuantity: (id, quantity) => {
+      removeItem: async (id) => {
+        // Optimistic removal
+        const prevItems = get().items;
+        const prevCart = get().apiCart;
+        set({ items: prevItems.filter((i) => i.id !== id) });
+
+        try {
+          // If item is a backend item (valid UUID or not temp), call API
+          if (!id.startsWith("temp_")) {
+            const updatedCart = await CartApi.removeItem(id);
+            if (updatedCart) {
+              set({
+                apiCart: updatedCart,
+                items: (updatedCart.items || []).map(transformApiItemToStoreItem),
+              });
+              return;
+            }
+          }
+        } catch (err: any) {
+          console.warn("Backend remove item failed:", err.message);
+          set({ items: prevItems, apiCart: prevCart, error: err.message });
+        }
+      },
+
+      updateQuantity: async (id, quantity) => {
         if (quantity <= 0) {
-          get().removeItem(id);
+          await get().removeItem(id);
           return;
         }
+
+        const prevItems = get().items;
+        const prevCart = get().apiCart;
+
+        // Optimistic update
         set({
-          items: get().items.map((item) =>
-            item.id === id
-              ? { ...item, quantity: Math.min(quantity, item.maxStock || 99) }
-              : item
+          items: get().items.map((i) =>
+            i.id === id ? { ...i, quantity: Math.min(quantity, i.maxStock || 99) } : i
           ),
         });
+
+        try {
+          if (!id.startsWith("temp_")) {
+            const updatedCart = await CartApi.updateItem(id, { quantity });
+            if (updatedCart) {
+              set({
+                apiCart: updatedCart,
+                items: (updatedCart.items || []).map(transformApiItemToStoreItem),
+              });
+              return;
+            }
+          }
+        } catch (err: any) {
+          console.warn("Backend update quantity failed:", err.message);
+          set({ items: prevItems, apiCart: prevCart, error: err.message });
+        }
       },
 
-      clearCart: () => {
-        set({ items: [], appliedCoupon: null });
+      updateModifiers: async (id, modifierOptionIds) => {
+        try {
+          if (!id.startsWith("temp_")) {
+            const updatedCart = await CartApi.updateItem(id, { modifierOptionIds });
+            if (updatedCart) {
+              set({
+                apiCart: updatedCart,
+                items: (updatedCart.items || []).map(transformApiItemToStoreItem),
+              });
+            }
+          }
+        } catch (err: any) {
+          set({ error: err.message });
+        }
+      },
+
+      clearCart: async () => {
+        set({ items: [], apiCart: null, appliedCoupon: null });
+        try {
+          await CartApi.clearCart();
+        } catch (err) {
+          console.warn("Backend clear cart failed:", err);
+        }
+      },
+
+      mergeGuestCartOnLogin: async (token) => {
+        const guestToken = token || getSavedGuestCartToken();
+        if (!guestToken) return;
+
+        try {
+          const mergedCart = await CartApi.mergeGuestCart(guestToken);
+          if (mergedCart) {
+            set({
+              apiCart: mergedCart,
+              items: (mergedCart.items || []).map(transformApiItemToStoreItem),
+            });
+            setSavedGuestCartToken(null);
+          }
+        } catch (err) {
+          console.warn("Failed to merge guest cart on login:", err);
+        }
+      },
+
+      saveGiftMessage: async (message) => {
+        try {
+          const res = await CartApi.upsertCartMetafield({
+            namespace: "checkout",
+            key: "gift_message",
+            value: message,
+            valueType: "STRING",
+          });
+          if (res) {
+            // Re-fetch cart to update metafields
+            await get().fetchCart();
+            return true;
+          }
+          return false;
+        } catch (err) {
+          return false;
+        }
       },
 
       applyCoupon: (coupon) => {
@@ -108,15 +359,35 @@ export const useCartStore = create<CartState>()(
         set({ appliedCoupon: null });
       },
 
-      openCart: () => set({ isOpen: true }),
+      openCart: () => {
+        set({ isOpen: true });
+        get().fetchCart().catch(() => {});
+      },
       closeCart: () => set({ isOpen: false }),
-      toggleCart: () => set({ isOpen: !get().isOpen }),
+      toggleCart: () => {
+        const next = !get().isOpen;
+        set({ isOpen: next });
+        if (next) get().fetchCart().catch(() => {});
+      },
 
+      // Computed Getters
       getSubtotal: () => {
+        const apiCart = get().apiCart;
+        if (apiCart && typeof apiCart.subtotal === "number") {
+          return apiCart.subtotal;
+        }
         return get().items.reduce(
           (sum, item) => sum + item.price * item.quantity,
           0
         );
+      },
+
+      getModifiersTotal: () => {
+        const apiCart = get().apiCart;
+        if (apiCart && typeof apiCart.modifiersTotal === "number") {
+          return apiCart.modifiersTotal;
+        }
+        return 0;
       },
 
       getDiscountAmount: () => {
@@ -132,6 +403,10 @@ export const useCartStore = create<CartState>()(
       },
 
       getShippingAmount: () => {
+        const apiCart = get().apiCart;
+        if (apiCart && apiCart.shipping !== null && apiCart.shipping !== undefined) {
+          return apiCart.shipping;
+        }
         const subtotal = get().getSubtotal();
         if (subtotal === 0) return 0;
         if (subtotal >= storeConfig.shipping.freeShippingThreshold) return 0;
@@ -139,6 +414,10 @@ export const useCartStore = create<CartState>()(
       },
 
       getTaxAmount: () => {
+        const apiCart = get().apiCart;
+        if (apiCart && apiCart.tax !== null && apiCart.tax !== undefined) {
+          return apiCart.tax;
+        }
         const subtotal = get().getSubtotal();
         const discount = get().getDiscountAmount();
         const taxableAmount = Math.max(0, subtotal - discount);
@@ -149,6 +428,13 @@ export const useCartStore = create<CartState>()(
       },
 
       getTotal: () => {
+        const apiCart = get().apiCart;
+        if (apiCart && typeof apiCart.total === "number") {
+          const discount = get().getDiscountAmount();
+          const shipping = get().getShippingAmount();
+          const tax = get().getTaxAmount();
+          return Math.max(0, apiCart.total - discount + (shipping || 0) + (tax || 0));
+        }
         const subtotal = get().getSubtotal();
         const discount = get().getDiscountAmount();
         const shipping = get().getShippingAmount();
@@ -157,7 +443,30 @@ export const useCartStore = create<CartState>()(
       },
 
       getItemCount: () => {
+        const apiCart = get().apiCart;
+        if (apiCart && typeof apiCart.itemCount === "number") {
+          return apiCart.itemCount;
+        }
         return get().items.reduce((count, item) => count + item.quantity, 0);
+      },
+
+      getLineItemCount: () => {
+        const apiCart = get().apiCart;
+        if (apiCart && typeof apiCart.lineItemCount === "number") {
+          return apiCart.lineItemCount;
+        }
+        return get().items.length;
+      },
+
+      getAvailabilityIssues: () => {
+        const items = get().items;
+        const hasOutOfStock = items.some(
+          (i) => i.availability?.status === "OUT_OF_STOCK"
+        );
+        const hasInsufficientStock = items.some(
+          (i) => i.availability?.status === "INSUFFICIENT_STOCK"
+        );
+        return { hasOutOfStock, hasInsufficientStock };
       },
     }),
     {

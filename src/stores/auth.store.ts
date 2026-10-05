@@ -9,6 +9,7 @@ import {
   SignupCredentials,
   SocialLoginCredentials,
 } from "@/services/auth.service";
+import { useCartStore } from "@/stores/cart.store";
 
 export interface AuthState {
   user: AuthUser | null;
@@ -45,6 +46,8 @@ export const useAuthStore = create<AuthState>()(
               isLoading: false,
               error: null,
             });
+            // Automatically merge guest cart with customer cart upon login
+            useCartStore.getState().mergeGuestCartOnLogin().catch(() => {});
             return true;
           } else {
             set({
@@ -82,6 +85,8 @@ export const useAuthStore = create<AuthState>()(
               isLoading: false,
               error: null,
             });
+            // Automatically merge guest cart with customer cart upon registration
+            useCartStore.getState().mergeGuestCartOnLogin().catch(() => {});
             return true;
           } else {
             set({
@@ -110,6 +115,8 @@ export const useAuthStore = create<AuthState>()(
               isLoading: false,
               error: null,
             });
+            // Automatically merge guest cart with customer cart upon social login
+            useCartStore.getState().mergeGuestCartOnLogin().catch(() => {});
             return true;
           } else {
             set({
