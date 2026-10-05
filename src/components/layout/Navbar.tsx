@@ -24,9 +24,11 @@ export function Navbar() {
   const { isMobileMenuOpen, toggleMobileMenu, closeMobileMenu, toggleSearch } = useUIStore();
   const [isScrolled, setIsScrolled] = useState(false);
   const [isCategoryMenuOpen, setIsCategoryMenuOpen] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
   const closeTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
+    setIsMounted(true);
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 20);
     };
@@ -252,7 +254,7 @@ export function Navbar() {
               className="p-1.5 text-[var(--foreground)] hover:opacity-75 transition-opacity relative flex items-center gap-2 cursor-pointer"
             >
               <ShoppingBag className="w-5 h-5" />
-              {itemCount > 0 && (
+              {isMounted && itemCount > 0 && (
                 <span className="bg-[var(--primary)] text-[var(--primary-foreground)] text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center border border-[var(--background)] animate-in zoom-in-50">
                   {itemCount}
                 </span>

@@ -39,8 +39,10 @@ export default function CheckoutPage() {
     clearCart,
   } = useCartStore();
 
-  // Ensure cart is fresh and synchronized with backend on mount
+  const [isMounted, setIsMounted] = useState(false);
+
   React.useEffect(() => {
+    setIsMounted(true);
     fetchCart().catch(() => {});
   }, [fetchCart]);
 
@@ -143,6 +145,17 @@ export default function CheckoutPage() {
       setIsProcessing(false);
     }
   };
+
+  if (!isMounted) {
+    return (
+      <div className="py-24 text-center max-w-md mx-auto space-y-4 min-h-[50vh] flex flex-col items-center justify-center">
+        <div className="w-8 h-8 rounded-full border-2 border-neutral-300 border-t-neutral-900 animate-spin" />
+        <p className="text-xs text-[var(--muted-foreground)] uppercase tracking-wider">
+          Initializing Checkout...
+        </p>
+      </div>
+    );
+  }
 
   if (items.length === 0) {
     return (
