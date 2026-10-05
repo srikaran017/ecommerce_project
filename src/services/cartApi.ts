@@ -104,9 +104,9 @@ export interface UpdateCartItemPayload {
   modifierOptionIds?: string[];
 }
 
-const BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "https://dress-ecomm-backend.onrender.com/api/v1";
+import { getApiBaseUrl } from "@/services/apiConfig";
+
+const getBaseUrl = getApiBaseUrl;
 
 const GUEST_CART_TOKEN_KEY = "guest_cart_token";
 
@@ -162,7 +162,7 @@ export async function cartApiFetch<T = any>(
   }
 
   try {
-    const response = await fetch(`${BASE_URL}${endpoint}`, {
+    const response = await fetch(`${getBaseUrl()}${endpoint}`, {
       ...options,
       headers,
     });

@@ -4,10 +4,9 @@
  */
 
 import { AuthService } from "@/services/auth.service";
+import { getApiBaseUrl } from "@/services/apiConfig";
 
-const BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "https://dress-ecomm-backend.onrender.com/api/v1";
+const getBaseUrl = getApiBaseUrl;
 
 // 3-Tier Pricing Model
 export interface ApiPrice {
@@ -192,7 +191,7 @@ export const fetchCategoryTree = async (options?: {
   if (options?.rootOnly) query.append("rootOnly", "true");
 
   const queryString = query.toString() ? `?${query.toString()}` : "";
-  const res = await fetch(`${BASE_URL}/categories${queryString}`, {
+  const res = await fetch(`${getBaseUrl()}/categories${queryString}`, {
     headers: getHeaders(),
     next: { revalidate: 60 },
   });
@@ -206,7 +205,7 @@ export const fetchCategoryTree = async (options?: {
 
 // 2. Fetch Single Category Details (with Breadcrumb Hierarchy)
 export const fetchCategoryBySlug = async (slug: string): Promise<ApiCategory> => {
-  const res = await fetch(`${BASE_URL}/categories/${encodeURIComponent(slug)}`, {
+  const res = await fetch(`${getBaseUrl()}/categories/${encodeURIComponent(slug)}`, {
     headers: getHeaders(),
     next: { revalidate: 60 },
   });
@@ -236,7 +235,7 @@ export const fetchCategoryProducts = async (
 
   const queryString = query.toString() ? `?${query.toString()}` : "";
   const res = await fetch(
-    `${BASE_URL}/categories/${encodeURIComponent(slug)}/products${queryString}`,
+    `${getBaseUrl()}/categories/${encodeURIComponent(slug)}/products${queryString}`,
     {
       headers: getHeaders(),
       next: { revalidate: 30 },
@@ -277,7 +276,7 @@ export const fetchProducts = async (
   });
 
   const queryString = query.toString() ? `?${query.toString()}` : "";
-  const res = await fetch(`${BASE_URL}/products${queryString}`, {
+  const res = await fetch(`${getBaseUrl()}/products${queryString}`, {
     headers: getHeaders(),
     next: { revalidate: 30 },
   });
@@ -304,7 +303,7 @@ export const fetchProducts = async (
 export const fetchProductBySlug = async (
   slug: string
 ): Promise<ApiProductDetail> => {
-  const res = await fetch(`${BASE_URL}/products/${encodeURIComponent(slug)}`, {
+  const res = await fetch(`${getBaseUrl()}/products/${encodeURIComponent(slug)}`, {
     headers: getHeaders(),
     next: { revalidate: 30 },
   });

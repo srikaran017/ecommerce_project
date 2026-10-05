@@ -39,9 +39,9 @@ export interface AuthResponse {
   error?: any;
 }
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "https://dress-ecomm-backend.onrender.com/api/v1";
+import { getApiBaseUrl } from "@/services/apiConfig";
+
+const getBaseUrl = getApiBaseUrl;
 
 export class AuthService {
   private static tokenKey = "auth_access_token";
@@ -50,7 +50,7 @@ export class AuthService {
    * Get API Base URL
    */
   static getBaseUrl(): string {
-    return API_BASE_URL;
+    return getBaseUrl();
   }
 
   /**
@@ -79,7 +79,7 @@ export class AuthService {
    */
   static async checkHealth(): Promise<{ status: string; message: string; isLive: boolean }> {
     try {
-      const res = await fetch(`${API_BASE_URL}/health`);
+      const res = await fetch(`${getBaseUrl()}/health`);
       if (!res.ok) {
         return { status: "error", message: `HTTP ${res.status}`, isLive: false };
       }
@@ -100,7 +100,7 @@ export class AuthService {
    */
   static async signup(credentials: SignupCredentials): Promise<AuthResponse> {
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/register`, {
+      const response = await fetch(`${getBaseUrl()}/auth/register`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -166,7 +166,7 @@ export class AuthService {
    */
   static async login(credentials: LoginCredentials): Promise<AuthResponse> {
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/login`, {
+      const response = await fetch(`${getBaseUrl()}/auth/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -222,7 +222,7 @@ export class AuthService {
    */
   static async socialLogin(credentials: SocialLoginCredentials): Promise<AuthResponse> {
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/social-login`, {
+      const response = await fetch(`${getBaseUrl()}/auth/social-login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -279,7 +279,7 @@ export class AuthService {
   static async logout(): Promise<void> {
     try {
       const token = this.getAccessToken();
-      await fetch(`${API_BASE_URL}/auth/logout`, {
+      await fetch(`${getBaseUrl()}/auth/logout`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -303,7 +303,7 @@ export class AuthService {
       const token = this.getAccessToken();
       if (!token) return null;
 
-      const response = await fetch(`${API_BASE_URL}/auth/me`, {
+      const response = await fetch(`${getBaseUrl()}/auth/me`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -353,7 +353,7 @@ export class AuthService {
    */
   static async forgotPassword(email: string): Promise<{ success: boolean; message: string }> {
     try {
-      await fetch(`${API_BASE_URL}/auth/forgot-password`, {
+      await fetch(`${getBaseUrl()}/auth/forgot-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
