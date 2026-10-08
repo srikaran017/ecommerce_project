@@ -161,6 +161,20 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
   const handleAddToCart = () => {
     if (selectedVariant.stock <= 0) return;
 
+    const chosenModifiers = Object.entries(selectedModifiers)
+      .map(([groupId, optId]) => {
+        const group = product.modifierGroups?.find((g) => g.id === groupId);
+        const opt = group?.options.find((o) => o.id === optId);
+        if (!opt) return null;
+        return {
+          id: opt.id,
+          name: opt.name,
+          groupName: group?.name || "Add-on",
+          priceDelta: opt.priceDelta,
+        };
+      })
+      .filter(Boolean) as any[];
+
     addItem({
       productId: product.id,
       variantId: selectedVariant.id,
@@ -175,6 +189,7 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
       quantity,
       maxStock: selectedVariant.stock,
       modifierOptionIds: Object.values(selectedModifiers).filter(Boolean),
+      selectedModifiers: chosenModifiers,
     });
 
     setAddedAnimation(true);
@@ -184,6 +199,20 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
   const handleBuyNow = () => {
     if (selectedVariant.stock <= 0) return;
 
+    const chosenModifiers = Object.entries(selectedModifiers)
+      .map(([groupId, optId]) => {
+        const group = product.modifierGroups?.find((g) => g.id === groupId);
+        const opt = group?.options.find((o) => o.id === optId);
+        if (!opt) return null;
+        return {
+          id: opt.id,
+          name: opt.name,
+          groupName: group?.name || "Add-on",
+          priceDelta: opt.priceDelta,
+        };
+      })
+      .filter(Boolean) as any[];
+
     addItem({
       productId: product.id,
       variantId: selectedVariant.id,
@@ -198,6 +227,7 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
       quantity,
       maxStock: selectedVariant.stock,
       modifierOptionIds: Object.values(selectedModifiers).filter(Boolean),
+      selectedModifiers: chosenModifiers,
     });
 
     router.push("/checkout");

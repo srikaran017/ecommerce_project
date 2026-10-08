@@ -65,6 +65,7 @@ export interface AddItemInput {
   quantity?: number;
   maxStock?: number;
   modifierOptionIds?: string[];
+  selectedModifiers?: SelectedModifier[];
   metafields?: Array<{
     namespace: string;
     key: string;
@@ -213,7 +214,7 @@ export const useCartStore = create<CartState>()(
           sku: input.sku || "",
           quantity: qty,
           maxStock: input.maxStock || 99,
-          selectedModifiers: [],
+          selectedModifiers: input.selectedModifiers || [],
         };
 
         try {
@@ -225,10 +226,10 @@ export const useCartStore = create<CartState>()(
             metafields: input.metafields,
           });
 
-          if (updatedCart) {
+          if (updatedCart && updatedCart.items && updatedCart.items.length > 0) {
             set({
               apiCart: updatedCart,
-              items: (updatedCart.items || []).map(transformApiItemToStoreItem),
+              items: updatedCart.items.map(transformApiItemToStoreItem),
             });
             return;
           }
@@ -294,10 +295,10 @@ export const useCartStore = create<CartState>()(
         try {
           if (!id.startsWith("temp_")) {
             const updatedCart = await CartApi.updateItem(id, { quantity });
-            if (updatedCart) {
+            if (updatedCart && updatedCart.items && updatedCart.items.length > 0) {
               set({
                 apiCart: updatedCart,
-                items: (updatedCart.items || []).map(transformApiItemToStoreItem),
+                items: updatedCart.items.map(transformApiItemToStoreItem),
               });
               return;
             }

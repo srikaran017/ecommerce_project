@@ -42,11 +42,15 @@ export default function CheckoutPage() {
   const [isMounted, setIsMounted] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isOrderPlaced, setIsOrderPlaced] = useState(false);
+  const hasCheckedRef = React.useRef(false);
 
   React.useEffect(() => {
     setIsMounted(true);
-    if (items.length === 0) {
-      fetchCart().catch(() => {});
+    if (!hasCheckedRef.current) {
+      hasCheckedRef.current = true;
+      if (items.length === 0) {
+        fetchCart().catch(() => {});
+      }
     }
   }, [fetchCart, items.length]);
 

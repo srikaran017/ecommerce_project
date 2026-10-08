@@ -52,11 +52,15 @@ export default function CartPage() {
   const [isGiftNoteOpen, setIsGiftNoteOpen] = useState(false);
   const [giftNote, setGiftNote] = useState("");
   const [giftNoteSaved, setGiftNoteSaved] = useState(false);
+  const hasCheckedRef = React.useRef(false);
 
   useEffect(() => {
     setIsMounted(true);
-    if (items.length === 0) {
-      fetchCart().catch(() => {});
+    if (!hasCheckedRef.current) {
+      hasCheckedRef.current = true;
+      if (items.length === 0) {
+        fetchCart().catch(() => {});
+      }
     }
   }, [fetchCart, items.length]);
 
