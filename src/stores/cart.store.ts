@@ -161,16 +161,31 @@ export const useCartStore = create<CartState>()(
         try {
           set({ isLoading: true, error: null });
           const cart = await CartApi.getActiveCart();
-          if (cart) {
-            const mappedItems = (cart.items || []).map(transformApiItemToStoreItem);
+          if (cart && cart.items && cart.items.length > 0) {
+            const mappedItems = cart.items.map(transformApiItemToStoreItem);
             set({
               apiCart: cart,
               items: mappedItems,
               isLoading: false,
             });
-          } else {
-            set({ isLoading: false });
+            return;
           }
+
+          // If backend returns empty cart, NEVER wipe out existing local items!
+          const currentItems = get().items;
+          if (currentItems.length > 0) {
+            set({
+              apiCart: null,
+              isLoading: false,
+            });
+            return;
+          }
+
+          set({
+            apiCart: cart || null,
+            items: [],
+            isLoading: false,
+          });
         } catch (err: any) {
           set({ isLoading: false, error: err.message });
         }
@@ -178,7 +193,7 @@ export const useCartStore = create<CartState>()(
 
       addItem: async (input) => {
         const qty = input.quantity && input.quantity > 0 ? input.quantity : 1;
-        set({ isOpen: true, error: null });
+        set({ isOpen: false, error: null });
 
         // Optimistic local update fallback
         const tempId = `temp_${input.productId}_${input.variantId || "default"}_${Date.now()}`;
@@ -364,38 +379,52 @@ export const useCartStore = create<CartState>()(
       },
 
       openCart: () => {
-        set({ isOpen: true });
-        get().fetchCart().catch(() => {});
+        set({ isOpen: false });
+        if (typeof window !== "undefined") {
+          window.location.href = "/cart";
+        }
       },
       closeCart: () => set({ isOpen: false }),
       toggleCart: () => {
-        const next = !get().isOpen;
-        set({ isOpen: next });
-        if (next) get().fetchCart().catch(() => {});
+        if (typeof window !== "undefined") {
+          window.location.href = "/cart";
+        }
       },
 
       // Computed Getters
       getSubtotal: () => {
         const apiCart = get().apiCart;
-        if (apiCart && typeof apiCart.subtotal === "number") {
+        if (
+          apiCart &&
+          apiCart.items &&
+          apiCart.items.length > 0 &&
+          typeof apiCart.subtotal === "number" &&
+          apiCart.subtotal > 0
+        ) {
           return apiCart.subtotal;
         }
         return get().items.reduce((sum, item) => {
           const unitPrice =
-            item.pricing?.unitPrice !== undefined
+            item.pricing?.unitPrice !== undefined && item.pricing.unitPrice > 0
               ? item.pricing.unitPrice
-              : item.price - (item.pricing?.modifierTotal || 0);
+              : item.price || 0;
           return sum + unitPrice * item.quantity;
         }, 0);
       },
 
       getModifiersTotal: () => {
         const apiCart = get().apiCart;
-        if (apiCart && typeof apiCart.modifiersTotal === "number") {
+        if (
+          apiCart &&
+          apiCart.items &&
+          apiCart.items.length > 0 &&
+          typeof apiCart.modifiersTotal === "number" &&
+          apiCart.modifiersTotal > 0
+        ) {
           return apiCart.modifiersTotal;
         }
         return get().items.reduce((sum, item) => {
-          if (item.pricing?.modifierTotal !== undefined) {
+          if (item.pricing?.modifierTotal !== undefined && item.pricing.modifierTotal > 0) {
             return sum + item.pricing.modifierTotal * item.quantity;
           }
           if (item.selectedModifiers && item.selectedModifiers.length > 0) {
@@ -423,7 +452,13 @@ export const useCartStore = create<CartState>()(
 
       getShippingAmount: () => {
         const apiCart = get().apiCart;
-        if (apiCart && apiCart.shipping !== null && apiCart.shipping !== undefined) {
+        if (
+          apiCart &&
+          apiCart.items &&
+          apiCart.items.length > 0 &&
+          apiCart.shipping !== null &&
+          apiCart.shipping !== undefined
+        ) {
           return apiCart.shipping;
         }
         const merchandise = get().getSubtotal() + get().getModifiersTotal();
@@ -434,7 +469,13 @@ export const useCartStore = create<CartState>()(
 
       getTaxAmount: () => {
         const apiCart = get().apiCart;
-        if (apiCart && apiCart.tax !== null && apiCart.tax !== undefined) {
+        if (
+          apiCart &&
+          apiCart.items &&
+          apiCart.items.length > 0 &&
+          apiCart.tax !== null &&
+          apiCart.tax !== undefined
+        ) {
           return apiCart.tax;
         }
         const taxableAmount = Math.max(
@@ -453,7 +494,13 @@ export const useCartStore = create<CartState>()(
         const shipping = get().getShippingAmount();
         const tax = get().getTaxAmount();
 
-        if (apiCart && typeof apiCart.total === "number") {
+        if (
+          apiCart &&
+          apiCart.items &&
+          apiCart.items.length > 0 &&
+          typeof apiCart.total === "number" &&
+          apiCart.total > 0
+        ) {
           return Math.max(0, apiCart.total - discount + (shipping || 0) + (tax || 0));
         }
 
@@ -463,7 +510,12 @@ export const useCartStore = create<CartState>()(
 
       getItemCount: () => {
         const apiCart = get().apiCart;
-        if (apiCart && typeof apiCart.itemCount === "number") {
+        if (
+          apiCart &&
+          apiCart.items &&
+          apiCart.items.length > 0 &&
+          typeof apiCart.itemCount === "number"
+        ) {
           return apiCart.itemCount;
         }
         return get().items.reduce((count, item) => count + item.quantity, 0);
@@ -471,7 +523,12 @@ export const useCartStore = create<CartState>()(
 
       getLineItemCount: () => {
         const apiCart = get().apiCart;
-        if (apiCart && typeof apiCart.lineItemCount === "number") {
+        if (
+          apiCart &&
+          apiCart.items &&
+          apiCart.items.length > 0 &&
+          typeof apiCart.lineItemCount === "number"
+        ) {
           return apiCart.lineItemCount;
         }
         return get().items.length;

@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { X, ShoppingBag, Check, ArrowRight } from "lucide-react";
 import { storeConfig } from "@/config/store.config";
 import { useCartStore } from "@/stores/cart.store";
@@ -14,6 +15,7 @@ interface QuickViewModalProps {
 }
 
 export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps) {
+  const router = useRouter();
   if (!isOpen) return null;
 
   const defaultVariant = product.variants?.[0] || {
@@ -57,10 +59,8 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
     });
 
     setAddedAnimation(true);
-    setTimeout(() => {
-      setAddedAnimation(false);
-      onClose();
-    }, 1200);
+    onClose();
+    router.push("/cart");
   };
 
   return (

@@ -40,11 +40,15 @@ export default function CheckoutPage() {
   } = useCartStore();
 
   const [isMounted, setIsMounted] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [isOrderPlaced, setIsOrderPlaced] = useState(false);
 
   React.useEffect(() => {
     setIsMounted(true);
-    fetchCart().catch(() => {});
-  }, [fetchCart]);
+    if (items.length === 0) {
+      fetchCart().catch(() => {});
+    }
+  }, [fetchCart, items.length]);
 
   // Redirect unauthenticated guests to login only if guest checkout is disabled
   React.useEffect(() => {
@@ -88,7 +92,6 @@ export default function CheckoutPage() {
 
   const [couponInput, setCouponInput] = useState("");
   const [couponError, setCouponError] = useState("");
-  const [isProcessing, setIsProcessing] = useState(false);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -123,26 +126,32 @@ export default function CheckoutPage() {
 
   const handlePlaceOrder = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (items.length === 0) return;
+    if (items.length === 0 || total <= 0) return;
 
     setIsProcessing(true);
+    setIsOrderPlaced(true);
 
     try {
       const orderId = `ORD-${Date.now().toString().slice(-6)}`;
       const finalAmount = total;
+      const targetUrl = `/order-success/${orderId}?method=${formData.paymentMethod}&amount=${finalAmount}&email=${encodeURIComponent(
+        formData.email
+      )}&phone=${encodeURIComponent(formData.phone)}`;
 
-      // Simulate network latency for payment gateway handshake
+      // Simulate payment processing / gateway handshake
       await new Promise((resolve) => setTimeout(resolve, 1500));
 
-      clearCart();
-      router.push(
-        `/order-success/${orderId}?method=${formData.paymentMethod}&amount=${finalAmount}&email=${encodeURIComponent(
-          formData.email
-        )}&phone=${encodeURIComponent(formData.phone)}`
-      );
+      // First transition cleanly to the order success screen
+      router.replace(targetUrl);
+
+      // Delay clearing cart until navigation completes so empty cart banner never flashes
+      setTimeout(() => {
+        clearCart();
+      }, 1000);
     } catch (error) {
       console.error("Payment processing error:", error);
       setIsProcessing(false);
+      setIsOrderPlaced(false);
     }
   };
 
@@ -153,6 +162,22 @@ export default function CheckoutPage() {
         <p className="text-xs text-[var(--muted-foreground)] uppercase tracking-wider">
           Initializing Checkout...
         </p>
+      </div>
+    );
+  }
+
+  if (isProcessing || isOrderPlaced) {
+    return (
+      <div className="py-24 text-center max-w-md mx-auto space-y-6 min-h-[60vh] flex flex-col items-center justify-center">
+        <div className="w-12 h-12 rounded-full border-3 border-[var(--primary)] border-t-transparent animate-spin" />
+        <div className="space-y-2">
+          <h2 className="font-heading text-xl font-bold uppercase tracking-wider text-[var(--foreground)]">
+            Securing Your Order...
+          </h2>
+          <p className="text-xs text-[var(--muted-foreground)]">
+            Processing payment & generating confirmation receipt. Please do not close this window.
+          </p>
+        </div>
       </div>
     );
   }
@@ -378,10 +403,13 @@ export default function CheckoutPage() {
                 variant="primary"
                 size="lg"
                 isLoading={isProcessing}
+                disabled={items.length === 0 || total === 0 || isProcessing}
                 className="w-full"
                 leftIcon={<Lock className="w-4 h-4" />}
               >
-                COMPLETE ORDER • {storeConfig.currency.symbol}{total.toLocaleString()}
+                {isProcessing
+                  ? "PROCESSING ORDER..."
+                  : `COMPLETE ORDER • ${storeConfig.currency.symbol}${total.toLocaleString()}`}
               </Button>
 
               <div className="flex items-center justify-center gap-2 text-[11px] text-[var(--muted-foreground)]">
@@ -400,7 +428,11 @@ export default function CheckoutPage() {
             {/* Item List */}
             <div className="space-y-4 max-h-72 overflow-y-auto pr-2 scrollbar-none divide-y divide-[var(--border)]">
               {items.map((item) => {
-                const lineTotal = item.pricing?.lineTotal ?? item.price * item.quantity;
+                const unitPrice = item.price || item.pricing?.unitPrice || 0;
+                const lineTotal =
+                  item.pricing?.lineTotal && item.pricing.lineTotal > 0
+                    ? item.pricing.lineTotal
+                    : unitPrice * item.quantity;
                 return (
                   <div key={item.id} className="pt-3 first:pt-0 flex items-start justify-between gap-4">
                     <div className="flex items-start gap-3">

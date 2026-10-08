@@ -178,11 +178,28 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
     });
 
     setAddedAnimation(true);
-    setTimeout(() => setAddedAnimation(false), 2000);
+    router.push("/cart");
   };
 
   const handleBuyNow = () => {
-    handleAddToCart();
+    if (selectedVariant.stock <= 0) return;
+
+    addItem({
+      productId: product.id,
+      variantId: selectedVariant.id,
+      name: product.name,
+      price: finalDisplayPrice,
+      compareAtPrice: activePrice.regular > finalDisplayPrice ? activePrice.regular : undefined,
+      size: selectedVariant.size,
+      colorName: selectedVariant.colorName,
+      colorHex: selectedVariant.colorHex,
+      imageUrl: activeImage,
+      sku: selectedVariant.sku,
+      quantity,
+      maxStock: selectedVariant.stock,
+      modifierOptionIds: Object.values(selectedModifiers).filter(Boolean),
+    });
+
     router.push("/checkout");
   };
 

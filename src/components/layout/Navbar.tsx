@@ -20,7 +20,6 @@ import { useUIStore } from "@/stores/ui.store";
 
 export function Navbar() {
   const itemCount = useCartStore((state) => state.getItemCount());
-  const openCart = useCartStore((state) => state.openCart);
   const { isMobileMenuOpen, toggleMobileMenu, closeMobileMenu, toggleSearch } = useUIStore();
   const [isScrolled, setIsScrolled] = useState(false);
   const [isCategoryMenuOpen, setIsCategoryMenuOpen] = useState(false);
@@ -248,8 +247,8 @@ export function Navbar() {
               <ShieldAlert className="w-5 h-5" />
             </Link>
 
-            <button
-              onClick={openCart}
+            <Link
+              href="/cart"
               aria-label="Shopping Bag"
               className="p-1.5 text-[var(--foreground)] hover:opacity-75 transition-opacity relative flex items-center gap-2 cursor-pointer"
             >
@@ -259,7 +258,7 @@ export function Navbar() {
                   {itemCount}
                 </span>
               )}
-            </button>
+            </Link>
           </div>
         </div>
       </div>
