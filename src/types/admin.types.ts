@@ -29,6 +29,7 @@ export type AdminPermission =
   | "promotions:manage"
   | "settings:view"
   | "settings:edit"
+  | "settings:manage"
   | "audit:view";
 
 export type ModulePermissionCode =
@@ -1216,16 +1217,141 @@ export interface PromotionsListResponse {
 }
 
 // ==========================================
-// 8. AUDIT LOGGING
+// 8. STORE SETTINGS & FEATURE FLAGS (Module 07)
 // ==========================================
 
-export interface AuditLogEntry {
-  id: string;
-  adminName: string;
-  adminEmail: string;
-  action: string;
-  targetType: "PRODUCT" | "ORDER" | "INVENTORY" | "SETTINGS" | "COUPON" | "USER" | "CATEGORY" | "COLLECTION";
-  targetId: string;
-  details: string;
-  timestamp: string;
+export interface StoreFeatureFlags {
+  wishlist: boolean;
+  reviews: boolean;
+  coupons: boolean;
+  guestCheckout: boolean;
+  onlinePayment: boolean;
+  cashOnDelivery: boolean;
+  productVariants: boolean;
+  whatsapp: boolean;
+  newsletter: boolean;
+  recommendations: boolean;
+  sizeChart: boolean;
+  orderTracking: boolean;
+  [key: string]: boolean | undefined;
 }
+
+export interface StorePolicies {
+  shippingPolicy: string;
+  returnPolicy: string;
+  [key: string]: string | undefined;
+}
+
+export type StoreThemePresetId =
+  | "luxury-fashion"
+  | "monochrome-minimal"
+  | "royal-festive"
+  | string;
+
+export interface StoreSettings {
+  id: string;
+  storeName: string;
+  tagline: string;
+  currency: string;
+  currencySymbol: string;
+  supportEmail: string;
+  supportPhone: string;
+  activeTheme: StoreThemePresetId;
+  freeShippingThreshold: string | number;
+  flatShippingRate: string | number;
+  featuresJson: StoreFeatureFlags;
+  policiesJson: StorePolicies;
+  updatedAt: string;
+}
+
+export interface UpdateStoreSettingsInput {
+  storeName?: string;
+  tagline?: string;
+  supportEmail?: string;
+  supportPhone?: string;
+  currency?: string;
+  currencySymbol?: string;
+  freeShippingThreshold?: number | string;
+  flatShippingRate?: number | string;
+  policiesJson?: Partial<StorePolicies>;
+}
+
+export interface SwitchThemeInput {
+  themeId: string;
+}
+
+export interface UpdateFeatureFlagsInput {
+  features: Partial<StoreFeatureFlags>;
+}
+
+export interface StoreSettingsResponse {
+  success: boolean;
+  statusCode: number;
+  message: string;
+  data: StoreSettings;
+}
+
+// ==========================================
+// 9. IMMUTABLE SECURITY AUDIT LOGGING (Module 07)
+// ==========================================
+
+export interface AuditLogUser {
+  id: string;
+  name: string;
+  email: string;
+  role: AdminRole | string;
+}
+
+export interface AdminAuditLog {
+  id: string;
+  action: string;
+  entity: string;
+  entityId: string;
+  detailsJson: Record<string, any>;
+  ipAddress?: string;
+  userAgent?: string;
+  createdAt: string;
+  user: AuditLogUser;
+
+  // Backwards compatibility aliases
+  adminName?: string;
+  adminEmail?: string;
+  targetType?: string;
+  targetId?: string;
+  details?: string;
+  timestamp?: string;
+}
+
+export type AuditLogEntry = AdminAuditLog;
+
+export interface AuditLogListQueryParams {
+  page?: number;
+  limit?: number;
+  action?: string;
+  entity?: string;
+  userId?: string;
+  startDate?: string;
+  endDate?: string;
+  search?: string;
+}
+
+export interface AuditLogsListResponse {
+  success: boolean;
+  statusCode: number;
+  message: string;
+  data: AdminAuditLog[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export interface AuditLogDetailResponse {
+  success: boolean;
+  statusCode: number;
+  message: string;
+  data: AdminAuditLog;
+}
+

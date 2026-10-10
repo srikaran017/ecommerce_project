@@ -77,6 +77,7 @@ export const ROLE_PERMISSIONS: Record<AdminRole, AdminPermission[]> = {
     "promotions:manage",
     "settings:view",
     "settings:edit",
+    "settings:manage",
     "audit:view",
   ],
   STORE_ADMIN: [
@@ -238,9 +239,17 @@ export const rbac = {
   },
   canExportOrders: (role?: string) => hasPermission(role, "orders:export"),
   canUpdateOrderStatus: (role?: string) => hasPermission(role, "orders:update_status"),
-  canManageSettings: (role?: string) => hasPermission(role, "settings:edit"),
+  canManageSettings: (role?: string) => {
+    if (!role) return false;
+    const r = role.toUpperCase();
+    return r === "SUPER_ADMIN" || hasPermission(role, "settings:manage");
+  },
   canManageDiscounts: (role?: string) => hasPermission(role, "discounts:manage"),
-  canViewAuditLogs: (role?: string) => hasPermission(role, "audit:view"),
+  canViewAuditLogs: (role?: string) => {
+    if (!role) return false;
+    const r = role.toUpperCase();
+    return r === "SUPER_ADMIN" || r === "STORE_ADMIN" || hasPermission(role, "audit:view");
+  },
 
   // Module 06 Coupons, Discounts & Flash Campaigns Helpers
   canManageCoupons: (role?: string) => {

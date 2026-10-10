@@ -17,6 +17,7 @@ import {
   ShieldAlert,
   Lock,
   Users,
+  FileText,
 } from "lucide-react";
 import { storeConfig } from "@/config/store.config";
 import { useAuthStore } from "@/stores/auth.store";
@@ -124,6 +125,7 @@ export default function AdminLayout({
 
   const storeNav = [
     { label: "Theme & Feature Flags", href: "/admin/settings", icon: Sliders },
+    { label: "Audit Logs", href: "/admin/audit-logs", icon: FileText },
   ];
 
   return (

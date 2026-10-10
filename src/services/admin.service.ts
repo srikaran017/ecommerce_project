@@ -84,7 +84,20 @@ import {
   UpdatePromotionInput,
   PromotionListQueryParams,
   PromotionsListResponse,
+  StoreSettings,
+  StoreFeatureFlags,
+  StorePolicies,
+  StoreThemePresetId,
+  UpdateStoreSettingsInput,
+  SwitchThemeInput,
+  UpdateFeatureFlagsInput,
+  StoreSettingsResponse,
+  AdminAuditLog,
+  AuditLogUser,
   AuditLogEntry,
+  AuditLogListQueryParams,
+  AuditLogsListResponse,
+  AuditLogDetailResponse,
   AdminManagedUser,
   CreateSubordinateUserInput,
   UpdateSubordinateUserInput,
@@ -121,6 +134,7 @@ const STORAGE_KEYS = {
   PROMOTIONS: "admin_mock_promotions_v1",
   AUDIT_LOGS: "admin_mock_audit_logs_v1",
   USERS: "admin_mock_users_v1",
+  STORE_CONFIG: "admin_mock_store_config_v1",
 };
 
 function getLocalData<T>(key: string, defaultVal: T): T {
@@ -810,6 +824,146 @@ export const INITIAL_PROMOTIONS: AdminPromotion[] = [
     ctaLink: "/categories/evening-gowns",
     sortOrder: 2,
     isActive: true,
+  },
+];
+
+export const INITIAL_STORE_SETTINGS: StoreSettings = {
+  id: "default_store_config",
+  storeName: "Maison De Élégance",
+  tagline: "Haute Couture & Bespoke Eveningwear",
+  currency: "INR",
+  currencySymbol: "₹",
+  supportEmail: "concierge@maisondeelegance.com",
+  supportPhone: "+91 98765 43210",
+  activeTheme: "luxury-fashion",
+  freeShippingThreshold: "2999.00",
+  flatShippingRate: "150.00",
+  featuresJson: {
+    wishlist: true,
+    reviews: true,
+    coupons: true,
+    guestCheckout: true,
+    onlinePayment: true,
+    cashOnDelivery: true,
+    productVariants: true,
+    whatsapp: true,
+    newsletter: true,
+    recommendations: true,
+    sizeChart: true,
+    orderTracking: true,
+  },
+  policiesJson: {
+    shippingPolicy: "Complimentary white-glove express delivery on luxury orders above ₹2,999.",
+    returnPolicy: "7-day complimentary bespoke concierge returns for un-altered garments.",
+  },
+  updatedAt: "2026-10-10T01:50:00.000Z",
+};
+
+export const INITIAL_AUDIT_LOGS: AdminAuditLog[] = [
+  {
+    id: "log_uuid_101",
+    action: "UPDATE_FEATURE_FLAGS",
+    entity: "STORE_CONFIG",
+    entityId: "default_store_config",
+    detailsJson: {
+      updatedFlags: {
+        guestCheckout: true,
+        cashOnDelivery: true,
+      },
+    },
+    ipAddress: "192.168.1.1",
+    userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    createdAt: "2026-10-10T01:55:00.000Z",
+    user: {
+      id: "usr_super_admin_1",
+      name: "Store Owner",
+      email: "owner@maison.com",
+      role: "SUPER_ADMIN",
+    },
+  },
+  {
+    id: "log_uuid_102",
+    action: "CREATE_PRODUCT",
+    entity: "PRODUCT",
+    entityId: "prod_001",
+    detailsJson: {
+      productName: "Midnight Silk Banarasi Evening Gown",
+      sku: "MSG-001",
+      regularPrice: 28999,
+      variantsCount: 4,
+    },
+    ipAddress: "192.168.1.1",
+    userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0",
+    createdAt: "2026-10-09T18:30:00.000Z",
+    user: {
+      id: "usr_super_admin_1",
+      name: "Store Owner",
+      email: "owner@maison.com",
+      role: "SUPER_ADMIN",
+    },
+  },
+  {
+    id: "log_uuid_103",
+    action: "SWITCH_THEME",
+    entity: "STORE_CONFIG",
+    entityId: "default_store_config",
+    detailsJson: {
+      previousTheme: "monochrome-minimal",
+      activeTheme: "luxury-fashion",
+    },
+    ipAddress: "192.168.1.1",
+    userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+    createdAt: "2026-10-09T12:00:00.000Z",
+    user: {
+      id: "usr_super_admin_1",
+      name: "Store Owner",
+      email: "owner@maison.com",
+      role: "SUPER_ADMIN",
+    },
+  },
+  {
+    id: "log_uuid_104",
+    action: "CREATE_COUPON",
+    entity: "COUPON",
+    entityId: "coup_uuid_101",
+    detailsJson: {
+      code: "DIWALI25",
+      discountType: "PERCENTAGE",
+      discountValue: 25,
+      minOrderAmount: 5000,
+      maxDiscountAmount: 3000,
+    },
+    ipAddress: "192.168.1.1",
+    userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+    createdAt: "2026-10-08T15:20:00.000Z",
+    user: {
+      id: "usr_super_admin_1",
+      name: "Store Owner",
+      email: "owner@maison.com",
+      role: "SUPER_ADMIN",
+    },
+  },
+  {
+    id: "log_uuid_105",
+    action: "ADJUST_STOCK",
+    entity: "INVENTORY",
+    entityId: "var_001_m",
+    detailsJson: {
+      sku: "MSG-001-M",
+      previousStock: 8,
+      newStock: 25,
+      quantityChange: 17,
+      reason: "Festive atelier restock batch",
+    },
+    ipAddress: "192.168.1.1",
+    userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+    createdAt: "2026-10-07T10:15:00.000Z",
+    user: {
+      id: "usr_store_admin_2",
+      name: "Rajesh Kumar (Store Manager)",
+      email: "rajesh.manager@maison.com",
+      role: "STORE_ADMIN",
+    },
   },
 ];
 
@@ -3547,24 +3701,58 @@ export class AdminService {
   // 5. AUDIT LOGGING HELPER
   // ----------------------------------------------------
 
-  static getAuditLogs(): AuditLogEntry[] {
-    return getLocalData<AuditLogEntry[]>(STORAGE_KEYS.AUDIT_LOGS, []);
+  static getAuditLogs(): AdminAuditLog[] {
+    return this.getLocalAuditLogs();
   }
 
-  private static logAudit(targetType: AuditLogEntry["targetType"], targetId: string, details: string): void {
-    const logs = this.getAuditLogs();
-    const entry: AuditLogEntry = {
-      id: `audit_${Date.now()}`,
-      adminName: "Admin User",
-      adminEmail: "admin@store.com",
-      action: details,
-      targetType,
-      targetId,
-      details,
-      timestamp: new Date().toISOString(),
+  static getLocalAuditLogs(): AdminAuditLog[] {
+    return getLocalData<AdminAuditLog[]>(STORAGE_KEYS.AUDIT_LOGS, INITIAL_AUDIT_LOGS);
+  }
+
+  static logAudit(
+    targetTypeOrEntity: string,
+    targetId: string,
+    detailsOrAction: string,
+    payloadJson?: Record<string, any>
+  ): void {
+    const logs = this.getLocalAuditLogs();
+    const currentUser = useAuthStore.getState().user;
+    const now = new Date().toISOString();
+
+    const userObj: AuditLogUser = {
+      id: currentUser?.id || "usr_super_admin_1",
+      name: currentUser?.name || "Store Owner",
+      email: currentUser?.email || "owner@maison.com",
+      role: (currentUser?.role as any) || "SUPER_ADMIN",
     };
+
+    let actionVerb = detailsOrAction.toUpperCase().replace(/\s+/g, "_");
+    if (actionVerb.startsWith("CREATED_")) actionVerb = actionVerb.replace("CREATED_", "CREATE_");
+    if (actionVerb.startsWith("UPDATED_")) actionVerb = actionVerb.replace("UPDATED_", "UPDATE_");
+    if (actionVerb.startsWith("DELETED_")) actionVerb = actionVerb.replace("DELETED_", "DELETE_");
+
+    const entry: AdminAuditLog = {
+      id: `log_uuid_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+      action: actionVerb,
+      entity: targetTypeOrEntity.toUpperCase(),
+      entityId: targetId,
+      detailsJson: payloadJson || { description: detailsOrAction },
+      ipAddress: "192.168.1.1",
+      userAgent: typeof window !== "undefined" ? window.navigator.userAgent : "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+      createdAt: now,
+      user: userObj,
+
+      // Backwards compatibility
+      adminName: userObj.name,
+      adminEmail: userObj.email,
+      targetType: targetTypeOrEntity,
+      targetId: targetId,
+      details: detailsOrAction,
+      timestamp: now,
+    };
+
     logs.unshift(entry);
-    setLocalData(STORAGE_KEYS.AUDIT_LOGS, logs.slice(0, 100));
+    setLocalData(STORAGE_KEYS.AUDIT_LOGS, logs.slice(0, 300));
   }
 
   // ----------------------------------------------------
@@ -5776,5 +5964,282 @@ export class AdminService {
       message: "Promotion deleted successfully",
     };
   }
+
+  // ====================================================
+  // 9. STORE SETTINGS & FEATURE FLAGS (/api/v1/admin/settings) - Module 07
+  // ====================================================
+
+  static getLocalSettings(): StoreSettings {
+    return getLocalData<StoreSettings>(STORAGE_KEYS.STORE_CONFIG, INITIAL_STORE_SETTINGS);
+  }
+
+  /**
+   * 2.1. GET /api/v1/admin/settings
+   * Retrieves complete store configuration, active theme preset, shipping thresholds, and feature flags
+   */
+  static async getStoreSettings(): Promise<StoreSettingsResponse> {
+    const res = await this.request<StoreSettingsResponse>("/settings");
+    if (res.success && res.data && (res.data as any).data) {
+      return res.data;
+    }
+
+    const local = this.getLocalSettings();
+    return {
+      success: true,
+      statusCode: 200,
+      message: "Store settings fetched successfully",
+      data: local,
+    };
+  }
+
+  /**
+   * 2.2. PUT /api/v1/admin/settings
+   * Updates contact information, store branding, or shipping thresholds
+   */
+  static async updateStoreSettings(
+    input: UpdateStoreSettingsInput
+  ): Promise<StoreSettingsResponse> {
+    const res = await this.request<StoreSettingsResponse>("/settings", {
+      method: "PUT",
+      body: JSON.stringify(input),
+    });
+
+    if (res.success && res.data && (res.data as any).data) {
+      return res.data;
+    }
+
+    const current = this.getLocalSettings();
+    const updated: StoreSettings = {
+      ...current,
+      ...(input.storeName && { storeName: input.storeName.trim() }),
+      ...(input.tagline !== undefined && { tagline: input.tagline.trim() }),
+      ...(input.supportEmail && { supportEmail: input.supportEmail.trim() }),
+      ...(input.supportPhone && { supportPhone: input.supportPhone.trim() }),
+      ...(input.currency && { currency: input.currency.trim() }),
+      ...(input.currencySymbol && { currencySymbol: input.currencySymbol.trim() }),
+      ...(input.freeShippingThreshold !== undefined && {
+        freeShippingThreshold: String(Number(input.freeShippingThreshold).toFixed(2)),
+      }),
+      ...(input.flatShippingRate !== undefined && {
+        flatShippingRate: String(Number(input.flatShippingRate).toFixed(2)),
+      }),
+      ...(input.policiesJson && {
+        policiesJson: {
+          shippingPolicy: input.policiesJson.shippingPolicy || current.policiesJson.shippingPolicy,
+          returnPolicy: input.policiesJson.returnPolicy || current.policiesJson.returnPolicy,
+        },
+      }),
+      updatedAt: new Date().toISOString(),
+    };
+
+    setLocalData(STORAGE_KEYS.STORE_CONFIG, updated);
+    this.logAudit("STORE_CONFIG", updated.id, "UPDATE_STORE_SETTINGS", {
+      updatedFields: Object.keys(input),
+      storeName: updated.storeName,
+      freeShippingThreshold: updated.freeShippingThreshold,
+      flatShippingRate: updated.flatShippingRate,
+    });
+
+    return {
+      success: true,
+      statusCode: 200,
+      message: "Store settings updated successfully",
+      data: updated,
+    };
+  }
+
+  /**
+   * 2.3. PATCH /api/v1/admin/settings/theme
+   * Switches storefront design theme preset
+   */
+  static async switchTheme(
+    themeId: string
+  ): Promise<{ success: boolean; statusCode: number; message: string; data: { activeTheme: string } }> {
+    const res = await this.request<{ activeTheme: string }>("/settings/theme", {
+      method: "PATCH",
+      body: JSON.stringify({ themeId }),
+    });
+
+    if (res.success && res.data) {
+      return {
+        success: true,
+        statusCode: 200,
+        message: `Active storefront theme switched to '${themeId}'`,
+        data: res.data,
+      };
+    }
+
+    const current = this.getLocalSettings();
+    const prevTheme = current.activeTheme;
+    current.activeTheme = themeId;
+    current.updatedAt = new Date().toISOString();
+    setLocalData(STORAGE_KEYS.STORE_CONFIG, current);
+
+    this.logAudit("STORE_CONFIG", current.id, "SWITCH_THEME", {
+      previousTheme: prevTheme,
+      activeTheme: themeId,
+    });
+
+    return {
+      success: true,
+      statusCode: 200,
+      message: `Active storefront theme switched to '${themeId}'`,
+      data: { activeTheme: themeId },
+    };
+  }
+
+  /**
+   * 2.4. PATCH /api/v1/admin/settings/features
+   * Enables or disables storefront features in real time
+   */
+  static async updateFeatureFlags(
+    features: Partial<StoreFeatureFlags>
+  ): Promise<{ success: boolean; statusCode: number; message: string; data: { featuresJson: StoreFeatureFlags } }> {
+    const res = await this.request<{ featuresJson: StoreFeatureFlags }>("/settings/features", {
+      method: "PATCH",
+      body: JSON.stringify({ features }),
+    });
+
+    if (res.success && res.data) {
+      return {
+        success: true,
+        statusCode: 200,
+        message: "Storefront feature flags updated successfully",
+        data: res.data,
+      };
+    }
+
+    const current = this.getLocalSettings();
+    const updatedFlags: StoreFeatureFlags = { ...current.featuresJson };
+    (Object.keys(features) as Array<keyof StoreFeatureFlags>).forEach((key) => {
+      const val = features[key];
+      if (typeof val === "boolean") {
+        (updatedFlags as any)[key] = val;
+      }
+    });
+    current.featuresJson = updatedFlags;
+    current.updatedAt = new Date().toISOString();
+    setLocalData(STORAGE_KEYS.STORE_CONFIG, current);
+
+    this.logAudit("STORE_CONFIG", current.id, "UPDATE_FEATURE_FLAGS", {
+      updatedFlags: features,
+    });
+
+    return {
+      success: true,
+      statusCode: 200,
+      message: "Storefront feature flags updated successfully",
+      data: { featuresJson: current.featuresJson },
+    };
+  }
+
+  // ====================================================
+  // 10. ADMINISTRATIVE AUDIT LOGS (/api/v1/admin/audit-logs) - Module 07
+  // ====================================================
+
+  /**
+   * 3.1. GET /api/v1/admin/audit-logs
+   * Retrieves paginated administrative audit logs with filtering by action, staff user, entity, or search
+   */
+  static async getAuditLogsList(
+    params?: AuditLogListQueryParams
+  ): Promise<AuditLogsListResponse> {
+    const qp = new URLSearchParams();
+    if (params?.page) qp.set("page", String(params.page));
+    if (params?.limit) qp.set("limit", String(params.limit));
+    if (params?.action && params.action !== "ALL") qp.set("action", params.action);
+    if (params?.entity && params.entity !== "ALL") qp.set("entity", params.entity);
+    if (params?.userId && params.userId !== "ALL") qp.set("userId", params.userId);
+    if (params?.search) qp.set("search", params.search);
+    if (params?.startDate) qp.set("startDate", params.startDate);
+    if (params?.endDate) qp.set("endDate", params.endDate);
+
+    const qs = qp.toString() ? `?${qp.toString()}` : "";
+    const res = await this.request<AuditLogsListResponse>(`/audit-logs${qs}`);
+    if (res.success && res.data && Array.isArray(res.data.data)) {
+      return res.data;
+    }
+
+    let logs = this.getLocalAuditLogs();
+
+    if (params?.search && params.search.trim()) {
+      const q = params.search.trim().toLowerCase();
+      logs = logs.filter(
+        (l) =>
+          l.action.toLowerCase().includes(q) ||
+          l.entity.toLowerCase().includes(q) ||
+          l.entityId.toLowerCase().includes(q) ||
+          (l.user && l.user.name.toLowerCase().includes(q)) ||
+          (l.user && l.user.email.toLowerCase().includes(q))
+      );
+    }
+
+    if (params?.action && params.action !== "ALL") {
+      logs = logs.filter((l) => l.action.toLowerCase() === params.action!.toLowerCase());
+    }
+
+    if (params?.entity && params.entity !== "ALL") {
+      logs = logs.filter((l) => l.entity.toLowerCase() === params.entity!.toLowerCase());
+    }
+
+    if (params?.userId && params.userId !== "ALL") {
+      logs = logs.filter((l) => l.user && l.user.id === params.userId);
+    }
+
+    if (params?.startDate) {
+      const startMs = new Date(params.startDate).getTime();
+      logs = logs.filter((l) => new Date(l.createdAt).getTime() >= startMs);
+    }
+
+    if (params?.endDate) {
+      const endMs = new Date(params.endDate).getTime();
+      logs = logs.filter((l) => new Date(l.createdAt).getTime() <= endMs);
+    }
+
+    const page = Math.max(1, Number(params?.page || 1));
+    const limit = Math.min(100, Math.max(1, Number(params?.limit || 20)));
+    const total = logs.length;
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const startIndex = (page - 1) * limit;
+    const paginated = logs.slice(startIndex, startIndex + limit);
+
+    return {
+      success: true,
+      statusCode: 200,
+      message: "Audit logs fetched successfully",
+      data: paginated,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+      },
+    };
+  }
+
+  /**
+   * 3.2. GET /api/v1/admin/audit-logs/:id
+   * Retrieves complete metadata payload and change snapshot for an individual audit entry
+   */
+  static async getAuditLogDetail(id: string): Promise<AuditLogDetailResponse> {
+    const res = await this.request<AuditLogDetailResponse>(`/audit-logs/${id}`);
+    if (res.success && res.data && (res.data as any).data) {
+      return res.data;
+    }
+
+    const logs = this.getLocalAuditLogs();
+    const log = logs.find((l) => l.id === id);
+    if (!log) {
+      throw new Error(`Audit log entry '${id}' not found`);
+    }
+
+    return {
+      success: true,
+      statusCode: 200,
+      message: "Audit log details fetched successfully",
+      data: log,
+    };
+  }
 }
+
 
