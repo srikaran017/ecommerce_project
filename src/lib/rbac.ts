@@ -198,9 +198,21 @@ export function getDelegatablePermissions(actorRole?: string | null): ModulePerm
  * Permission shortcuts for UI conditional rendering
  */
 export const rbac = {
-  canDeleteProduct: (role?: string) => hasPermission(role, "products:delete"),
-  canArchiveProduct: (role?: string) => hasPermission(role, "products:archive"),
-  canCreateProduct: (role?: string) => hasPermission(role, "products:create"),
+  canDeleteProduct: (role?: string) => {
+    if (!role) return false;
+    if (role.toUpperCase() === "SUPER_ADMIN") return true;
+    return hasPermission(role, "products:delete");
+  },
+  canArchiveProduct: (role?: string) => {
+    if (!role) return false;
+    if (role.toUpperCase() === "SUPER_ADMIN" || role.toUpperCase() === "STORE_ADMIN") return true;
+    return hasPermission(role, "products:archive");
+  },
+  canCreateProduct: (role?: string) => {
+    if (!role) return false;
+    if (role.toUpperCase() === "SUPER_ADMIN" || role.toUpperCase() === "STORE_ADMIN") return true;
+    return hasPermission(role, "products:create");
+  },
   canAdjustStock: (role?: string) => hasPermission(role, "inventory:adjust"),
   canExportOrders: (role?: string) => hasPermission(role, "orders:export"),
   canUpdateOrderStatus: (role?: string) => hasPermission(role, "orders:update_status"),
@@ -226,5 +238,25 @@ export const rbac = {
     const r = role.toUpperCase();
     if (r === "SUPER_ADMIN" || r === "STORE_ADMIN") return true;
     return hasPermission(role, "collections:manage");
+  },
+
+  // Module 03 Product & Multi-Variant Catalog Helpers
+  canReadProducts: (role?: string) => {
+    if (!role) return false;
+    const r = role.toUpperCase();
+    if (r === "SUPER_ADMIN" || r === "STORE_ADMIN" || r === "STAFF") return true;
+    return hasPermission(role, "products:view");
+  },
+  canWriteProducts: (role?: string) => {
+    if (!role) return false;
+    const r = role.toUpperCase();
+    if (r === "SUPER_ADMIN" || r === "STORE_ADMIN") return true;
+    return hasPermission(role, "products:edit") || hasPermission(role, "products:create");
+  },
+  canDeleteProducts: (role?: string) => {
+    if (!role) return false;
+    const r = role.toUpperCase();
+    if (r === "SUPER_ADMIN") return true;
+    return hasPermission(role, "products:delete");
   },
 };

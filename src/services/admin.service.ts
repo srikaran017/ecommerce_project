@@ -12,8 +12,18 @@ import { AuthService } from "@/services/auth.service";
 import {
   AdminDashboardOverview,
   AdminProduct,
+  AdminProductVariant,
+  AdminProductImage,
+  AdminProductVariantSummary,
   CreateProductInput,
   UpdateProductInput,
+  ProductListQueryParams,
+  ProductsListResponse,
+  AdminProductDetailResponse,
+  ProductStatusToggleInput,
+  ProductStatusToggleResponse,
+  DeleteProductResponse,
+  UploadProductImagesResponse,
   FlatInventoryItem,
   StockAdjustmentInput,
   InventoryLedgerEntry,
@@ -91,44 +101,112 @@ function setLocalData<T>(key: string, val: T): void {
   }
 }
 
-// Initialize seed products
+// Initialize seed products conforming to Module 03
 function getInitialProducts(): AdminProduct[] {
-  return FALLBACK_PRODUCTS.map((p) => ({
-    id: p.id,
-    name: p.name,
-    slug: p.slug,
-    description: p.description,
-    shortDescription: p.shortDescription || undefined,
-    status: "ACTIVE",
-    categorySlug: p.categorySlug || "sarees",
-    categoryName: p.categoryName || "Sarees",
-    tags: p.tags || [],
-    gender: "WOMEN",
-    brand: p.brand || storeConfig.name,
-    images: (p.images || []).map((img, idx) => ({
+  return FALLBACK_PRODUCTS.map((p, pIdx) => {
+    const regPrice = Number(p.compareAtPrice || p.price);
+    const sPrice = p.compareAtPrice ? Number(p.price) : null;
+    const cPrice = Math.round(Number(p.price) * 0.45);
+    const categorySlug = p.categorySlug || "evening-gowns";
+    const categoryName = p.categoryName || "Evening Gowns";
+    const brandName = p.brand || "Maison De Élégance";
+    const skuCode = p.sku || `MSG-${String(pIdx + 1).padStart(3, "0")}`;
+
+    const variants: AdminProductVariant[] = (p.variants || []).map((v, vIdx) => {
+      const vReg = Number(v.compareAtPrice || v.price);
+      const vSale = v.compareAtPrice ? Number(v.price) : null;
+      const vCost = Math.round(Number(v.price) * 0.45);
+      const colorVal = v.colorName || "Midnight Navy";
+      const sizeVal = v.size || "M";
+      return {
+        id: v.id || `var_${p.id}_${vIdx}`,
+        sku: v.sku || `${skuCode}-${sizeVal}-${colorVal.slice(0, 3).toUpperCase()}`,
+        name: `Size ${sizeVal} - ${colorVal}`,
+        size: sizeVal,
+        color: colorVal,
+        colorName: colorVal,
+        colorHex: v.colorHex || "#0b1b3d",
+        regularPrice: vReg.toFixed(2),
+        salePrice: vSale ? vSale.toFixed(2) : null,
+        offerPrice: null,
+        costPrice: vCost.toFixed(2),
+        price: v.price,
+        compareAtPrice: v.compareAtPrice,
+        stock: v.stock,
+        stockQuantity: v.stock,
+        lowStockThreshold: v.lowStockThreshold || 5,
+        isActive: true,
+        attributes: [
+          { attributeName: "Size", value: sizeVal, slug: sizeVal.toLowerCase().replace(/[^a-z0-9]+/g, "-") },
+          { attributeName: "Color", value: colorVal, slug: colorVal.toLowerCase().replace(/[^a-z0-9]+/g, "-") },
+        ],
+      };
+    });
+
+    const stockSum = variants.length > 0 ? variants.reduce((acc, v) => acc + v.stock, 0) : p.stock;
+    const images: AdminProductImage[] = (p.images || []).map((img, idx) => ({
+      id: img.id || `img_${p.id}_${idx}`,
+      productId: p.id,
       url: img.url,
-      altText: p.name,
+      altText: img.altText || p.name,
+      isThumbnail: idx === 0,
       isPrimary: idx === 0,
+      sortOrder: idx,
       displayOrder: idx,
-    })),
-    variants: (p.variants || []).map((v) => ({
+    }));
+
+    const variantsSummary: AdminProductVariantSummary[] = variants.map((v) => ({
       id: v.id,
       sku: v.sku,
-      size: v.size,
-      colorName: v.colorName,
-      colorHex: v.colorHex || "#000000",
-      price: v.price,
-      compareAtPrice: v.compareAtPrice,
-      costPrice: Math.round(v.price * 0.45),
+      name: v.name || v.size,
       stock: v.stock,
-      lowStockThreshold: v.lowStockThreshold || 5,
+      price: v.salePrice || v.regularPrice || v.price.toFixed(2),
+      isActive: v.isActive,
+    }));
+
+    return {
+      id: p.id,
+      name: p.name,
+      slug: p.slug,
+      description: p.description,
+      shortDescription: p.shortDescription || undefined,
+      brand: brandName,
+      sku: skuCode,
+      regularPrice: regPrice.toFixed(2),
+      salePrice: sPrice ? sPrice.toFixed(2) : null,
+      offerPrice: null,
+      costPrice: cPrice.toFixed(2),
+      stockQuantity: stockSum,
       isActive: true,
-    })),
-    totalStock: p.stock,
-    basePrice: p.price,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  }));
+      isFeatured: p.isFeatured ?? (pIdx % 2 === 0),
+      totalSold: 20 + ((pIdx * 17) % 65),
+      rating: 4.6 + ((pIdx * 0.1) % 0.4),
+      reviewCount: 10 + ((pIdx * 7) % 35),
+      category: {
+        id: `cat_${categorySlug}`,
+        name: categoryName,
+        slug: categorySlug,
+      },
+      thumbnail: images[0]?.url || "https://images.unsplash.com/photo-1566174053879-31528523f8ae?w=800",
+      imagesCount: images.length,
+      variantsCount: variants.length,
+      variantsSummary,
+      images,
+      variants,
+      collections: [],
+
+      // Backward compatibility fields
+      status: "ACTIVE",
+      categorySlug,
+      categoryName,
+      tags: p.tags || [],
+      gender: (p.gender as any) || "WOMEN",
+      totalStock: stockSum,
+      basePrice: p.price,
+      createdAt: new Date(Date.now() - (pIdx + 1) * 86400000 * 2).toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+  });
 }
 
 // Initialize seed users for Module 01 User Hierarchy
@@ -606,31 +684,281 @@ export class AdminService {
   }
 
   // ----------------------------------------------------
-  // 2. PRODUCT MANAGEMENT (/api/v1/admin/products)
+  // 2. PRODUCT MANAGEMENT (/api/v1/admin/products) - Module 03
   // ----------------------------------------------------
 
   static getLocalProducts(): AdminProduct[] {
     return getLocalData<AdminProduct[]>(STORAGE_KEYS.PRODUCTS, getInitialProducts());
   }
 
-  static async getProducts(search?: string): Promise<AdminProduct[]> {
-    const res = await this.request<AdminProduct[]>(`/products${search ? `?search=${encodeURIComponent(search)}` : ""}`);
-    if (res.success && Array.isArray(res.data)) return res.data;
-
-    let list = this.getLocalProducts();
-    if (search && search.trim()) {
-      const q = search.toLowerCase().trim();
-      list = list.filter(
-        (p) =>
-          p.name.toLowerCase().includes(q) ||
-          p.categoryName.toLowerCase().includes(q) ||
-          p.variants.some((v) => v.sku.toLowerCase().includes(q))
-      );
+  /**
+   * Helper: Gather a category and all of its descendant IDs/slugs recursively
+   */
+  static getCategoryDescendantIds(categoryIdOrSlug: string): Set<string> {
+    const categories = this.getLocalCategories();
+    const matched = new Set<string>();
+    const target = categories.find((c) => c.id === categoryIdOrSlug || c.slug === categoryIdOrSlug);
+    if (!target) {
+      matched.add(categoryIdOrSlug.toLowerCase());
+      return matched;
     }
-    return list;
+    matched.add(target.id.toLowerCase());
+    matched.add(target.slug.toLowerCase());
+
+    const findChildren = (parentId: string) => {
+      const children = categories.filter((c) => c.parentId === parentId);
+      for (const child of children) {
+        matched.add(child.id.toLowerCase());
+        matched.add(child.slug.toLowerCase());
+        findChildren(child.id);
+      }
+    };
+    findChildren(target.id);
+    return matched;
   }
 
-  static async createProduct(input: CreateProductInput): Promise<{ success: boolean; product?: AdminProduct; message?: string }> {
+  /**
+   * Helper: Filter and sort product list locally
+   */
+  private static filterAndSortProducts(
+    list: AdminProduct[],
+    params?: string | ProductListQueryParams
+  ): AdminProduct[] {
+    let result = [...list];
+
+    if (!params) return result;
+
+    if (typeof params === "string") {
+      const q = params.trim().toLowerCase();
+      if (!q) return result;
+      return result.filter(
+        (p) =>
+          p.name.toLowerCase().includes(q) ||
+          p.sku.toLowerCase().includes(q) ||
+          p.brand.toLowerCase().includes(q) ||
+          p.slug.toLowerCase().includes(q) ||
+          (p.categoryName && p.categoryName.toLowerCase().includes(q)) ||
+          p.variants.some((v) => v.sku.toLowerCase().includes(q) || v.name?.toLowerCase().includes(q))
+      );
+    }
+
+    // 1. Text Search across name, SKU, brand, slug
+    if (params.search && params.search.trim()) {
+      const q = params.search.trim().toLowerCase();
+      result = result.filter(
+        (p) =>
+          p.name.toLowerCase().includes(q) ||
+          p.sku.toLowerCase().includes(q) ||
+          p.brand.toLowerCase().includes(q) ||
+          p.slug.toLowerCase().includes(q) ||
+          (p.categoryName && p.categoryName.toLowerCase().includes(q)) ||
+          p.variants.some((v) => v.sku.toLowerCase().includes(q) || v.name?.toLowerCase().includes(q))
+      );
+    }
+
+    // 2. Category Filter (Includes all subcategories automatically)
+    if (params.categoryId && params.categoryId.trim() && params.categoryId !== "ALL") {
+      const descendantIds = this.getCategoryDescendantIds(params.categoryId.trim());
+      result = result.filter((p) => {
+        const catId = p.category?.id?.toLowerCase();
+        const catSlug = p.category?.slug?.toLowerCase() || p.categorySlug?.toLowerCase();
+        const catName = p.category?.name?.toLowerCase() || p.categoryName?.toLowerCase();
+        return (
+          (catId && descendantIds.has(catId)) ||
+          (catSlug && descendantIds.has(catSlug)) ||
+          (catName && descendantIds.has(catName))
+        );
+      });
+    }
+
+    // 3. Brand Filter
+    if (params.brand && params.brand.trim() && params.brand !== "ALL") {
+      const brandQ = params.brand.trim().toLowerCase();
+      result = result.filter((p) => p.brand.toLowerCase() === brandQ);
+    }
+
+    // 4. Status Filter (isActive)
+    if (params.isActive !== undefined && params.isActive !== "ALL") {
+      const activeBool = params.isActive === true || params.isActive === "true";
+      result = result.filter((p) => Boolean(p.isActive) === activeBool);
+    }
+
+    // 5. Featured Filter (isFeatured)
+    if (params.isFeatured !== undefined && params.isFeatured !== "ALL") {
+      const featBool = params.isFeatured === true || params.isFeatured === "true";
+      result = result.filter((p) => Boolean(p.isFeatured) === featBool);
+    }
+
+    // 6. Stock Status Filter
+    if (params.stockStatus && params.stockStatus !== "ALL") {
+      if (params.stockStatus === "IN_STOCK") {
+        result = result.filter((p) => (p.stockQuantity ?? p.totalStock ?? 0) > 0);
+      } else if (params.stockStatus === "LOW_STOCK") {
+        result = result.filter((p) => {
+          const qty = p.stockQuantity ?? p.totalStock ?? 0;
+          return qty >= 1 && qty <= 5;
+        });
+      } else if (params.stockStatus === "OUT_OF_STOCK") {
+        result = result.filter((p) => (p.stockQuantity ?? p.totalStock ?? 0) === 0);
+      }
+    }
+
+    // 7. Price Range Filter
+    if (params.minPrice !== undefined && !isNaN(Number(params.minPrice))) {
+      const min = Number(params.minPrice);
+      result = result.filter((p) => Number(p.salePrice || p.regularPrice || p.basePrice || 0) >= min);
+    }
+    if (params.maxPrice !== undefined && !isNaN(Number(params.maxPrice))) {
+      const max = Number(params.maxPrice);
+      result = result.filter((p) => Number(p.salePrice || p.regularPrice || p.basePrice || 0) <= max);
+    }
+
+    // 8. Sorting
+    const sortMode = params.sort || "newest";
+    result.sort((a, b) => {
+      const priceA = Number(a.salePrice || a.regularPrice || a.basePrice || 0);
+      const priceB = Number(b.salePrice || b.regularPrice || b.basePrice || 0);
+      const stockA = a.stockQuantity ?? a.totalStock ?? 0;
+      const stockB = b.stockQuantity ?? b.totalStock ?? 0;
+
+      switch (sortMode) {
+        case "newest":
+          return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+        case "oldest":
+          return new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime();
+        case "price_asc":
+          return priceA - priceB;
+        case "price_desc":
+          return priceB - priceA;
+        case "stock_asc":
+          return stockA - stockB;
+        case "stock_desc":
+          return stockB - stockA;
+        case "name_asc":
+          return a.name.localeCompare(b.name);
+        case "bestselling":
+          return (b.totalSold || 0) - (a.totalSold || 0);
+        default:
+          return 0;
+      }
+    });
+
+    return result;
+  }
+
+  /**
+   * 2.1. List Products (Array output for simplified calls)
+   */
+  static async getProducts(query?: string | ProductListQueryParams): Promise<AdminProduct[]> {
+    let queryStr = "";
+    if (typeof query === "string" && query.trim()) {
+      queryStr = `?search=${encodeURIComponent(query.trim())}`;
+    } else if (query && typeof query === "object") {
+      const qp = new URLSearchParams();
+      if (query.search) qp.set("search", query.search);
+      if (query.categoryId) qp.set("categoryId", query.categoryId);
+      if (query.brand) qp.set("brand", query.brand);
+      if (query.stockStatus) qp.set("stockStatus", query.stockStatus);
+      if (query.sort) qp.set("sort", query.sort);
+      if (query.page) qp.set("page", String(query.page));
+      if (query.limit) qp.set("limit", String(query.limit));
+      const str = qp.toString();
+      if (str) queryStr = `?${str}`;
+    }
+
+    const res = await this.request<any>(`/products${queryStr}`);
+    if (res.success && res.data) {
+      if (Array.isArray(res.data)) return res.data;
+      if (Array.isArray(res.data.data)) return res.data.data;
+    }
+
+    const list = this.getLocalProducts();
+    return this.filterAndSortProducts(list, query);
+  }
+
+  /**
+   * 2.1. List Products (Faceted Filters & Pagination - Full Envelope)
+   */
+  static async getProductsWithPagination(
+    params?: ProductListQueryParams
+  ): Promise<ProductsListResponse> {
+    const qp = new URLSearchParams();
+    if (params?.page) qp.set("page", String(params.page));
+    if (params?.limit) qp.set("limit", String(params.limit));
+    if (params?.search) qp.set("search", params.search);
+    if (params?.categoryId) qp.set("categoryId", params.categoryId);
+    if (params?.brand) qp.set("brand", params.brand);
+    if (params?.isActive !== undefined) qp.set("isActive", String(params.isActive));
+    if (params?.isFeatured !== undefined) qp.set("isFeatured", String(params.isFeatured));
+    if (params?.stockStatus) qp.set("stockStatus", params.stockStatus);
+    if (params?.minPrice !== undefined) qp.set("minPrice", String(params.minPrice));
+    if (params?.maxPrice !== undefined) qp.set("maxPrice", String(params.maxPrice));
+    if (params?.sort) qp.set("sort", params.sort);
+
+    const queryString = qp.toString() ? `?${qp.toString()}` : "";
+    const res = await this.request<ProductsListResponse>(`/products${queryString}`);
+    if (res.success && res.data && Array.isArray(res.data.data)) {
+      return res.data;
+    }
+
+    // Local Fallback Engine
+    const all = this.getLocalProducts();
+    const filtered = this.filterAndSortProducts(all, params);
+
+    const page = Math.max(1, Number(params?.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(params?.limit) || 20));
+    const total = filtered.length;
+    const totalPages = Math.ceil(total / limit) || 1;
+    const paginated = filtered.slice((page - 1) * limit, page * limit);
+
+    return {
+      success: true,
+      statusCode: 200,
+      message: "Products fetched successfully",
+      data: paginated,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+      },
+    };
+  }
+
+  /**
+   * 2.2. Get Single Product Details
+   * Fetches complete product record with all variants, sizing attributes, images, and curated collections.
+   */
+  static async getProductById(id: string): Promise<AdminProduct | null> {
+    const res = await this.request<any>(`/products/${id}`);
+    if (res.success && res.data) {
+      if (res.data.product) return res.data.product;
+      return res.data;
+    }
+
+    const products = this.getLocalProducts();
+    const found = products.find((p) => p.id === id || p.slug === id);
+    if (!found) return null;
+
+    // Attach curated collections
+    const collections = this.getLocalCollections();
+    const attachedCollections = collections
+      .filter((c) => c.productIds?.includes(found.id) || c.productIds?.includes(found.slug))
+      .map((c) => ({ id: c.id, name: c.name, slug: c.slug }));
+
+    return {
+      ...found,
+      collections: attachedCollections,
+    };
+  }
+
+  /**
+   * 2.3. Create Product
+   * Creates a garment with variants, attributes, and images in an atomic database transaction.
+   */
+  static async createProduct(
+    input: CreateProductInput
+  ): Promise<{ success: boolean; product?: AdminProduct; message?: string }> {
     const res = await this.request<AdminProduct>("/products", {
       method: "POST",
       body: JSON.stringify(input),
@@ -639,53 +967,176 @@ export class AdminService {
 
     // Fallback local save
     const products = this.getLocalProducts();
-    const slug = input.slug || input.name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-    const totalStock = input.variants.reduce((acc, v) => acc + (Number(v.stock) || 0), 0);
-    const basePrice = input.variants[0]?.price || 0;
+    const newId = `prod_uuid_${Date.now()}`;
+    const baseSlug = input.slug || input.name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+    let uniqueSlug = baseSlug;
+    let counter = 1;
+    while (products.some((p) => p.slug === uniqueSlug)) {
+      uniqueSlug = `${baseSlug}-${counter++}`;
+    }
+
+    const regPrice = Number(input.regularPrice ?? input.basePrice ?? 0);
+    const sPrice = input.salePrice != null ? Number(input.salePrice) : null;
+    const cPrice = input.costPrice != null ? Number(input.costPrice) : Math.round(regPrice * 0.45);
+
+    // Look up category
+    const categories = this.getLocalCategories();
+    const cat = categories.find(
+      (c) => c.id === input.categoryId || c.slug === input.categorySlug || c.name === input.categoryName
+    );
+    const categoryRef = {
+      id: cat?.id || input.categoryId || `cat_${Date.now()}`,
+      name: cat?.name || input.categoryName || "Haute Couture",
+      slug: cat?.slug || input.categorySlug || "haute-couture",
+    };
+
+    // Build variants & attributes
+    let processedVariants: AdminProductVariant[] = [];
+    if (input.variants && input.variants.length > 0) {
+      processedVariants = input.variants.map((v, i) => {
+        const vSize = v.size || "Free Size";
+        const vColor = v.color || v.colorName || "Standard";
+        const vReg = v.regularPrice != null ? Number(v.regularPrice) : regPrice;
+        const vSale = v.salePrice != null ? Number(v.salePrice) : sPrice;
+        const vCost = v.costPrice != null ? Number(v.costPrice) : cPrice;
+        const vStock = Number(v.stockQuantity ?? v.stock ?? 0);
+        const vSku =
+          v.sku ||
+          `${(input.sku || input.name.slice(0, 3)).toUpperCase()}-${vSize}-${vColor.slice(0, 2).toUpperCase()}`;
+
+        return {
+          id: v.id || `var_${Date.now()}_${i}`,
+          sku: vSku,
+          name: v.name || `Size ${vSize} - ${vColor}`,
+          size: vSize,
+          color: vColor,
+          colorName: vColor,
+          colorHex: v.colorHex || "#0b1b3d",
+          regularPrice: vReg.toFixed(2),
+          salePrice: vSale != null ? vSale.toFixed(2) : null,
+          offerPrice: v.offerPrice != null ? Number(v.offerPrice).toFixed(2) : null,
+          costPrice: vCost.toFixed(2),
+          price: vSale ?? vReg,
+          compareAtPrice: vReg,
+          stock: vStock,
+          stockQuantity: vStock,
+          lowStockThreshold: v.lowStockThreshold || 5,
+          isActive: v.isActive ?? true,
+          attributes: v.attributes || [
+            { attributeName: "Size", value: vSize, slug: vSize.toLowerCase().replace(/[^a-z0-9]+/g, "-") },
+            { attributeName: "Color", value: vColor, slug: vColor.toLowerCase().replace(/[^a-z0-9]+/g, "-") },
+          ],
+        };
+      });
+    } else {
+      // Default single variant
+      processedVariants = [
+        {
+          id: `var_${Date.now()}_0`,
+          sku: input.sku || `${input.name.slice(0, 3).toUpperCase()}-OS`,
+          name: "Standard",
+          size: "Free Size",
+          color: "Standard",
+          colorName: "Standard",
+          colorHex: "#000000",
+          regularPrice: regPrice.toFixed(2),
+          salePrice: sPrice != null ? sPrice.toFixed(2) : null,
+          costPrice: cPrice.toFixed(2),
+          price: sPrice ?? regPrice,
+          compareAtPrice: regPrice,
+          stock: Number(input.stockQuantity || 10),
+          stockQuantity: Number(input.stockQuantity || 10),
+          lowStockThreshold: 5,
+          isActive: true,
+          attributes: [
+            { attributeName: "Size", value: "Free Size", slug: "free-size" },
+            { attributeName: "Color", value: "Standard", slug: "standard" },
+          ],
+        },
+      ];
+    }
+
+    // Automatically compute total stockQuantity as sum of variant stock
+    const computedTotalStock = processedVariants.reduce(
+      (acc, v) => acc + (v.stockQuantity || v.stock || 0),
+      0
+    );
+
+    const processedImages: AdminProductImage[] = (input.images || []).map((img, i) => ({
+      id: `img_${Date.now()}_${i}`,
+      productId: newId,
+      url: img.url,
+      altText: img.altText || input.name,
+      isThumbnail: img.isThumbnail ?? (img.isPrimary ?? i === 0),
+      isPrimary: img.isPrimary ?? i === 0,
+      sortOrder: img.sortOrder ?? i,
+      displayOrder: img.sortOrder ?? i,
+    }));
+
+    const variantsSummary: AdminProductVariantSummary[] = processedVariants.map((v) => ({
+      id: v.id,
+      sku: v.sku,
+      name: v.name || v.size,
+      stock: v.stockQuantity ?? v.stock ?? 0,
+      price: v.salePrice || v.regularPrice || String(v.price || 0),
+      isActive: Boolean(v.isActive),
+    }));
 
     const newProd: AdminProduct = {
-      id: `prod_${Date.now()}`,
+      id: newId,
       name: input.name,
-      slug,
+      slug: uniqueSlug,
       description: input.description,
       shortDescription: input.shortDescription,
-      status: "ACTIVE",
-      categorySlug: input.categorySlug,
-      categoryName: input.categoryName,
-      tags: input.tags,
+      brand: input.brand || "Maison De Élégance",
+      sku: input.sku || `SKU-${Date.now().toString().slice(-6)}`,
+      regularPrice: regPrice.toFixed(2),
+      salePrice: sPrice != null ? sPrice.toFixed(2) : null,
+      offerPrice: input.offerPrice != null ? Number(input.offerPrice).toFixed(2) : null,
+      costPrice: cPrice.toFixed(2),
+      stockQuantity: computedTotalStock,
+      isActive: input.isActive ?? true,
+      isFeatured: input.isFeatured ?? false,
+      totalSold: 0,
+      rating: 5.0,
+      reviewCount: 0,
+      category: categoryRef,
+      thumbnail:
+        processedImages.find((img) => img.isThumbnail)?.url ||
+        processedImages[0]?.url ||
+        "https://images.unsplash.com/photo-1566174053879-31528523f8ae?w=800",
+      imagesCount: processedImages.length,
+      variantsCount: processedVariants.length,
+      variantsSummary,
+      images: processedImages,
+      variants: processedVariants,
+      collections: [],
+
+      // Backward compatibility fields
+      status: (input.isActive ?? true) ? "ACTIVE" : "ARCHIVED",
+      categorySlug: categoryRef.slug,
+      categoryName: categoryRef.name,
+      tags: input.tags || ["Apparel", "Luxury"],
       gender: input.gender || "WOMEN",
-      brand: storeConfig.name,
-      images: input.images.map((img, i) => ({
-        url: img.url,
-        isPrimary: img.isPrimary ?? i === 0,
-        displayOrder: i,
-      })),
-      variants: input.variants.map((v, i) => ({
-        id: `v_${Date.now()}_${i}`,
-        sku: v.sku || `${input.name.slice(0, 3).toUpperCase()}-${v.size}-${v.colorName.slice(0, 2).toUpperCase()}`,
-        size: v.size,
-        colorName: v.colorName,
-        colorHex: v.colorHex || "#000000",
-        price: Number(v.price),
-        compareAtPrice: v.compareAtPrice ? Number(v.compareAtPrice) : null,
-        costPrice: v.costPrice ? Number(v.costPrice) : null,
-        stock: Number(v.stock),
-        lowStockThreshold: v.lowStockThreshold || 5,
-        isActive: true,
-      })),
-      totalStock,
-      basePrice,
+      totalStock: computedTotalStock,
+      basePrice: sPrice ?? regPrice,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
 
     products.unshift(newProd);
     setLocalData(STORAGE_KEYS.PRODUCTS, products);
-    this.logAudit("PRODUCT", newProd.id, `Created product "${newProd.name}" with ${newProd.variants.length} variants`);
+    this.logAudit("PRODUCT", newProd.id, `Created garment "${newProd.name}" with ${newProd.variants.length} variants`);
     return { success: true, product: newProd };
   }
 
-  static async updateProduct(id: string, input: UpdateProductInput): Promise<{ success: boolean; product?: AdminProduct }> {
+  /**
+   * 2.4. Update Product
+   */
+  static async updateProduct(
+    id: string,
+    input: UpdateProductInput
+  ): Promise<{ success: boolean; product?: AdminProduct; message?: string }> {
     const res = await this.request<AdminProduct>(`/products/${id}`, {
       method: "PUT",
       body: JSON.stringify(input),
@@ -694,31 +1145,308 @@ export class AdminService {
 
     const products = this.getLocalProducts();
     const idx = products.findIndex((p) => p.id === id);
-    if (idx === -1) return { success: false };
+    if (idx === -1) return { success: false, message: "Product not found" };
 
-    const updated = {
-      ...products[idx],
+    const existing = products[idx];
+
+    // Update variants if passed
+    let updatedVariants = existing.variants;
+    if (input.variants && Array.isArray(input.variants)) {
+      updatedVariants = input.variants.map((vInput, i) => {
+        const existingVar = existing.variants.find((v) => v.id === vInput.id || v.sku === vInput.sku);
+        const vSize = vInput.size || existingVar?.size || "M";
+        const vColor = vInput.color || vInput.colorName || existingVar?.colorName || "Standard";
+        const vReg = vInput.regularPrice != null ? Number(vInput.regularPrice) : Number(existingVar?.regularPrice || existing.regularPrice);
+        const vSale = vInput.salePrice != null ? Number(vInput.salePrice) : (existingVar?.salePrice != null ? Number(existingVar.salePrice) : null);
+        const vStock = vInput.stockQuantity != null ? Number(vInput.stockQuantity) : Number(existingVar?.stockQuantity ?? existingVar?.stock ?? 0);
+
+        return {
+          id: vInput.id || existingVar?.id || `var_${Date.now()}_${i}`,
+          sku: vInput.sku || existingVar?.sku || `${existing.sku}-${vSize}`,
+          name: vInput.name || existingVar?.name || `Size ${vSize} - ${vColor}`,
+          size: vSize,
+          color: vColor,
+          colorName: vColor,
+          colorHex: vInput.colorHex || existingVar?.colorHex || "#0b1b3d",
+          regularPrice: vReg.toFixed(2),
+          salePrice: vSale != null ? vSale.toFixed(2) : null,
+          offerPrice: vInput.offerPrice != null ? Number(vInput.offerPrice).toFixed(2) : existingVar?.offerPrice || null,
+          costPrice: vInput.costPrice != null ? Number(vInput.costPrice).toFixed(2) : existingVar?.costPrice || null,
+          price: vSale ?? vReg,
+          compareAtPrice: vReg,
+          stock: vStock,
+          stockQuantity: vStock,
+          lowStockThreshold: vInput.lowStockThreshold || existingVar?.lowStockThreshold || 5,
+          isActive: vInput.isActive ?? existingVar?.isActive ?? true,
+          attributes: vInput.attributes || existingVar?.attributes || [
+            { attributeName: "Size", value: vSize, slug: vSize.toLowerCase().replace(/[^a-z0-9]+/g, "-") },
+            { attributeName: "Color", value: vColor, slug: vColor.toLowerCase().replace(/[^a-z0-9]+/g, "-") },
+          ],
+        };
+      });
+    }
+
+    const newTotalStock = updatedVariants.reduce((sum, v) => sum + (v.stockQuantity || v.stock || 0), 0);
+
+    const updated: AdminProduct = {
+      ...existing,
       ...input,
+      regularPrice: input.regularPrice != null ? Number(input.regularPrice).toFixed(2) : existing.regularPrice,
+      salePrice: input.salePrice !== undefined ? (input.salePrice != null ? Number(input.salePrice).toFixed(2) : null) : existing.salePrice,
+      costPrice: input.costPrice != null ? Number(input.costPrice).toFixed(2) : existing.costPrice,
+      variants: updatedVariants,
+      stockQuantity: newTotalStock,
+      totalStock: newTotalStock,
+      basePrice: input.salePrice != null ? Number(input.salePrice) : (input.regularPrice != null ? Number(input.regularPrice) : existing.basePrice),
+      variantsCount: updatedVariants.length,
+      variantsSummary: updatedVariants.map((v) => ({
+        id: v.id,
+        sku: v.sku,
+        name: v.name || v.size,
+        stock: v.stockQuantity ?? v.stock ?? 0,
+        price: v.salePrice || v.regularPrice || String(v.price || 0),
+        isActive: Boolean(v.isActive),
+      })),
       updatedAt: new Date().toISOString(),
     };
-    products[idx] = updated as AdminProduct;
+
+    products[idx] = updated;
     setLocalData(STORAGE_KEYS.PRODUCTS, products);
-    this.logAudit("PRODUCT", id, `Updated product "${updated.name}"`);
-    return { success: true, product: updated as AdminProduct };
+    this.logAudit("PRODUCT", id, `Updated garment "${updated.name}"`);
+    return { success: true, product: updated };
+  }
+
+  /**
+   * 2.5. Quick Status Toggle
+   * Fast toggle for Active or Featured status without needing the full update body.
+   */
+  static async updateProductStatus(
+    id: string,
+    status: ProductStatusToggleInput
+  ): Promise<ProductStatusToggleResponse> {
+    const res = await this.request<ProductStatusToggleResponse>(`/products/${id}/status`, {
+      method: "PATCH",
+      body: JSON.stringify(status),
+    });
+    if (res.success && res.data) return res.data;
+
+    const products = this.getLocalProducts();
+    const idx = products.findIndex((p) => p.id === id);
+    if (idx === -1) {
+      return {
+        success: false,
+        statusCode: 404,
+        message: "Product not found",
+        data: {} as any,
+      };
+    }
+
+    const prod = products[idx];
+    if (status.isActive !== undefined) {
+      prod.isActive = status.isActive;
+      prod.status = status.isActive ? "ACTIVE" : "ARCHIVED";
+    }
+    if (status.isFeatured !== undefined) {
+      prod.isFeatured = status.isFeatured;
+    }
+    prod.updatedAt = new Date().toISOString();
+
+    products[idx] = prod;
+    setLocalData(STORAGE_KEYS.PRODUCTS, products);
+    this.logAudit(
+      "PRODUCT",
+      id,
+      `Toggled status: Active=${prod.isActive}, Featured=${prod.isFeatured}`
+    );
+
+    return {
+      success: true,
+      statusCode: 200,
+      message: "Product status updated successfully",
+      data: {
+        id: prod.id,
+        name: prod.name,
+        isActive: prod.isActive,
+        isFeatured: prod.isFeatured,
+        updatedAt: prod.updatedAt,
+      },
+    };
+  }
+
+  /**
+   * 2.6. Delete / Archive Product (Safe Archiving Safeguard)
+   * If a product is already present in customer carts or order history, calling DELETE
+   * automatically soft-archives the garment (isActive: false) to safeguard historical invoices and receipts.
+   */
+  static async deleteProduct(id: string, force?: boolean): Promise<DeleteProductResponse> {
+    const res = await this.request<DeleteProductResponse>(`/products/${id}${force ? "?force=true" : ""}`, {
+      method: "DELETE",
+    });
+    if (res.success && res.data) return res.data;
+
+    const products = this.getLocalProducts();
+    const product = products.find((p) => p.id === id);
+    if (!product) {
+      return {
+        success: false,
+        statusCode: 404,
+        message: "Product not found",
+        data: { id, name: "Unknown", action: "DELETED" },
+      };
+    }
+
+    // Check if garment is present in active customer cart or orders
+    let isInCartOrOrders = false;
+    if (typeof window !== "undefined") {
+      try {
+        const cartRaw = localStorage.getItem("cart-storage");
+        if (cartRaw) {
+          const parsed = JSON.parse(cartRaw);
+          const cartItems: any[] = parsed?.state?.items || [];
+          const variantIds = new Set(product.variants.map((v) => v.id));
+          isInCartOrOrders = cartItems.some(
+            (item) =>
+              item.productId === id ||
+              item.id === id ||
+              variantIds.has(item.variantId || item.id)
+          );
+        }
+      } catch {}
+    }
+
+    if (!isInCartOrOrders) {
+      const orders = this.getLocalOrders();
+      const variantIds = new Set(product.variants.map((v) => v.id));
+      isInCartOrOrders = orders.some((ord) =>
+        ord.items.some(
+          (item) => item.productId === id || variantIds.has(item.variantId || "")
+        )
+      );
+    }
+
+    if (isInCartOrOrders && !force) {
+      // Soft-archive to protect invoices and order history
+      product.isActive = false;
+      product.status = "ARCHIVED";
+      product.updatedAt = new Date().toISOString();
+      setLocalData(STORAGE_KEYS.PRODUCTS, products);
+      this.logAudit(
+        "PRODUCT",
+        id,
+        `Soft-archived garment "${product.name}" (retained for cart/order history)`
+      );
+      return {
+        success: true,
+        statusCode: 200,
+        message: `Product "${product.name}" is present in customer carts and was archived (set to inactive) instead of deleted.`,
+        data: {
+          id: product.id,
+          name: product.name,
+          action: "ARCHIVED",
+        },
+      };
+    } else {
+      // Permanent removal
+      const remaining = products.filter((p) => p.id !== id);
+      setLocalData(STORAGE_KEYS.PRODUCTS, remaining);
+      this.logAudit("PRODUCT", id, `Permanently deleted garment "${product.name}"`);
+      return {
+        success: true,
+        statusCode: 200,
+        message: `Product "${product.name}" deleted successfully`,
+        data: {
+          id: product.id,
+          name: product.name,
+          action: "DELETED",
+        },
+      };
+    }
   }
 
   static async archiveProduct(id: string): Promise<{ success: boolean }> {
-    return this.updateProduct(id, { status: "ARCHIVED" });
+    const res = await this.updateProductStatus(id, { isActive: false });
+    return { success: res.success };
   }
 
-  static async deleteProduct(id: string): Promise<{ success: boolean }> {
-    const res = await this.request(`/products/${id}`, { method: "DELETE" });
-    if (res.success) return { success: true };
+  /**
+   * 2.7. Upload Additional Product Images
+   * Uploads multiple gallery images directly to an existing product via Cloudinary stream.
+   */
+  static async uploadProductImages(
+    id: string,
+    images: Array<{ url: string; altText?: string; isThumbnail?: boolean; sortOrder?: number }> | FormData
+  ): Promise<UploadProductImagesResponse> {
+    const isFormData = typeof FormData !== "undefined" && images instanceof FormData;
+    const res = await this.request<UploadProductImagesResponse>(`/products/${id}/images`, {
+      method: "POST",
+      body: isFormData ? (images as any) : JSON.stringify({ images }),
+    });
+    if (res.success && res.data) return res.data;
 
-    const products = this.getLocalProducts().filter((p) => p.id !== id);
+    const products = this.getLocalProducts();
+    const prod = products.find((p) => p.id === id);
+    if (!prod) {
+      return {
+        success: false,
+        statusCode: 404,
+        message: "Product not found",
+        data: { images: [] },
+      };
+    }
+
+    let addedImages: AdminProductImage[] = [];
+    if (Array.isArray(images)) {
+      addedImages = images.map((img, i) => ({
+        id: `img_uuid_${Date.now()}_${i}`,
+        productId: id,
+        url: img.url,
+        altText: img.altText || prod.name,
+        isThumbnail: Boolean(img.isThumbnail),
+        sortOrder: img.sortOrder ?? prod.images.length + i,
+      }));
+    }
+
+    prod.images = [...prod.images, ...addedImages];
+    prod.imagesCount = prod.images.length;
+    prod.updatedAt = new Date().toISOString();
     setLocalData(STORAGE_KEYS.PRODUCTS, products);
-    this.logAudit("PRODUCT", id, "Deleted product record");
-    return { success: true };
+    this.logAudit("PRODUCT", id, `Uploaded ${addedImages.length} additional images`);
+
+    return {
+      success: true,
+      statusCode: 201,
+      message: `${addedImages.length} image(s) uploaded successfully`,
+      data: { images: addedImages },
+    };
+  }
+
+  /**
+   * 2.8. Delete Product Image
+   */
+  static async deleteProductImage(
+    productId: string,
+    imageId: string
+  ): Promise<{ success: boolean; message?: string; data?: { productId: string; imageId: string; deleted: boolean } }> {
+    const res = await this.request<any>(`/products/${productId}/images/${imageId}`, {
+      method: "DELETE",
+    });
+    if (res.success && res.data) return { success: true, data: res.data };
+
+    const products = this.getLocalProducts();
+    const prod = products.find((p) => p.id === productId);
+    if (!prod) return { success: false, message: "Product not found" };
+
+    prod.images = prod.images.filter((img) => img.id !== imageId);
+    prod.imagesCount = prod.images.length;
+    prod.updatedAt = new Date().toISOString();
+    setLocalData(STORAGE_KEYS.PRODUCTS, products);
+    this.logAudit("PRODUCT", productId, `Deleted gallery image ${imageId}`);
+
+    return {
+      success: true,
+      message: "Image deleted successfully",
+      data: { productId, imageId, deleted: true },
+    };
   }
 
   // ----------------------------------------------------

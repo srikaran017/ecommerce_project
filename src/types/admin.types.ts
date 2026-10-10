@@ -162,32 +162,69 @@ export interface AdminDashboardOverview {
 }
 
 // ==========================================
-// 3. PRODUCT & MULTI-VARIANT CATALOG TYPES
+// 3. PRODUCT & MULTI-VARIANT CATALOG TYPES (Module 03)
 // ==========================================
 
 export type ProductStatus = "ACTIVE" | "DRAFT" | "ARCHIVED";
 
+export interface AdminVariantAttribute {
+  attributeName: string;
+  value: string;
+  slug: string;
+}
+
 export interface AdminProductVariant {
   id: string;
   sku: string;
+  name?: string;
   size: string;
   colorName: string;
+  color?: string; // alias for colorName
   colorHex?: string;
-  price: number;
-  compareAtPrice?: number | null;
-  costPrice?: number | null;
+  price: number; // selling/effective price
+  regularPrice?: string | number; // compare-at price
+  salePrice?: string | number | null; // discounted price
+  offerPrice?: string | number | null; // flash promo price
+  compareAtPrice?: number | null; // alias for regularPrice
+  costPrice?: string | number | null; // COGS
   stock: number;
+  stockQuantity?: number; // alias for stock
   lowStockThreshold?: number;
   barcode?: string | null;
   isActive: boolean;
+  attributes?: AdminVariantAttribute[];
 }
 
 export interface AdminProductImage {
   id?: string;
+  productId?: string;
   url: string;
   altText?: string;
-  isPrimary: boolean;
+  isThumbnail?: boolean;
+  isPrimary?: boolean;
+  sortOrder?: number;
   displayOrder?: number;
+}
+
+export interface AdminProductVariantSummary {
+  id: string;
+  sku: string;
+  name: string;
+  stock: number;
+  price: string | number;
+  isActive: boolean;
+}
+
+export interface AdminProductCategoryRef {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+export interface AdminProductCollectionRef {
+  id: string;
+  name: string;
+  slug: string;
 }
 
 export interface AdminProduct {
@@ -196,14 +233,33 @@ export interface AdminProduct {
   slug: string;
   description: string;
   shortDescription?: string;
+  brand: string;
+  sku: string;
+  regularPrice: string | number;
+  salePrice?: string | number | null;
+  offerPrice?: string | number | null;
+  costPrice?: string | number | null;
+  stockQuantity: number;
+  isActive: boolean;
+  isFeatured: boolean;
+  totalSold?: number;
+  rating?: number;
+  reviewCount?: number;
+  category?: AdminProductCategoryRef;
+  thumbnail?: string;
+  imagesCount?: number;
+  variantsCount?: number;
+  variantsSummary?: AdminProductVariantSummary[];
+  images: AdminProductImage[];
+  variants: AdminProductVariant[];
+  collections?: AdminProductCollectionRef[];
+
+  // Backward compatibility fields for storefront & existing modules
   status: ProductStatus;
   categorySlug: string;
   categoryName: string;
   tags: string[];
   gender?: "WOMEN" | "MEN" | "UNISEX";
-  brand: string;
-  images: AdminProductImage[];
-  variants: AdminProductVariant[];
   totalStock: number;
   basePrice: number;
   createdAt: string;
@@ -211,32 +267,171 @@ export interface AdminProduct {
   deletedAt?: string | null;
 }
 
+export interface ProductListQueryParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  categoryId?: string;
+  brand?: string;
+  isActive?: boolean | "true" | "false" | "ALL";
+  isFeatured?: boolean | "true" | "false" | "ALL";
+  stockStatus?: "IN_STOCK" | "LOW_STOCK" | "OUT_OF_STOCK" | "ALL";
+  minPrice?: number;
+  maxPrice?: number;
+  sort?:
+    | "newest"
+    | "oldest"
+    | "price_asc"
+    | "price_desc"
+    | "stock_asc"
+    | "stock_desc"
+    | "name_asc"
+    | "bestselling";
+}
+
+export interface ProductsListResponse {
+  success: boolean;
+  statusCode: number;
+  message: string;
+  data: AdminProduct[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export interface AdminProductDetailResponse {
+  success: boolean;
+  statusCode: number;
+  message: string;
+  data: {
+    product: AdminProduct;
+  };
+}
+
+export interface CreateProductVariantInput {
+  id?: string;
+  sku?: string;
+  name?: string;
+  size: string;
+  color?: string;
+  colorName?: string;
+  colorHex?: string;
+  regularPrice?: number;
+  salePrice?: number | null;
+  offerPrice?: number | null;
+  costPrice?: number | null;
+  stockQuantity?: number;
+  price?: number;
+  compareAtPrice?: number | null;
+  stock?: number;
+  lowStockThreshold?: number;
+  isActive?: boolean;
+  attributes?: AdminVariantAttribute[];
+}
+
 export interface CreateProductInput {
   name: string;
   slug?: string;
   description: string;
   shortDescription?: string;
-  categorySlug: string;
-  categoryName: string;
-  tags: string[];
+  brand?: string;
+  sku?: string;
+  categoryId?: string;
+  categorySlug?: string;
+  categoryName?: string;
+  regularPrice?: number;
+  salePrice?: number | null;
+  offerPrice?: number | null;
+  costPrice?: number | null;
+  basePrice?: number;
+  stockQuantity?: number;
+  isActive?: boolean;
+  isFeatured?: boolean;
+  tags?: string[];
   gender?: "WOMEN" | "MEN" | "UNISEX";
-  images: Array<{ url: string; isPrimary: boolean; altText?: string }>;
-  variants: Array<{
-    size: string;
-    colorName: string;
-    colorHex?: string;
-    price: number;
-    compareAtPrice?: number | null;
-    costPrice?: number | null;
-    stock: number;
-    sku?: string;
-    lowStockThreshold?: number;
+  images?: Array<{
+    url: string;
+    altText?: string;
+    isThumbnail?: boolean;
+    isPrimary?: boolean;
+    sortOrder?: number;
   }>;
+  variants?: CreateProductVariantInput[];
 }
 
-export type UpdateProductInput = Partial<CreateProductInput> & {
+export interface UpdateProductInput {
+  name?: string;
+  slug?: string;
+  description?: string;
+  shortDescription?: string;
+  brand?: string;
+  sku?: string;
+  categoryId?: string;
+  categorySlug?: string;
+  categoryName?: string;
+  regularPrice?: number;
+  salePrice?: number | null;
+  offerPrice?: number | null;
+  costPrice?: number | null;
+  basePrice?: number;
+  stockQuantity?: number;
+  isActive?: boolean;
+  isFeatured?: boolean;
   status?: ProductStatus;
-};
+  tags?: string[];
+  gender?: "WOMEN" | "MEN" | "UNISEX";
+  images?: Array<{
+    id?: string;
+    url: string;
+    altText?: string;
+    isThumbnail?: boolean;
+    isPrimary?: boolean;
+    sortOrder?: number;
+  }>;
+  variants?: Array<Partial<CreateProductVariantInput> & { id?: string }>;
+}
+
+export interface ProductStatusToggleInput {
+  isActive?: boolean;
+  isFeatured?: boolean;
+}
+
+export interface ProductStatusToggleResponse {
+  success: boolean;
+  statusCode: number;
+  message: string;
+  data: {
+    id: string;
+    name: string;
+    isActive: boolean;
+    isFeatured: boolean;
+    updatedAt: string;
+  };
+}
+
+export interface DeleteProductResponse {
+  success: boolean;
+  statusCode: number;
+  message: string;
+  data: {
+    id: string;
+    name: string;
+    action: "ARCHIVED" | "DELETED";
+  };
+}
+
+export interface UploadProductImagesResponse {
+  success: boolean;
+  statusCode: number;
+  message: string;
+  data: {
+    images: AdminProductImage[];
+  };
+}
+
 
 // ==========================================
 // 4. INVENTORY & AUDITABLE LEDGER TYPES
