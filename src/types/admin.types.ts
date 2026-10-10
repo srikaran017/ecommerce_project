@@ -25,6 +25,8 @@ export type AdminPermission =
   | "categories:manage"
   | "collections:manage"
   | "discounts:manage"
+  | "coupons:manage"
+  | "promotions:manage"
   | "settings:view"
   | "settings:edit"
   | "audit:view";
@@ -1042,24 +1044,175 @@ export interface CollectionsListResponse {
 }
 
 // ==========================================
-// 7. COUPONS & DISCOUNTS
+// 7. COUPONS, DISCOUNTS & FLASH CAMPAIGNS (Module 06)
 // ==========================================
 
-export type CouponType = "PERCENTAGE" | "FIXED_AMOUNT";
+export type DiscountType = "PERCENTAGE" | "FIXED" | "FIXED_AMOUNT";
+export type CouponType = DiscountType;
+
+export interface CouponUsageLog {
+  id: string;
+  usedAt: string;
+  discountApplied: string | number;
+  user: {
+    id: string;
+    name: string;
+    email: string;
+  };
+  order: {
+    id: string;
+    orderNumber: string;
+    totalAmount: string | number;
+  };
+}
 
 export interface AdminCoupon {
   id: string;
   code: string;
-  discountType: CouponType;
-  discountValue: number;
-  minOrderAmount?: number;
-  maxDiscountAmount?: number;
+  description?: string;
+  discountType: DiscountType;
+  discountValue: string | number;
+  minOrderAmount?: string | number | null;
+  maxDiscountAmount?: string | number | null;
   startDate: string;
   endDate: string;
   usageLimit?: number;
-  usageCount: number;
+  usedCount: number;
   perUserLimit?: number;
   isActive: boolean;
+  computedStatus?: "ACTIVE" | "EXPIRED" | "INACTIVE";
+  remainingUses?: number;
+  usages?: CouponUsageLog[];
+  createdAt?: string;
+  updatedAt?: string;
+
+  // Backward compatibility aliases
+  usageCount?: number;
+}
+
+export interface CreateCouponInput {
+  code: string;
+  description?: string;
+  discountType: "PERCENTAGE" | "FIXED";
+  discountValue: number;
+  minOrderAmount?: number;
+  maxDiscountAmount?: number;
+  startDate?: string;
+  endDate: string;
+  usageLimit?: number;
+  perUserLimit?: number;
+  isActive?: boolean;
+}
+
+export interface UpdateCouponInput {
+  code?: string;
+  description?: string;
+  discountType?: "PERCENTAGE" | "FIXED";
+  discountValue?: number;
+  minOrderAmount?: number;
+  maxDiscountAmount?: number;
+  startDate?: string;
+  endDate?: string;
+  usageLimit?: number;
+  perUserLimit?: number;
+  isActive?: boolean;
+}
+
+export interface CouponListQueryParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  status?: "ALL" | "ACTIVE" | "EXPIRED" | "INACTIVE";
+  discountType?: "ALL" | "PERCENTAGE" | "FIXED";
+  sort?: "newest" | "oldest" | "code_asc" | "used_desc";
+}
+
+export interface CouponsListResponse {
+  success: boolean;
+  statusCode: number;
+  message: string;
+  data: AdminCoupon[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export interface CouponDetailResponse {
+  success: boolean;
+  statusCode: number;
+  message: string;
+  data: AdminCoupon;
+}
+
+export interface AdminPromotion {
+  id: string;
+  title: string;
+  subtitle?: string;
+  badge?: string;
+  discountPercentage?: number;
+  couponCode?: string;
+  startDate: string;
+  endDate: string;
+  backgroundImage: string;
+  ctaText?: string;
+  ctaLink?: string;
+  sortOrder?: number;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreatePromotionInput {
+  title: string;
+  subtitle?: string;
+  badge?: string;
+  discountPercentage?: number;
+  couponCode?: string;
+  startDate?: string;
+  endDate?: string;
+  backgroundImage?: string;
+  ctaText?: string;
+  ctaLink?: string;
+  sortOrder?: number;
+  isActive?: boolean;
+}
+
+export interface UpdatePromotionInput {
+  title?: string;
+  subtitle?: string;
+  badge?: string;
+  discountPercentage?: number;
+  couponCode?: string;
+  startDate?: string;
+  endDate?: string;
+  backgroundImage?: string;
+  ctaText?: string;
+  ctaLink?: string;
+  sortOrder?: number;
+  isActive?: boolean;
+}
+
+export interface PromotionListQueryParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  status?: "ALL" | "ACTIVE" | "INACTIVE" | "EXPIRED";
+}
+
+export interface PromotionsListResponse {
+  success: boolean;
+  statusCode: number;
+  message: string;
+  data: AdminPromotion[];
+  pagination?: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
 }
 
 // ==========================================

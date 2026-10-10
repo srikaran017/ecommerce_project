@@ -73,6 +73,17 @@ import {
   CollectionListQueryParams,
   CollectionsListResponse,
   AdminCoupon,
+  CreateCouponInput,
+  UpdateCouponInput,
+  CouponListQueryParams,
+  CouponsListResponse,
+  CouponDetailResponse,
+  CouponUsageLog,
+  AdminPromotion,
+  CreatePromotionInput,
+  UpdatePromotionInput,
+  PromotionListQueryParams,
+  PromotionsListResponse,
   AuditLogEntry,
   AdminManagedUser,
   CreateSubordinateUserInput,
@@ -107,6 +118,7 @@ const STORAGE_KEYS = {
   CATEGORIES: "admin_mock_categories_v1",
   COLLECTIONS: "admin_mock_collections_v1",
   COUPONS: "admin_mock_coupons_v1",
+  PROMOTIONS: "admin_mock_promotions_v1",
   AUDIT_LOGS: "admin_mock_audit_logs_v1",
   USERS: "admin_mock_users_v1",
 };
@@ -640,6 +652,166 @@ export const INITIAL_SAMPLE_ORDERS: AdminOrder[] = [
 ];
 
 export const SAMPLE_ADMIN_ORDERS = INITIAL_SAMPLE_ORDERS;
+
+export const INITIAL_COUPONS: AdminCoupon[] = [
+  {
+    id: "coup_uuid_101",
+    code: "DIWALI25",
+    description: "Exclusive 25% off festive preview collection",
+    discountType: "PERCENTAGE",
+    discountValue: "25.00",
+    minOrderAmount: "5000.00",
+    maxDiscountAmount: "3000.00",
+    startDate: "2026-10-15T00:00:00.000Z",
+    endDate: "2026-11-05T23:59:59.000Z",
+    usageLimit: 500,
+    usedCount: 82,
+    perUserLimit: 1,
+    isActive: true,
+    computedStatus: "ACTIVE",
+    remainingUses: 418,
+    createdAt: "2026-10-01T10:00:00.000Z",
+    usages: [
+      {
+        id: "use_uuid_1",
+        usedAt: "2026-10-16T14:22:00.000Z",
+        discountApplied: "2500.00",
+        user: {
+          id: "usr_uuid_1",
+          name: "Meera Sen",
+          email: "meera@example.com",
+        },
+        order: {
+          id: "ord_uuid_1",
+          orderNumber: "ORD-20261016-1092",
+          totalAmount: "10000.00",
+        },
+      },
+    ],
+  },
+  {
+    id: "coup_uuid_102",
+    code: "WELCOME1000",
+    description: "₹1,000 off on luxury welcome registration",
+    discountType: "FIXED",
+    discountValue: "1000.00",
+    minOrderAmount: "4000.00",
+    maxDiscountAmount: null,
+    startDate: "2026-01-01T00:00:00.000Z",
+    endDate: "2026-12-31T23:59:59.000Z",
+    usageLimit: 1000,
+    usedCount: 142,
+    perUserLimit: 1,
+    isActive: true,
+    computedStatus: "ACTIVE",
+    remainingUses: 858,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    usages: [
+      {
+        id: "use_uuid_2",
+        usedAt: "2026-08-10T12:00:00.000Z",
+        discountApplied: "1000.00",
+        user: {
+          id: "usr_uuid_2",
+          name: "Priya Sengupta",
+          email: "priya@example.com",
+        },
+        order: {
+          id: "ord_uuid_2",
+          orderNumber: "ORD-20260810-7712",
+          totalAmount: "8500.00",
+        },
+      },
+    ],
+  },
+  {
+    id: "coup_uuid_103",
+    code: "FESTIVE20",
+    description: "Autumn gala launch coupon",
+    discountType: "PERCENTAGE",
+    discountValue: "20.00",
+    minOrderAmount: "4000.00",
+    maxDiscountAmount: "2000.00",
+    startDate: "2026-10-15T00:00:00.000Z",
+    endDate: "2026-10-31T23:59:59.000Z",
+    usageLimit: 200,
+    usedCount: 0,
+    perUserLimit: 1,
+    isActive: true,
+    computedStatus: "ACTIVE",
+    remainingUses: 200,
+    createdAt: "2026-10-05T10:00:00.000Z",
+    usages: [],
+  },
+  {
+    id: "coup_uuid_104",
+    code: "SUMMER50",
+    description: "50% off mid-season clearance archive",
+    discountType: "PERCENTAGE",
+    discountValue: "50.00",
+    minOrderAmount: "6000.00",
+    maxDiscountAmount: "5000.00",
+    startDate: "2026-05-01T00:00:00.000Z",
+    endDate: "2026-06-30T23:59:59.000Z",
+    usageLimit: 100,
+    usedCount: 100,
+    perUserLimit: 1,
+    isActive: false,
+    computedStatus: "EXPIRED",
+    remainingUses: 0,
+    createdAt: "2026-05-01T00:00:00.000Z",
+    usages: [
+      {
+        id: "use_uuid_3",
+        usedAt: "2026-06-20T17:30:00.000Z",
+        discountApplied: "4000.00",
+        user: {
+          id: "usr_uuid_3",
+          name: "Rohan Varma",
+          email: "rohan@example.com",
+        },
+        order: {
+          id: "ord_uuid_3",
+          orderNumber: "ORD-20260620-3312",
+          totalAmount: "8000.00",
+        },
+      },
+    ],
+  },
+];
+
+export const INITIAL_PROMOTIONS: AdminPromotion[] = [
+  {
+    id: "promo_uuid_1",
+    title: "ROYAL DIWALI COUTURE PREVIEW",
+    subtitle: "Pre-order exclusive Banarasi & Kanchipuram bridal weaves.",
+    badge: "SPECIAL PROMO",
+    discountPercentage: 25,
+    couponCode: "DIWALI25",
+    startDate: "2026-10-15T00:00:00.000Z",
+    endDate: "2026-11-05T23:59:59.000Z",
+    backgroundImage: "https://images.unsplash.com/photo-1610030469983-98e550d6193c?q=80&w=1200",
+    ctaText: "SHOP THE SALE",
+    ctaLink: "/products?collection=festive-couture",
+    sortOrder: 1,
+    isActive: true,
+  },
+  {
+    id: "promo_uuid_2",
+    title: "ATELIER SILK EVENING GOWNS",
+    subtitle: "Handcrafted pure Mulberry silk gowns for festive soirees.",
+    badge: "LIMITED EDITION",
+    discountPercentage: 20,
+    couponCode: "FESTIVE20",
+    startDate: "2026-10-01T00:00:00.000Z",
+    endDate: "2026-10-31T23:59:59.000Z",
+    backgroundImage: "https://images.unsplash.com/photo-1566174053879-31528523f8ae?q=80&w=1200",
+    ctaText: "EXPLORE COLLECTION",
+    ctaLink: "/categories/evening-gowns",
+    sortOrder: 2,
+    isActive: true,
+  },
+];
 
 // Initialize seed products conforming to Module 03
 function getInitialProducts(): AdminProduct[] {
@@ -4944,4 +5116,665 @@ export class AdminService {
       data: { id, name: target.name, deleted: true },
     };
   }
+
+  // ====================================================
+  // 7. COUPONS & DISCOUNTS (/api/v1/admin/coupons) - Module 06
+  // ====================================================
+
+  static getLocalCoupons(): AdminCoupon[] {
+    const coupons = getLocalData<AdminCoupon[]>(STORAGE_KEYS.COUPONS, INITIAL_COUPONS);
+    const now = Date.now();
+
+    return coupons.map((c) => {
+      let computedStatus: "ACTIVE" | "EXPIRED" | "INACTIVE" = "ACTIVE";
+      if (!c.isActive) {
+        computedStatus = "INACTIVE";
+      } else if (new Date(c.endDate).getTime() < now) {
+        computedStatus = "EXPIRED";
+      } else if (c.usageLimit && c.usedCount >= c.usageLimit) {
+        computedStatus = "EXPIRED";
+      }
+
+      const remainingUses = c.usageLimit ? Math.max(0, c.usageLimit - c.usedCount) : 999999;
+      return {
+        ...c,
+        computedStatus,
+        remainingUses,
+      };
+    });
+  }
+
+  /**
+   * 2.1. GET /api/v1/admin/coupons
+   * Paginated coupon list with real-time status and remaining quota metrics
+   */
+  static async getCouponsList(
+    params?: CouponListQueryParams
+  ): Promise<CouponsListResponse> {
+    const qp = new URLSearchParams();
+    if (params?.page) qp.set("page", String(params.page));
+    if (params?.limit) qp.set("limit", String(params.limit));
+    if (params?.search) qp.set("search", params.search);
+    if (params?.status && params.status !== "ALL") qp.set("status", params.status);
+    if (params?.discountType && params.discountType !== "ALL") qp.set("discountType", params.discountType);
+    if (params?.sort) qp.set("sort", params.sort);
+
+    const qs = qp.toString() ? `?${qp.toString()}` : "";
+    const res = await this.request<CouponsListResponse>(`/coupons${qs}`);
+    if (res.success && res.data && Array.isArray(res.data.data)) {
+      return res.data;
+    }
+
+    // Local Fallback Engine
+    let filtered = this.getLocalCoupons();
+
+    if (params?.search && params.search.trim()) {
+      const q = params.search.trim().toLowerCase();
+      filtered = filtered.filter(
+        (c) =>
+          c.code.toLowerCase().includes(q) ||
+          (c.description && c.description.toLowerCase().includes(q))
+      );
+    }
+
+    if (params?.status && params.status !== "ALL") {
+      filtered = filtered.filter((c) => c.computedStatus === params.status);
+    }
+
+    if (params?.discountType && params.discountType !== "ALL") {
+      filtered = filtered.filter((c) => c.discountType === params.discountType);
+    }
+
+    const sortMode = params?.sort || "newest";
+    filtered.sort((a, b) => {
+      switch (sortMode) {
+        case "newest":
+          return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+        case "oldest":
+          return new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime();
+        case "code_asc":
+          return a.code.localeCompare(b.code);
+        case "used_desc":
+          return (b.usedCount || 0) - (a.usedCount || 0);
+        default:
+          return 0;
+      }
+    });
+
+    const page = Math.max(1, Number(params?.page || 1));
+    const limit = Math.min(100, Math.max(1, Number(params?.limit || 20)));
+    const total = filtered.length;
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const startIndex = (page - 1) * limit;
+    const paginated = filtered.slice(startIndex, startIndex + limit);
+
+    return {
+      success: true,
+      statusCode: 200,
+      message: "Coupons fetched successfully",
+      data: paginated,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+      },
+    };
+  }
+
+  /**
+   * 2.2. GET /api/v1/admin/coupons/:id
+   * Retrieves coupon configuration with customer redemption usages
+   */
+  static async getCouponDetail(id: string): Promise<CouponDetailResponse> {
+    const res = await this.request<CouponDetailResponse>(`/coupons/${id}`);
+    if (res.success && res.data && res.data.data) {
+      return res.data;
+    }
+
+    const coupons = this.getLocalCoupons();
+    const coupon = coupons.find((c) => c.id === id || c.code.toLowerCase() === id.toLowerCase());
+    if (!coupon) {
+      throw new Error(`Coupon '${id}' not found`);
+    }
+
+    return {
+      success: true,
+      statusCode: 200,
+      message: "Coupon details fetched successfully",
+      data: coupon,
+    };
+  }
+
+  /**
+   * 2.3. POST /api/v1/admin/coupons
+   * Creates a new luxury promotional discount coupon
+   */
+  static async createCoupon(
+    input: CreateCouponInput
+  ): Promise<{
+    success: boolean;
+    statusCode: number;
+    message: string;
+    data?: AdminCoupon;
+    error?: string;
+  }> {
+    const formattedCode = input.code.trim().toUpperCase();
+
+    const res = await this.request<AdminCoupon>("/coupons", {
+      method: "POST",
+      body: JSON.stringify({ ...input, code: formattedCode }),
+    });
+
+    if (res.success && res.data) {
+      return {
+        success: true,
+        statusCode: 201,
+        message: res.message || `Coupon '${formattedCode}' created successfully`,
+        data: res.data,
+      };
+    }
+
+    const coupons = this.getLocalCoupons();
+    if (coupons.some((c) => c.code.toUpperCase() === formattedCode)) {
+      return {
+        success: false,
+        statusCode: 400,
+        error: "DUPLICATE_COUPON_CODE",
+        message: `Coupon code '${formattedCode}' already exists. Please choose a unique code.`,
+      };
+    }
+
+    const now = new Date().toISOString();
+    const newCoupon: AdminCoupon = {
+      id: `coup_uuid_${Date.now()}`,
+      code: formattedCode,
+      description: input.description?.trim() || "",
+      discountType: input.discountType,
+      discountValue: String(Number(input.discountValue).toFixed(2)),
+      minOrderAmount: input.minOrderAmount ? String(Number(input.minOrderAmount).toFixed(2)) : null,
+      maxDiscountAmount: input.maxDiscountAmount ? String(Number(input.maxDiscountAmount).toFixed(2)) : null,
+      startDate: input.startDate || now,
+      endDate: input.endDate,
+      usageLimit: input.usageLimit || 500,
+      usedCount: 0,
+      perUserLimit: input.perUserLimit || 1,
+      isActive: input.isActive !== undefined ? input.isActive : true,
+      computedStatus: "ACTIVE",
+      remainingUses: input.usageLimit || 500,
+      usages: [],
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    coupons.unshift(newCoupon);
+    setLocalData(STORAGE_KEYS.COUPONS, coupons);
+    this.logAudit("COUPON", newCoupon.id, `Created coupon "${newCoupon.code}" (${newCoupon.discountValue}% off)`);
+
+    return {
+      success: true,
+      statusCode: 201,
+      message: `Coupon '${newCoupon.code}' created successfully`,
+      data: newCoupon,
+    };
+  }
+
+  /**
+   * 2.4. PUT /api/v1/admin/coupons/:id
+   */
+  static async updateCoupon(
+    id: string,
+    input: UpdateCouponInput
+  ): Promise<{
+    success: boolean;
+    statusCode: number;
+    message: string;
+    data?: AdminCoupon;
+    error?: string;
+  }> {
+    const res = await this.request<AdminCoupon>(`/coupons/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(input),
+    });
+
+    if (res.success && res.data) {
+      return {
+        success: true,
+        statusCode: 200,
+        message: res.message || "Coupon updated successfully",
+        data: res.data,
+      };
+    }
+
+    const coupons = this.getLocalCoupons();
+    const idx = coupons.findIndex((c) => c.id === id);
+    if (idx === -1) {
+      return {
+        success: false,
+        statusCode: 404,
+        error: "COUPON_NOT_FOUND",
+        message: "Coupon not found.",
+      };
+    }
+
+    const current = coupons[idx];
+    const updated: AdminCoupon = {
+      ...current,
+      ...(input.code && { code: input.code.trim().toUpperCase() }),
+      ...(input.description !== undefined && { description: input.description.trim() }),
+      ...(input.discountType && { discountType: input.discountType }),
+      ...(input.discountValue !== undefined && { discountValue: String(Number(input.discountValue).toFixed(2)) }),
+      ...(input.minOrderAmount !== undefined && { minOrderAmount: input.minOrderAmount ? String(Number(input.minOrderAmount).toFixed(2)) : null }),
+      ...(input.maxDiscountAmount !== undefined && { maxDiscountAmount: input.maxDiscountAmount ? String(Number(input.maxDiscountAmount).toFixed(2)) : null }),
+      ...(input.startDate && { startDate: input.startDate }),
+      ...(input.endDate && { endDate: input.endDate }),
+      ...(input.usageLimit !== undefined && { usageLimit: input.usageLimit }),
+      ...(input.perUserLimit !== undefined && { perUserLimit: input.perUserLimit }),
+      ...(input.isActive !== undefined && { isActive: input.isActive }),
+      updatedAt: new Date().toISOString(),
+    };
+
+    coupons[idx] = updated;
+    setLocalData(STORAGE_KEYS.COUPONS, coupons);
+    this.logAudit("COUPON", id, `Updated coupon "${updated.code}"`);
+
+    return {
+      success: true,
+      statusCode: 200,
+      message: `Coupon '${updated.code}' updated successfully`,
+      data: updated,
+    };
+  }
+
+  /**
+   * 2.5. PATCH /api/v1/admin/coupons/:id/status
+   */
+  static async toggleCouponStatus(
+    id: string,
+    isActive: boolean
+  ): Promise<{
+    success: boolean;
+    statusCode: number;
+    message: string;
+    data?: { id: string; isActive: boolean };
+  }> {
+    const res = await this.request<{ id: string; isActive: boolean }>(`/coupons/${id}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ isActive }),
+    });
+
+    if (res.success && res.data) {
+      return {
+        success: true,
+        statusCode: 200,
+        message: res.message || `Coupon status updated to ${isActive ? "ACTIVE" : "INACTIVE"}`,
+        data: res.data,
+      };
+    }
+
+    const coupons = this.getLocalCoupons();
+    const idx = coupons.findIndex((c) => c.id === id);
+    if (idx === -1) {
+      return {
+        success: false,
+        statusCode: 404,
+        message: "Coupon not found",
+      };
+    }
+
+    coupons[idx].isActive = isActive;
+    coupons[idx].updatedAt = new Date().toISOString();
+    setLocalData(STORAGE_KEYS.COUPONS, coupons);
+
+    this.logAudit("COUPON", id, `${isActive ? "Activated" : "Deactivated"} coupon "${coupons[idx].code}"`);
+
+    return {
+      success: true,
+      statusCode: 200,
+      message: `Coupon status updated to ${isActive ? "ACTIVE" : "INACTIVE"}`,
+      data: { id, isActive },
+    };
+  }
+
+  /**
+   * 2.6. DELETE /api/v1/admin/coupons/:id
+   * Safe Deactivation vs Hard Deletes:
+   * If a coupon has historical order usages, it is soft-deactivated (isActive: false) to preserve order ledger history.
+   */
+  static async deleteCoupon(
+    id: string
+  ): Promise<{
+    success: boolean;
+    statusCode: number;
+    message: string;
+    data?: { id: string; code: string; action: "DEACTIVATED" | "DELETED"; isActive?: boolean };
+  }> {
+    const res = await this.request<{ id: string; code: string; action: "DEACTIVATED" | "DELETED" }>(
+      `/coupons/${id}`,
+      { method: "DELETE" }
+    );
+
+    if (res.success && res.data) {
+      return {
+        success: true,
+        statusCode: 200,
+        message: res.message || "Coupon processed successfully",
+        data: res.data,
+      };
+    }
+
+    const coupons = this.getLocalCoupons();
+    const target = coupons.find((c) => c.id === id);
+    if (!target) {
+      return {
+        success: false,
+        statusCode: 404,
+        message: "Coupon not found",
+      };
+    }
+
+    // Safe Deactivation Guard
+    if (target.usedCount > 0 || (target.usages && target.usages.length > 0)) {
+      target.isActive = false;
+      target.updatedAt = new Date().toISOString();
+      setLocalData(STORAGE_KEYS.COUPONS, coupons);
+      this.logAudit(
+        "COUPON",
+        id,
+        `Deactivated coupon "${target.code}" (${target.usedCount} historical usages retained)`
+      );
+      return {
+        success: true,
+        statusCode: 200,
+        message: `Coupon has ${target.usedCount} historical order usages. It was deactivated instead of permanently deleted to safeguard invoice history.`,
+        data: { id, code: target.code, action: "DEACTIVATED", isActive: false },
+      };
+    }
+
+    const remaining = coupons.filter((c) => c.id !== id);
+    setLocalData(STORAGE_KEYS.COUPONS, remaining);
+    this.logAudit("COUPON", id, `Permanently deleted unused coupon "${target.code}"`);
+
+    return {
+      success: true,
+      statusCode: 200,
+      message: `Coupon '${target.code}' successfully deleted`,
+      data: { id, code: target.code, action: "DELETED", isActive: false },
+    };
+  }
+
+  // ====================================================
+  // 8. MARKETING FLASH CAMPAIGNS (/api/v1/admin/promotions) - Module 06
+  // ====================================================
+
+  static getLocalPromotions(): AdminPromotion[] {
+    return getLocalData<AdminPromotion[]>(STORAGE_KEYS.PROMOTIONS, INITIAL_PROMOTIONS);
+  }
+
+  /**
+   * 3.1. GET /api/v1/admin/promotions
+   */
+  static async getPromotionsList(
+    params?: PromotionListQueryParams
+  ): Promise<PromotionsListResponse> {
+    const qp = new URLSearchParams();
+    if (params?.page) qp.set("page", String(params.page));
+    if (params?.limit) qp.set("limit", String(params.limit));
+    if (params?.search) qp.set("search", params.search);
+    if (params?.status && params.status !== "ALL") qp.set("status", params.status);
+
+    const qs = qp.toString() ? `?${qp.toString()}` : "";
+    const res = await this.request<PromotionsListResponse>(`/promotions${qs}`);
+    if (res.success && res.data && Array.isArray(res.data.data)) {
+      return res.data;
+    }
+
+    let promotions = this.getLocalPromotions();
+    const now = Date.now();
+
+    if (params?.search && params.search.trim()) {
+      const q = params.search.trim().toLowerCase();
+      promotions = promotions.filter(
+        (p) =>
+          p.title.toLowerCase().includes(q) ||
+          (p.subtitle && p.subtitle.toLowerCase().includes(q)) ||
+          (p.couponCode && p.couponCode.toLowerCase().includes(q))
+      );
+    }
+
+    if (params?.status && params.status !== "ALL") {
+      if (params.status === "ACTIVE") {
+        promotions = promotions.filter(
+          (p) => p.isActive && new Date(p.endDate).getTime() >= now
+        );
+      } else if (params.status === "INACTIVE") {
+        promotions = promotions.filter((p) => !p.isActive);
+      } else if (params.status === "EXPIRED") {
+        promotions = promotions.filter(
+          (p) => new Date(p.endDate).getTime() < now
+        );
+      }
+    }
+
+    promotions.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+
+    return {
+      success: true,
+      statusCode: 200,
+      message: "Promotions fetched successfully",
+      data: promotions,
+      pagination: {
+        page: 1,
+        limit: promotions.length,
+        total: promotions.length,
+        totalPages: 1,
+      },
+    };
+  }
+
+  /**
+   * 3.2. POST /api/v1/admin/promotions
+   */
+  static async createPromotion(
+    input: CreatePromotionInput
+  ): Promise<{
+    success: boolean;
+    statusCode: number;
+    message: string;
+    data?: AdminPromotion;
+  }> {
+    const res = await this.request<AdminPromotion>("/promotions", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+
+    if (res.success && res.data) {
+      return {
+        success: true,
+        statusCode: 201,
+        message: res.message || "Promotion created successfully",
+        data: res.data,
+      };
+    }
+
+    const promotions = this.getLocalPromotions();
+    const now = new Date().toISOString();
+    const newPromo: AdminPromotion = {
+      id: `promo_uuid_${Date.now()}`,
+      title: input.title.trim().toUpperCase(),
+      subtitle: input.subtitle?.trim() || "",
+      badge: input.badge?.trim() || "SPECIAL PROMO",
+      discountPercentage: input.discountPercentage || 20,
+      couponCode: input.couponCode?.trim().toUpperCase() || undefined,
+      startDate: input.startDate || now,
+      endDate: input.endDate || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+      backgroundImage:
+        input.backgroundImage ||
+        "https://images.unsplash.com/photo-1610030469983-98e550d6193c?q=80&w=1200",
+      ctaText: input.ctaText?.trim() || "SHOP THE SALE",
+      ctaLink: input.ctaLink?.trim() || "/products",
+      sortOrder: input.sortOrder !== undefined ? input.sortOrder : promotions.length + 1,
+      isActive: input.isActive !== undefined ? input.isActive : true,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    promotions.push(newPromo);
+    setLocalData(STORAGE_KEYS.PROMOTIONS, promotions);
+    this.logAudit("PROMOTION" as any, newPromo.id, `Created flash promotion "${newPromo.title}"`);
+
+    return {
+      success: true,
+      statusCode: 201,
+      message: "Promotion created successfully",
+      data: newPromo,
+    };
+  }
+
+  /**
+   * 3.3. PUT /api/v1/admin/promotions/:id
+   */
+  static async updatePromotion(
+    id: string,
+    input: UpdatePromotionInput
+  ): Promise<{
+    success: boolean;
+    statusCode: number;
+    message: string;
+    data?: AdminPromotion;
+  }> {
+    const res = await this.request<AdminPromotion>(`/promotions/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(input),
+    });
+
+    if (res.success && res.data) {
+      return {
+        success: true,
+        statusCode: 200,
+        message: res.message || "Promotion updated successfully",
+        data: res.data,
+      };
+    }
+
+    const promotions = this.getLocalPromotions();
+    const idx = promotions.findIndex((p) => p.id === id);
+    if (idx === -1) {
+      throw new Error(`Promotion ${id} not found`);
+    }
+
+    const updated: AdminPromotion = {
+      ...promotions[idx],
+      ...(input.title && { title: input.title.trim().toUpperCase() }),
+      ...(input.subtitle !== undefined && { subtitle: input.subtitle.trim() }),
+      ...(input.badge !== undefined && { badge: input.badge.trim() }),
+      ...(input.discountPercentage !== undefined && { discountPercentage: input.discountPercentage }),
+      ...(input.couponCode !== undefined && { couponCode: input.couponCode.trim().toUpperCase() }),
+      ...(input.startDate && { startDate: input.startDate }),
+      ...(input.endDate && { endDate: input.endDate }),
+      ...(input.backgroundImage && { backgroundImage: input.backgroundImage }),
+      ...(input.ctaText && { ctaText: input.ctaText.trim() }),
+      ...(input.ctaLink && { ctaLink: input.ctaLink.trim() }),
+      ...(input.sortOrder !== undefined && { sortOrder: input.sortOrder }),
+      ...(input.isActive !== undefined && { isActive: input.isActive }),
+      updatedAt: new Date().toISOString(),
+    };
+
+    promotions[idx] = updated;
+    setLocalData(STORAGE_KEYS.PROMOTIONS, promotions);
+    this.logAudit("PROMOTION" as any, id, `Updated flash promotion "${updated.title}"`);
+
+    return {
+      success: true,
+      statusCode: 200,
+      message: "Promotion updated successfully",
+      data: updated,
+    };
+  }
+
+  /**
+   * 3.4. PATCH /api/v1/admin/promotions/:id/status
+   */
+  static async togglePromotionStatus(
+    id: string,
+    isActive: boolean
+  ): Promise<{
+    success: boolean;
+    statusCode: number;
+    message: string;
+    data?: { id: string; isActive: boolean };
+  }> {
+    const res = await this.request<{ id: string; isActive: boolean }>(`/promotions/${id}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ isActive }),
+    });
+
+    if (res.success && res.data) {
+      return {
+        success: true,
+        statusCode: 200,
+        message: res.message || `Campaign status updated to ${isActive ? "ACTIVE" : "INACTIVE"}`,
+        data: res.data,
+      };
+    }
+
+    const promotions = this.getLocalPromotions();
+    const idx = promotions.findIndex((p) => p.id === id);
+    if (idx === -1) {
+      throw new Error("Promotion not found");
+    }
+
+    promotions[idx].isActive = isActive;
+    promotions[idx].updatedAt = new Date().toISOString();
+    setLocalData(STORAGE_KEYS.PROMOTIONS, promotions);
+
+    this.logAudit(
+      "PROMOTION" as any,
+      id,
+      `${isActive ? "Enabled" : "Disabled"} promotional campaign "${promotions[idx].title}"`
+    );
+
+    return {
+      success: true,
+      statusCode: 200,
+      message: `Campaign status updated to ${isActive ? "ACTIVE" : "INACTIVE"}`,
+      data: { id, isActive },
+    };
+  }
+
+  /**
+   * 3.5. DELETE /api/v1/admin/promotions/:id
+   */
+  static async deletePromotion(
+    id: string
+  ): Promise<{
+    success: boolean;
+    statusCode: number;
+    message: string;
+  }> {
+    const res = await this.request(`/promotions/${id}`, { method: "DELETE" });
+    if (res.success) {
+      return {
+        success: true,
+        statusCode: 200,
+        message: res.message || "Promotion deleted successfully",
+      };
+    }
+
+    const promotions = this.getLocalPromotions();
+    const target = promotions.find((p) => p.id === id);
+    const remaining = promotions.filter((p) => p.id !== id);
+
+    setLocalData(STORAGE_KEYS.PROMOTIONS, remaining);
+    if (target) {
+      this.logAudit("PROMOTION" as any, id, `Deleted promotional campaign "${target.title}"`);
+    }
+
+    return {
+      success: true,
+      statusCode: 200,
+      message: "Promotion deleted successfully",
+    };
+  }
 }
+

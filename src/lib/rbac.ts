@@ -73,6 +73,8 @@ export const ROLE_PERMISSIONS: Record<AdminRole, AdminPermission[]> = {
     "categories:manage",
     "collections:manage",
     "discounts:manage",
+    "coupons:manage",
+    "promotions:manage",
     "settings:view",
     "settings:edit",
     "audit:view",
@@ -92,6 +94,8 @@ export const ROLE_PERMISSIONS: Record<AdminRole, AdminPermission[]> = {
     "categories:manage",
     "collections:manage",
     "discounts:manage",
+    "coupons:manage",
+    "promotions:manage",
     "settings:view",
     "settings:edit",
   ],
@@ -237,6 +241,20 @@ export const rbac = {
   canManageSettings: (role?: string) => hasPermission(role, "settings:edit"),
   canManageDiscounts: (role?: string) => hasPermission(role, "discounts:manage"),
   canViewAuditLogs: (role?: string) => hasPermission(role, "audit:view"),
+
+  // Module 06 Coupons, Discounts & Flash Campaigns Helpers
+  canManageCoupons: (role?: string) => {
+    if (!role) return false;
+    const r = role.toUpperCase();
+    if (r === "SUPER_ADMIN" || r === "STORE_ADMIN") return true;
+    return hasPermission(role, "coupons:manage") || hasPermission(role, "discounts:manage");
+  },
+  canManagePromotions: (role?: string) => {
+    if (!role) return false;
+    const r = role.toUpperCase();
+    if (r === "SUPER_ADMIN" || r === "STORE_ADMIN") return true;
+    return hasPermission(role, "promotions:manage");
+  },
 
   // Module 05 Order Lifecycle, Fulfillment & Courier Tracking Helpers
   canReadOrders: (role?: string) => {
