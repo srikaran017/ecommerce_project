@@ -133,14 +133,23 @@ export interface DashboardMetric {
 
 export interface InventoryAlertItem {
   id: string;
+  variantId?: string;
   productId: string;
   productName: string;
-  variantSku: string;
-  size: string;
-  colorName: string;
-  stock: number;
+  sku?: string;
+  variantName?: string;
+  stockQuantity?: number;
   lowStockThreshold: number;
-  urgency: "CRITICAL" | "LOW";
+  status?: "OUT_OF_STOCK" | "LOW_STOCK";
+  categoryName?: string;
+  thumbnail?: string;
+
+  // Backward compatibility aliases
+  variantSku?: string;
+  size?: string;
+  colorName?: string;
+  stock?: number;
+  urgency?: "CRITICAL" | "LOW";
 }
 
 export interface SalesChartPoint {
@@ -434,52 +443,224 @@ export interface UploadProductImagesResponse {
 
 
 // ==========================================
-// 4. INVENTORY & AUDITABLE LEDGER TYPES
+// 4. INVENTORY & AUDITABLE LEDGER TYPES (Module 04)
 // ==========================================
 
-export type InventoryTransactionReason =
+export type InventoryStockStatus = "IN_STOCK" | "LOW_STOCK" | "OUT_OF_STOCK";
+
+export type InventoryTransactionType =
   | "RESTOCK"
   | "SALE"
-  | "MANUAL_ADJUSTMENT"
+  | "ADJUSTMENT"
   | "RETURN"
+  | "DAMAGE";
+
+// Backward compatibility alias
+export type InventoryTransactionReason =
+  | InventoryTransactionType
+  | "MANUAL_ADJUSTMENT"
   | "DAMAGED"
   | "INVENTORY_AUDIT";
 
-export interface InventoryLedgerEntry {
+export interface InventoryItemCategoryRef {
   id: string;
-  variantId: string;
+  name: string;
+  slug: string;
+}
+
+export interface InventoryItem {
+  itemType: "VARIANT" | "PRODUCT";
+  id: string; // variantId or productId
+  variantId?: string;
   productId: string;
   productName: string;
-  variantSku: string;
-  deltaQuantity: number;
+  brand: string;
+  sku: string;
+  variantName: string;
+  size: string;
+  color: string;
+  colorHex?: string;
+  stockQuantity: number;
+  lowStockThreshold: number;
+  status: InventoryStockStatus;
+  regularPrice: string | number;
+  salePrice?: string | number | null;
+  costPrice?: string | number | null;
+  isActive: boolean;
+  category?: InventoryItemCategoryRef;
+  thumbnail?: string;
+  updatedAt: string;
+
+  // Backward compatibility aliases
+  price?: number;
+  stock?: number;
+  colorName?: string;
+  productImage?: string;
+}
+
+// Backward compatibility alias
+export type FlatInventoryItem = InventoryItem;
+
+export interface InventorySummary {
+  totalVariants: number;
+  totalStockUnits: number;
+  lowStockCount: number;
+  outOfStockCount: number;
+}
+
+export interface InventoryListQueryParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  status?: "ALL" | InventoryStockStatus;
+  categoryId?: string;
+  sort?: "stock_asc" | "stock_desc" | "name_asc" | "sku_asc" | "newest";
+}
+
+export interface InventoryListResponse {
+  success: boolean;
+  statusCode: number;
+  message: string;
+  data: InventoryItem[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+  meta: {
+    summary: InventorySummary;
+  };
+}
+
+export interface InventoryTransactionCreatedBy {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+}
+
+export interface InventoryTransaction {
+  id: string;
+  variantId?: string;
+  productId: string;
+  productName?: string;
+  variantSku?: string;
+  type: InventoryTransactionType;
+  quantityChange: number;
   previousStock: number;
   newStock: number;
-  reason: InventoryTransactionReason;
-  notes?: string;
-  performedBy: string; // admin user name/email
+  reason: string;
+  referenceId?: string;
   createdAt: string;
-}
+  variant?: {
+    id: string;
+    sku: string;
+    name: string;
+  };
+  product?: {
+    id: string;
+    name: string;
+    sku: string;
+  };
+  createdBy?: InventoryTransactionCreatedBy;
 
-export interface FlatInventoryItem {
-  id: string;
-  productId: string;
-  productName: string;
-  productImage: string;
-  sku: string;
-  size: string;
-  colorName: string;
-  colorHex: string;
-  price: number;
-  stock: number;
-  lowStockThreshold: number;
-  status: "IN_STOCK" | "LOW_STOCK" | "OUT_OF_STOCK";
-}
-
-export interface StockAdjustmentInput {
-  variantId: string;
-  delta: number;
-  reason: InventoryTransactionReason;
+  // Backward compatibility fields
+  deltaQuantity?: number;
   notes?: string;
+  performedBy?: string;
+}
+
+// Backward compatibility alias
+export type InventoryLedgerEntry = InventoryTransaction;
+
+export interface AdjustStockInput {
+  variantId?: string;
+  productId?: string;
+  delta?: number;
+  newStock?: number;
+  type?: InventoryTransactionType;
+  reason: string;
+  referenceId?: string;
+  notes?: string;
+}
+
+// Backward compatibility alias
+export type StockAdjustmentInput = AdjustStockInput;
+
+export interface AdjustStockResponse {
+  success: boolean;
+  statusCode: number;
+  message: string;
+  data?: {
+    itemType: "VARIANT" | "PRODUCT";
+    variantId?: string;
+    productId: string;
+    productName: string;
+    sku: string;
+    previousStock: number;
+    newStock: number;
+    quantityChange: number;
+    transaction: InventoryTransaction;
+  };
+  error?: {
+    code: string;
+    message?: string;
+  };
+  newStock?: number;
+}
+
+export interface InventoryTransactionsQueryParams {
+  page?: number;
+  limit?: number;
+  variantId?: string;
+  productId?: string;
+  type?: InventoryTransactionType | "ALL";
+  startDate?: string;
+  endDate?: string;
+}
+
+export interface InventoryTransactionsResponse {
+  success: boolean;
+  statusCode: number;
+  message: string;
+  data: InventoryTransaction[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export interface InventoryAlertsResponse {
+  success: boolean;
+  statusCode: number;
+  message: string;
+  data: InventoryAlertItem[];
+  meta: {
+    totalAlerts: number;
+  };
+}
+
+export interface UpdateThresholdInput {
+  variantId?: string;
+  productId?: string;
+  lowStockThreshold: number;
+}
+
+export interface UpdateThresholdResponse {
+  success: boolean;
+  statusCode: number;
+  message: string;
+  data: {
+    itemType: "VARIANT" | "PRODUCT";
+    id: string;
+    sku: string;
+    name: string;
+    stockQuantity: number;
+    lowStockThreshold: number;
+  };
 }
 
 // ==========================================

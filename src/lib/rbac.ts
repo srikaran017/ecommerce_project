@@ -213,7 +213,25 @@ export const rbac = {
     if (role.toUpperCase() === "SUPER_ADMIN" || role.toUpperCase() === "STORE_ADMIN") return true;
     return hasPermission(role, "products:create");
   },
-  canAdjustStock: (role?: string) => hasPermission(role, "inventory:adjust"),
+  // Module 04 Inventory & Stock Ledger Helpers
+  canReadInventory: (role?: string) => {
+    if (!role) return false;
+    const r = role.toUpperCase();
+    if (r === "SUPER_ADMIN" || r === "STORE_ADMIN" || r === "STAFF") return true;
+    return hasPermission(role, "inventory:view");
+  },
+  canWriteInventory: (role?: string) => {
+    if (!role) return false;
+    const r = role.toUpperCase();
+    if (r === "SUPER_ADMIN" || r === "STORE_ADMIN") return true;
+    return hasPermission(role, "inventory:adjust");
+  },
+  canAdjustStock: (role?: string) => {
+    if (!role) return false;
+    const r = role.toUpperCase();
+    if (r === "SUPER_ADMIN" || r === "STORE_ADMIN") return true;
+    return hasPermission(role, "inventory:adjust");
+  },
   canExportOrders: (role?: string) => hasPermission(role, "orders:export"),
   canUpdateOrderStatus: (role?: string) => hasPermission(role, "orders:update_status"),
   canManageSettings: (role?: string) => hasPermission(role, "settings:edit"),

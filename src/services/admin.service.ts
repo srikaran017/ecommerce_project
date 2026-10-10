@@ -25,6 +25,22 @@ import {
   DeleteProductResponse,
   UploadProductImagesResponse,
   FlatInventoryItem,
+  InventoryItem,
+  InventoryStockStatus,
+  InventoryItemCategoryRef,
+  InventorySummary,
+  InventoryListQueryParams,
+  InventoryListResponse,
+  InventoryTransaction,
+  InventoryTransactionsQueryParams,
+  InventoryTransactionsResponse,
+  InventoryAlertItem,
+  InventoryAlertsResponse,
+  AdjustStockInput,
+  AdjustStockResponse,
+  UpdateThresholdInput,
+  UpdateThresholdResponse,
+  InventoryTransactionType,
   StockAdjustmentInput,
   InventoryLedgerEntry,
   AdminOrder,
@@ -612,19 +628,26 @@ export class AdminService {
     const activeOrders = orders.filter((o) => o.status !== "DELIVERED" && o.status !== "CANCELLED").length;
     const aov = orders.length > 0 ? Math.round(totalRev / orders.length) : 0;
 
-    const inventoryAlerts = products.flatMap((p) =>
+    const inventoryAlerts: InventoryAlertItem[] = products.flatMap((p) =>
       p.variants
         .filter((v) => v.stock <= (v.lowStockThreshold || 5))
         .map((v) => ({
           id: `alert_${v.id}`,
+          variantId: v.id,
           productId: p.id,
           productName: p.name,
+          sku: v.sku,
           variantSku: v.sku,
+          variantName: `${v.size} / ${v.colorName}`,
           size: v.size,
           colorName: v.colorName,
           stock: v.stock,
+          stockQuantity: v.stock,
           lowStockThreshold: v.lowStockThreshold || 5,
+          status: (v.stock === 0 ? "OUT_OF_STOCK" : "LOW_STOCK") as "OUT_OF_STOCK" | "LOW_STOCK",
           urgency: (v.stock === 0 ? "CRITICAL" : "LOW") as "CRITICAL" | "LOW",
+          categoryName: p.categoryName,
+          thumbnail: p.thumbnail || p.images?.[0]?.url,
         }))
     );
 
@@ -1450,87 +1473,665 @@ export class AdminService {
   }
 
   // ----------------------------------------------------
-  // 3. INVENTORY & STOCK LEDGER (/api/v1/admin/inventory)
+  // 3. INVENTORY & STOCK LEDGER (/api/v1/admin/inventory) - Module 04
   // ----------------------------------------------------
 
-  static async getInventory(): Promise<FlatInventoryItem[]> {
-    const res = await this.request<FlatInventoryItem[]>("/inventory");
-    if (res.success && Array.isArray(res.data)) return res.data;
-
+  /**
+   * Helper: Flatten all products and variants into inventory item records
+   */
+  static getFlattenedInventoryItems(): InventoryItem[] {
     const products = this.getLocalProducts();
-    return products.flatMap((p) =>
-      p.variants.map((v) => ({
-        id: v.id,
-        productId: p.id,
-        productName: p.name,
-        productImage: p.images[0]?.url || "",
-        sku: v.sku,
-        size: v.size,
-        colorName: v.colorName,
-        colorHex: v.colorHex || "#000000",
-        price: v.price,
-        stock: v.stock,
-        lowStockThreshold: v.lowStockThreshold || 5,
-        status: v.stock === 0 ? "OUT_OF_STOCK" : v.stock <= (v.lowStockThreshold || 5) ? "LOW_STOCK" : "IN_STOCK",
-      }))
-    );
+    const items: InventoryItem[] = [];
+
+    products.forEach((p) => {
+      const pImages = p.images || [];
+      const thumbnail =
+        p.thumbnail ||
+        pImages.find((img) => img.isThumbnail)?.url ||
+        pImages[0]?.url ||
+        "https://images.unsplash.com/photo-1566174053879-31528523f8ae?w=800";
+
+      const categoryRef: InventoryItemCategoryRef = p.category
+        ? { id: p.category.id, name: p.category.name, slug: p.category.slug }
+        : {
+            id: p.categorySlug || "evening-gowns",
+            name: p.categoryName || "Evening Gowns",
+            slug: p.categorySlug || "evening-gowns",
+          };
+
+      if (p.variants && p.variants.length > 0) {
+        p.variants.forEach((v) => {
+          const qty = Number(v.stockQuantity ?? v.stock ?? 0);
+          const threshold = Number(v.lowStockThreshold ?? 5);
+          let status: InventoryStockStatus = "IN_STOCK";
+          if (qty === 0) {
+            status = "OUT_OF_STOCK";
+          } else if (qty <= threshold) {
+            status = "LOW_STOCK";
+          }
+
+          items.push({
+            itemType: "VARIANT",
+            id: v.id,
+            variantId: v.id,
+            productId: p.id,
+            productName: p.name,
+            brand: p.brand || "Maison De Élégance",
+            sku: v.sku,
+            variantName: v.name || `Size ${v.size} / ${v.colorName || v.color || "Standard"}`,
+            size: v.size,
+            color: v.color || v.colorName || "Standard",
+            colorHex: v.colorHex || "#0b1b3d",
+            stockQuantity: qty,
+            lowStockThreshold: threshold,
+            status,
+            regularPrice: v.regularPrice || p.regularPrice || "0",
+            salePrice: v.salePrice || p.salePrice || null,
+            costPrice: v.costPrice || p.costPrice || null,
+            isActive: Boolean(v.isActive && p.isActive),
+            category: categoryRef,
+            thumbnail,
+            updatedAt: p.updatedAt || new Date().toISOString(),
+
+            // Backward compatibility aliases
+            price: v.price || Number(v.salePrice || v.regularPrice || 0),
+            stock: qty,
+            colorName: v.colorName || v.color || "Standard",
+            productImage: thumbnail,
+          });
+        });
+      } else {
+        // Standalone product item
+        const qty = Number(p.stockQuantity ?? p.totalStock ?? 0);
+        const threshold = 5;
+        let status: InventoryStockStatus = "IN_STOCK";
+        if (qty === 0) {
+          status = "OUT_OF_STOCK";
+        } else if (qty <= threshold) {
+          status = "LOW_STOCK";
+        }
+
+        items.push({
+          itemType: "PRODUCT",
+          id: p.id,
+          productId: p.id,
+          productName: p.name,
+          brand: p.brand || "Maison De Élégance",
+          sku: p.sku,
+          variantName: "Standard",
+          size: "Free Size",
+          color: "Standard",
+          colorHex: "#000000",
+          stockQuantity: qty,
+          lowStockThreshold: threshold,
+          status,
+          regularPrice: p.regularPrice,
+          salePrice: p.salePrice || null,
+          costPrice: p.costPrice || null,
+          isActive: p.isActive,
+          category: categoryRef,
+          thumbnail,
+          updatedAt: p.updatedAt || new Date().toISOString(),
+
+          price: p.basePrice || Number(p.salePrice || p.regularPrice || 0),
+          stock: qty,
+          colorName: "Standard",
+          productImage: thumbnail,
+        });
+      }
+    });
+
+    return items;
   }
 
-  static async adjustStock(input: StockAdjustmentInput): Promise<{ success: boolean; newStock?: number }> {
-    const res = await this.request<{ newStock: number }>("/inventory/adjust", {
+  /**
+   * 2.1. GET /api/v1/admin/inventory
+   * Retrieves flattened inventory monitoring table with real-time counters and warehouse summary cards
+   */
+  static async getInventoryItems(
+    params?: InventoryListQueryParams
+  ): Promise<InventoryListResponse> {
+    const qp = new URLSearchParams();
+    if (params?.page) qp.set("page", String(params.page));
+    if (params?.limit) qp.set("limit", String(params.limit));
+    if (params?.search) qp.set("search", params.search);
+    if (params?.status && params.status !== "ALL") qp.set("status", params.status);
+    if (params?.categoryId) qp.set("categoryId", params.categoryId);
+    if (params?.sort) qp.set("sort", params.sort);
+
+    const qs = qp.toString() ? `?${qp.toString()}` : "";
+    const res = await this.request<InventoryListResponse>(`/inventory${qs}`);
+    if (res.success && res.data && Array.isArray(res.data.data)) {
+      return res.data;
+    }
+
+    // Local Fallback Engine
+    const allItems = this.getFlattenedInventoryItems();
+
+    // Compute summary across all items
+    const summary: InventorySummary = {
+      totalVariants: allItems.length,
+      totalStockUnits: allItems.reduce((sum, item) => sum + item.stockQuantity, 0),
+      lowStockCount: allItems.filter((item) => item.status === "LOW_STOCK").length,
+      outOfStockCount: allItems.filter((item) => item.status === "OUT_OF_STOCK").length,
+    };
+
+    let filtered = [...allItems];
+
+    // Filter by Search (SKU, variant name, parent product name, brand)
+    if (params?.search && params.search.trim()) {
+      const q = params.search.trim().toLowerCase();
+      filtered = filtered.filter(
+        (i) =>
+          i.sku.toLowerCase().includes(q) ||
+          i.variantName.toLowerCase().includes(q) ||
+          i.productName.toLowerCase().includes(q) ||
+          i.brand.toLowerCase().includes(q)
+      );
+    }
+
+    // Filter by Status
+    if (params?.status && params.status !== "ALL") {
+      filtered = filtered.filter((i) => i.status === params.status);
+    }
+
+    // Filter by Category
+    if (params?.categoryId && params.categoryId.trim() && params.categoryId !== "ALL") {
+      const descendantIds = this.getCategoryDescendantIds(params.categoryId.trim());
+      filtered = filtered.filter((i) => {
+        const catId = i.category?.id.toLowerCase();
+        const catSlug = i.category?.slug.toLowerCase();
+        return (catId && descendantIds.has(catId)) || (catSlug && descendantIds.has(catSlug));
+      });
+    }
+
+    // Sort Items
+    const sortMode = params?.sort || "stock_asc";
+    filtered.sort((a, b) => {
+      switch (sortMode) {
+        case "stock_asc":
+          return a.stockQuantity - b.stockQuantity;
+        case "stock_desc":
+          return b.stockQuantity - a.stockQuantity;
+        case "name_asc":
+          return a.productName.localeCompare(b.productName);
+        case "sku_asc":
+          return a.sku.localeCompare(b.sku);
+        case "newest":
+          return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+        default:
+          return a.stockQuantity - b.stockQuantity;
+      }
+    });
+
+    // Pagination
+    const page = Math.max(1, Number(params?.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(params?.limit) || 20));
+    const total = filtered.length;
+    const totalPages = Math.ceil(total / limit) || 1;
+    const paginated = filtered.slice((page - 1) * limit, page * limit);
+
+    return {
+      success: true,
+      statusCode: 200,
+      message: "Inventory records fetched successfully",
+      data: paginated,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+      },
+      meta: {
+        summary,
+      },
+    };
+  }
+
+  /**
+   * Backward compatibility for legacy callers expecting flat array
+   */
+  static async getInventory(search?: string): Promise<FlatInventoryItem[]> {
+    const res = await this.getInventoryItems({ search, limit: 100 });
+    return res.data;
+  }
+
+  /**
+   * 2.2. POST /api/v1/admin/inventory/adjust
+   * Atomic stock adjustment with unalterable double-entry ledger audit trail
+   */
+  static async adjustStock(input: AdjustStockInput): Promise<AdjustStockResponse> {
+    const res = await this.request<AdjustStockResponse>("/inventory/adjust", {
       method: "POST",
       body: JSON.stringify(input),
     });
-    if (res.success && res.data) return { success: true, newStock: res.data.newStock };
+    if (res.success && res.data) return res.data;
 
     const products = this.getLocalProducts();
-    let updatedStock = 0;
-    let foundSku = "";
-    let foundProductName = "";
+    let targetVariant: AdminProductVariant | null = null;
+    let targetProduct: AdminProduct | null = null;
 
+    // Locate target variant or standalone product
     for (const prod of products) {
-      for (const variant of prod.variants) {
-        if (variant.id === input.variantId) {
-          const prev = variant.stock;
-          variant.stock = Math.max(0, variant.stock + input.delta);
-          updatedStock = variant.stock;
-          foundSku = variant.sku;
-          foundProductName = prod.name;
-
-          // Record ledger transaction
-          this.logInventoryTransaction({
-            id: `tx_${Date.now()}`,
-            variantId: variant.id,
-            productId: prod.id,
-            productName: prod.name,
-            variantSku: variant.sku,
-            deltaQuantity: input.delta,
-            previousStock: prev,
-            newStock: variant.stock,
-            reason: input.reason,
-            notes: input.notes,
-            performedBy: "Admin",
-            createdAt: new Date().toISOString(),
-          });
+      if (input.variantId) {
+        const found = prod.variants.find((v) => v.id === input.variantId);
+        if (found) {
+          targetVariant = found;
+          targetProduct = prod;
           break;
         }
+      } else if (input.productId && prod.id === input.productId) {
+        targetProduct = prod;
+        if (prod.variants.length > 0) {
+          targetVariant = prod.variants[0];
+        }
+        break;
       }
-      prod.totalStock = prod.variants.reduce((acc, v) => acc + v.stock, 0);
+    }
+
+    if (!targetProduct) {
+      return {
+        success: false,
+        statusCode: 404,
+        message: "Target inventory item not found.",
+        error: { code: "ITEM_NOT_FOUND" },
+      };
+    }
+
+    const currentStock = targetVariant
+      ? Number(targetVariant.stockQuantity ?? targetVariant.stock ?? 0)
+      : Number(targetProduct.stockQuantity ?? targetProduct.totalStock ?? 0);
+
+    let quantityChange = 0;
+    let targetStock = 0;
+
+    if (input.newStock !== undefined) {
+      targetStock = Number(input.newStock);
+      quantityChange = targetStock - currentStock;
+    } else if (input.delta !== undefined) {
+      quantityChange = Number(input.delta);
+      targetStock = currentStock + quantityChange;
+    } else {
+      return {
+        success: false,
+        statusCode: 400,
+        message: "Either delta or newStock is required for stock adjustment.",
+        error: { code: "INVALID_PARAMETERS" },
+      };
+    }
+
+    // Atomic Safety: Negative stock rejection
+    if (targetStock < 0) {
+      return {
+        success: false,
+        statusCode: 400,
+        message: `Adjustment failed: Resulting stock cannot be negative (current: ${currentStock}, adjustment: ${quantityChange}).`,
+        error: {
+          code: "INSUFFICIENT_STOCK",
+        },
+      };
+    }
+
+    // Update stock levels
+    if (targetVariant) {
+      targetVariant.stockQuantity = targetStock;
+      targetVariant.stock = targetStock;
+      targetProduct.stockQuantity = targetProduct.variants.reduce(
+        (sum, v) => sum + (v.stockQuantity ?? v.stock ?? 0),
+        0
+      );
+      targetProduct.totalStock = targetProduct.stockQuantity;
+    } else {
+      targetProduct.stockQuantity = targetStock;
+      targetProduct.totalStock = targetStock;
+    }
+    targetProduct.updatedAt = new Date().toISOString();
+
+    setLocalData(STORAGE_KEYS.PRODUCTS, products);
+
+    const transactionType: InventoryTransactionType =
+      input.type || (quantityChange >= 0 ? "RESTOCK" : "ADJUSTMENT");
+
+    const transactionId = `tx_uuid_${Date.now()}`;
+    const transaction: InventoryTransaction = {
+      id: transactionId,
+      variantId: targetVariant?.id,
+      productId: targetProduct.id,
+      productName: targetProduct.name,
+      variantSku: targetVariant?.sku || targetProduct.sku,
+      type: transactionType,
+      quantityChange,
+      previousStock: currentStock,
+      newStock: targetStock,
+      reason: input.reason || "Inventory cycle reconciliation",
+      referenceId: input.referenceId?.trim() || undefined,
+      createdAt: new Date().toISOString(),
+      variant: targetVariant
+        ? {
+            id: targetVariant.id,
+            sku: targetVariant.sku,
+            name: targetVariant.name || `Size ${targetVariant.size} / ${targetVariant.colorName}`,
+          }
+        : undefined,
+      product: {
+        id: targetProduct.id,
+        name: targetProduct.name,
+        sku: targetProduct.sku,
+      },
+      createdBy: {
+        id: "usr_super_admin_1",
+        name: "Elena Rostova",
+        email: "elena@atelier.com",
+        role: "SUPER_ADMIN",
+      },
+      notes: input.notes,
+      deltaQuantity: quantityChange,
+    };
+
+    this.logInventoryTransaction(transaction);
+    this.logAudit(
+      "INVENTORY",
+      targetVariant?.id || targetProduct.id,
+      `Stock adjusted for ${targetVariant?.sku || targetProduct.sku} (${quantityChange > 0 ? `+${quantityChange}` : quantityChange} units): ${input.reason}`
+    );
+
+    return {
+      success: true,
+      statusCode: 200,
+      message: `Stock successfully adjusted for ${targetVariant?.sku || targetProduct.sku} (${quantityChange > 0 ? `+${quantityChange}` : quantityChange} units)`,
+      data: {
+        itemType: targetVariant ? "VARIANT" : "PRODUCT",
+        variantId: targetVariant?.id,
+        productId: targetProduct.id,
+        productName: targetProduct.name,
+        sku: targetVariant?.sku || targetProduct.sku,
+        previousStock: currentStock,
+        newStock: targetStock,
+        quantityChange,
+        transaction,
+      },
+      newStock: targetStock,
+    };
+  }
+
+  /**
+   * 2.3. GET /api/v1/admin/inventory/transactions
+   * Retrieves paginated list of immutable inventory audit transactions
+   */
+  static async getInventoryTransactionsPaginated(
+    params?: InventoryTransactionsQueryParams
+  ): Promise<InventoryTransactionsResponse> {
+    const qp = new URLSearchParams();
+    if (params?.page) qp.set("page", String(params.page));
+    if (params?.limit) qp.set("limit", String(params.limit));
+    if (params?.variantId) qp.set("variantId", params.variantId);
+    if (params?.productId) qp.set("productId", params.productId);
+    if (params?.type && params.type !== "ALL") qp.set("type", params.type);
+    if (params?.startDate) qp.set("startDate", params.startDate);
+    if (params?.endDate) qp.set("endDate", params.endDate);
+
+    const qs = qp.toString() ? `?${qp.toString()}` : "";
+    const res = await this.request<InventoryTransactionsResponse>(`/inventory/transactions${qs}`);
+    if (res.success && res.data && Array.isArray(res.data.data)) {
+      return res.data;
+    }
+
+    // Local Fallback Engine
+    let allLogs = this.getInventoryTransactions();
+
+    if (params?.variantId) {
+      allLogs = allLogs.filter((t) => t.variantId === params.variantId);
+    }
+    if (params?.productId) {
+      allLogs = allLogs.filter((t) => t.productId === params.productId);
+    }
+    if (params?.type && params.type !== "ALL") {
+      allLogs = allLogs.filter((t) => t.type === params.type);
+    }
+    if (params?.startDate) {
+      const startMs = new Date(params.startDate).getTime();
+      allLogs = allLogs.filter((t) => new Date(t.createdAt).getTime() >= startMs);
+    }
+    if (params?.endDate) {
+      const endMs = new Date(params.endDate).getTime();
+      allLogs = allLogs.filter((t) => new Date(t.createdAt).getTime() <= endMs);
+    }
+
+    const page = Math.max(1, Number(params?.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(params?.limit) || 20));
+    const total = allLogs.length;
+    const totalPages = Math.ceil(total / limit) || 1;
+    const paginated = allLogs.slice((page - 1) * limit, page * limit);
+
+    return {
+      success: true,
+      statusCode: 200,
+      message: "Inventory audit transactions fetched successfully",
+      data: paginated,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+      },
+    };
+  }
+
+  static getInventoryTransactions(): InventoryTransaction[] {
+    const seedTransactions: InventoryTransaction[] = [
+      {
+        id: "tx_uuid_881",
+        variantId: "var_prod_1_0",
+        productId: "prod_1",
+        productName: "Banarasi Silk Saree",
+        variantSku: "BNS-S-NVY",
+        type: "RESTOCK",
+        quantityChange: 20,
+        previousStock: 2,
+        newStock: 22,
+        reason: "Received Autumn Batch replenishment from Milan warehouse",
+        referenceId: "PO-2026-9812",
+        createdAt: new Date(Date.now() - 3600000 * 4).toISOString(),
+        variant: {
+          id: "var_prod_1_0",
+          sku: "BNS-S-NVY",
+          name: "Size S / Midnight Navy",
+        },
+        product: {
+          id: "prod_1",
+          name: "Banarasi Silk Saree",
+          sku: "MSG-001",
+        },
+        createdBy: {
+          id: "admin_uuid_1",
+          name: "Elena Rostova",
+          email: "elena@atelier.com",
+          role: "SUPER_ADMIN",
+        },
+      },
+      {
+        id: "tx_uuid_882",
+        variantId: "var_prod_2_1",
+        productId: "prod_2",
+        productName: "Chanderi Handloom Kurta",
+        variantSku: "CHK-M-EMR",
+        type: "ADJUSTMENT",
+        quantityChange: -2,
+        previousStock: 12,
+        newStock: 10,
+        reason: "Physical cycle count discrepancy audit",
+        referenceId: "AUDIT-OCT-2026",
+        createdAt: new Date(Date.now() - 3600000 * 24).toISOString(),
+        variant: {
+          id: "var_prod_2_1",
+          sku: "CHK-M-EMR",
+          name: "Size M / Emerald Green",
+        },
+        product: {
+          id: "prod_2",
+          name: "Chanderi Handloom Kurta",
+          sku: "MSG-002",
+        },
+        createdBy: {
+          id: "admin_uuid_2",
+          name: "Marcus Vance",
+          email: "marcus@atelier.com",
+          role: "STORE_ADMIN",
+        },
+      },
+      {
+        id: "tx_uuid_883",
+        variantId: "var_prod_3_0",
+        productId: "prod_3",
+        productName: "Zardozi Embroidered Lehenga",
+        variantSku: "ZEL-L-ROS",
+        type: "DAMAGE",
+        quantityChange: -1,
+        previousStock: 4,
+        newStock: 3,
+        reason: "Damaged beading during VIP fitting room session",
+        referenceId: "DMG-LOG-442",
+        createdAt: new Date(Date.now() - 3600000 * 48).toISOString(),
+        variant: {
+          id: "var_prod_3_0",
+          sku: "ZEL-L-ROS",
+          name: "Size L / Rose Pink",
+        },
+        product: {
+          id: "prod_3",
+          name: "Zardozi Embroidered Lehenga",
+          sku: "MSG-003",
+        },
+        createdBy: {
+          id: "admin_uuid_1",
+          name: "Elena Rostova",
+          email: "elena@atelier.com",
+          role: "SUPER_ADMIN",
+        },
+      },
+    ];
+
+    return getLocalData<InventoryTransaction[]>(STORAGE_KEYS.INVENTORY_LOGS, seedTransactions);
+  }
+
+  private static logInventoryTransaction(entry: InventoryTransaction): void {
+    const logs = this.getInventoryTransactions();
+    logs.unshift(entry);
+    setLocalData(STORAGE_KEYS.INVENTORY_LOGS, logs.slice(0, 200));
+  }
+
+  /**
+   * 2.4. GET /api/v1/admin/inventory/alerts
+   * Urgent low-stock & stockout alerts list
+   */
+  static async getInventoryAlerts(): Promise<InventoryAlertsResponse> {
+    const res = await this.request<InventoryAlertsResponse>("/inventory/alerts");
+    if (res.success && res.data && Array.isArray(res.data.data)) {
+      return res.data;
+    }
+
+    const items = this.getFlattenedInventoryItems();
+    const alertItems: InventoryAlertItem[] = items
+      .filter((i) => i.status === "LOW_STOCK" || i.status === "OUT_OF_STOCK")
+      .map((i) => ({
+        id: i.id,
+        variantId: i.variantId || i.id,
+        productId: i.productId,
+        productName: i.productName,
+        sku: i.sku,
+        variantName: i.variantName,
+        stockQuantity: i.stockQuantity,
+        lowStockThreshold: i.lowStockThreshold,
+        status: i.status === "OUT_OF_STOCK" ? "OUT_OF_STOCK" : "LOW_STOCK",
+        categoryName: i.category?.name,
+        thumbnail: i.thumbnail,
+
+        // Backward compatibility aliases
+        variantSku: i.sku,
+        size: i.size,
+        colorName: i.color,
+        stock: i.stockQuantity,
+        urgency: i.status === "OUT_OF_STOCK" ? "CRITICAL" : "LOW",
+      }));
+
+    return {
+      success: true,
+      statusCode: 200,
+      message: `${alertItems.length} inventory alert(s) found`,
+      data: alertItems,
+      meta: {
+        totalAlerts: alertItems.length,
+      },
+    };
+  }
+
+  /**
+   * 2.5. PATCH /api/v1/admin/inventory/threshold
+   * Configures safety stock minimum alert threshold per variant or product
+   */
+  static async updateInventoryThreshold(
+    input: UpdateThresholdInput
+  ): Promise<UpdateThresholdResponse> {
+    const res = await this.request<UpdateThresholdResponse>("/inventory/threshold", {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    });
+    if (res.success && res.data) return res.data;
+
+    const products = this.getLocalProducts();
+    let updatedVariant: AdminProductVariant | null = null;
+    let updatedProduct: AdminProduct | null = null;
+
+    for (const prod of products) {
+      if (input.variantId) {
+        const found = prod.variants.find((v) => v.id === input.variantId);
+        if (found) {
+          found.lowStockThreshold = Number(input.lowStockThreshold);
+          updatedVariant = found;
+          updatedProduct = prod;
+          break;
+        }
+      } else if (input.productId && prod.id === input.productId) {
+        prod.variants.forEach((v) => {
+          v.lowStockThreshold = Number(input.lowStockThreshold);
+        });
+        updatedProduct = prod;
+        if (prod.variants.length > 0) updatedVariant = prod.variants[0];
+        break;
+      }
+    }
+
+    if (!updatedProduct) {
+      return {
+        success: false,
+        statusCode: 404,
+        message: "Target variant not found.",
+        data: {} as any,
+      };
     }
 
     setLocalData(STORAGE_KEYS.PRODUCTS, products);
-    this.logAudit("INVENTORY", input.variantId, `Adjusted ${foundSku} (${foundProductName}) by ${input.delta > 0 ? `+${input.delta}` : input.delta} (${input.reason})`);
-    return { success: true, newStock: updatedStock };
-  }
+    this.logAudit(
+      "INVENTORY",
+      updatedVariant?.id || updatedProduct.id,
+      `Updated low stock safety threshold to ${input.lowStockThreshold} units`
+    );
 
-  static getInventoryTransactions(): InventoryLedgerEntry[] {
-    return getLocalData<InventoryLedgerEntry[]>(STORAGE_KEYS.INVENTORY_LOGS, []);
-  }
-
-  private static logInventoryTransaction(entry: InventoryLedgerEntry): void {
-    const logs = this.getInventoryTransactions();
-    logs.unshift(entry);
-    setLocalData(STORAGE_KEYS.INVENTORY_LOGS, logs.slice(0, 100)); // retain last 100
+    return {
+      success: true,
+      statusCode: 200,
+      message: "Stock threshold updated successfully",
+      data: {
+        itemType: updatedVariant ? "VARIANT" : "PRODUCT",
+        id: updatedVariant?.id || updatedProduct.id,
+        sku: updatedVariant?.sku || updatedProduct.sku,
+        name: updatedVariant?.name || updatedProduct.name,
+        stockQuantity: updatedVariant
+          ? Number(updatedVariant.stockQuantity ?? updatedVariant.stock ?? 0)
+          : Number(updatedProduct.stockQuantity ?? updatedProduct.totalStock ?? 0),
+        lowStockThreshold: Number(input.lowStockThreshold),
+      },
+    };
   }
 
   // ----------------------------------------------------
