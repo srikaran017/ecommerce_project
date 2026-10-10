@@ -371,31 +371,168 @@ export interface UpdateOrderStatusInput {
 }
 
 // ==========================================
-// 6. CATEGORIES & CURATED COLLECTIONS
+// 6. CATEGORIES & CURATED COLLECTIONS (Module 02)
 // ==========================================
+
+export interface CategoryBreadcrumb {
+  id: string;
+  name: string;
+  slug: string;
+}
 
 export interface AdminCategory {
   id: string;
   name: string;
   slug: string;
-  description?: string;
-  imageUrl?: string;
+  description?: string | null;
+  imageUrl?: string | null;
   parentId?: string | null;
-  displayOrder: number;
-  productCount: number;
+  sortOrder?: number;
+  displayOrder?: number;
+  isFeatured: boolean;
   isActive: boolean;
+  productCount: number;
+  childrenCount: number;
+  parent?: {
+    id: string;
+    name: string;
+    slug: string;
+  } | null;
+  breadcrumbs?: CategoryBreadcrumb[];
+  children?: AdminCategory[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateCategoryInput {
+  name: string;
+  slug?: string;
+  description?: string;
+  imageUrl?: string | null;
+  parentId?: string | null;
+  sortOrder?: number;
+  isFeatured?: boolean;
+  isActive?: boolean;
+}
+
+export interface UpdateCategoryInput {
+  name?: string;
+  slug?: string;
+  description?: string;
+  imageUrl?: string | null;
+  parentId?: string | null;
+  sortOrder?: number;
+  isFeatured?: boolean;
+  isActive?: boolean;
+}
+
+export interface CategoryListQueryParams {
+  view?: "tree" | "flat" | "root";
+  search?: string;
+  isActive?: boolean | "true" | "false";
+  isFeatured?: boolean | "true" | "false";
+  parentId?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface CategoriesListResponse {
+  success: boolean;
+  statusCode: number;
+  message: string;
+  data: AdminCategory[];
+  meta?: {
+    view: "tree" | "flat" | "root";
+    totalCount: number;
+  };
+  pagination?: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export interface AdminCollectionProduct {
+  id: string;
+  name: string;
+  slug: string;
+  brand?: string;
+  sku?: string;
+  regularPrice: string | number;
+  salePrice?: string | number | null;
+  stockQuantity: number;
+  isActive: boolean;
+  thumbnail?: string;
+  category?: {
+    id: string;
+    name: string;
+    slug: string;
+  };
+  collectionSortOrder?: number;
 }
 
 export interface AdminCollection {
   id: string;
-  title: string;
+  name: string;
+  title?: string;
   slug: string;
   description?: string;
-  imageUrl?: string;
-  productIds: string[];
-  productCount: number;
+  imageUrl?: string | null;
   isFeatured: boolean;
+  sortOrder?: number;
   isActive: boolean;
+  productsCount: number;
+  productCount?: number;
+  products?: AdminCollectionProduct[];
+  productIds?: string[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateCollectionInput {
+  name: string;
+  title?: string;
+  slug?: string;
+  description?: string;
+  imageUrl?: string | null;
+  isFeatured?: boolean;
+  sortOrder?: number;
+  isActive?: boolean;
+  productIds?: string[];
+}
+
+export interface UpdateCollectionInput {
+  name?: string;
+  title?: string;
+  slug?: string;
+  description?: string;
+  imageUrl?: string | null;
+  isFeatured?: boolean;
+  sortOrder?: number;
+  isActive?: boolean;
+  productIds?: string[];
+}
+
+export interface CollectionListQueryParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  isFeatured?: boolean | "true" | "false";
+  isActive?: boolean | "true" | "false";
+}
+
+export interface CollectionsListResponse {
+  success: boolean;
+  statusCode: number;
+  message: string;
+  data: AdminCollection[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
 }
 
 // ==========================================
@@ -428,7 +565,7 @@ export interface AuditLogEntry {
   adminName: string;
   adminEmail: string;
   action: string;
-  targetType: "PRODUCT" | "ORDER" | "INVENTORY" | "SETTINGS" | "COUPON" | "USER";
+  targetType: "PRODUCT" | "ORDER" | "INVENTORY" | "SETTINGS" | "COUPON" | "USER" | "CATEGORY" | "COLLECTION";
   targetId: string;
   details: string;
   timestamp: string;

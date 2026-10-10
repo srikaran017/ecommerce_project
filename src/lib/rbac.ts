@@ -213,4 +213,18 @@ export const rbac = {
   canCreateStaff: (role?: string) => canCreateRole(role, "STAFF"),
   canCreateCustomer: (role?: string) => canCreateRole(role, "CUSTOMER"),
   canAccessUsersPage: (role?: string) => canAccessAdmin(role),
+
+  // Module 02 Category & Collection Helpers
+  canManageCategories: (role?: string) => {
+    if (!role) return false;
+    const r = role.toUpperCase();
+    if (r === "SUPER_ADMIN" || r === "STORE_ADMIN") return true;
+    return hasPermission(role, "categories:manage");
+  },
+  canManageCollections: (role?: string) => {
+    if (!role) return false;
+    const r = role.toUpperCase();
+    if (r === "SUPER_ADMIN" || r === "STORE_ADMIN") return true;
+    return hasPermission(role, "collections:manage");
+  },
 };
