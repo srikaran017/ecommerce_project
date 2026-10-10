@@ -34,6 +34,7 @@ export default function AdminSettingsPage() {
     { key: "recommendations", label: "Product Recommendations", description: "Show 'Pair with these silhouettes' lookbook sections." },
     { key: "sizeChart", label: "Clothing Size Guide & Chart", description: "Render size chart tables and measurement guides." },
     { key: "orderTracking", label: "Order Lifecycle Tracker", description: "Show 4-step delivery milestones on order success." },
+    { key: "googleAuth", label: "Google 1-Click Authentication", description: "Enable Google OAuth sign-in and registration for customers." },
   ];
 
   return (

@@ -21,6 +21,7 @@ export interface FeatureConfig {
   multipleAddresses: boolean;
   customerAccounts: boolean;
   sizeChart: boolean;
+  googleAuth: boolean;
 }
 
 export const featureConfig: FeatureConfig = {
@@ -46,6 +47,7 @@ export const featureConfig: FeatureConfig = {
   multipleAddresses: true,
   customerAccounts: true,
   sizeChart: true,
+  googleAuth: true,
 };
 
 /**

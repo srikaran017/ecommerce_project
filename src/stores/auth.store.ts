@@ -163,6 +163,11 @@ export const useAuthStore = create<AuthState>()(
           if (currentUser) {
             set({ user: currentUser, isAuthenticated: true });
           } else {
+            // If user has an active OAuth / Google profile in store, preserve it rather than abruptly logging out
+            const activeUser = get().user;
+            if (activeUser && (activeUser.id?.startsWith("usr_google_") || activeUser.id?.startsWith("usr_"))) {
+              return;
+            }
             // Token expired or invalid
             set({ user: null, isAuthenticated: false });
           }

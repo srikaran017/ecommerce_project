@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, EyeOff, Lock, Mail, User, Phone, ArrowRight, AlertCircle, CheckCircle2, Sparkles } from "lucide-react";
 import { useAuthStore } from "@/stores/auth.store";
 import { storeConfig } from "@/config/store.config";
+import { isFeatureEnabled } from "@/config/feature.config";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 
 function SignupForm() {
@@ -324,20 +325,22 @@ function SignupForm() {
           </div>
 
           {/* 1-Click Social Sign-Up with Google */}
-          <div className="pt-2 space-y-3">
-            <div className="relative flex py-2 items-center">
-              <div className="flex-grow border-t border-neutral-200"></div>
-              <span className="flex-shrink mx-3 text-[10px] uppercase font-bold tracking-widest text-neutral-400">
-                Or Continue With
-              </span>
-              <div className="flex-grow border-t border-neutral-200"></div>
-            </div>
+          {isFeatureEnabled("googleAuth") && (
+            <div className="pt-2 space-y-3">
+              <div className="relative flex py-2 items-center">
+                <div className="flex-grow border-t border-neutral-200"></div>
+                <span className="flex-shrink mx-3 text-[10px] uppercase font-bold tracking-widest text-neutral-400">
+                  Or Continue With
+                </span>
+                <div className="flex-grow border-t border-neutral-200"></div>
+              </div>
 
-            <GoogleSignInButton
-              redirectTarget={redirectTarget}
-              text="signup_with"
-            />
-          </div>
+              <GoogleSignInButton
+                redirectTarget={redirectTarget}
+                text="signup_with"
+              />
+            </div>
+          )}
         </form>
 
         {/* Footer Link */}

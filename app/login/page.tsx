@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, EyeOff, Lock, Mail, ArrowRight, CheckCircle2, AlertCircle, Sparkles } from "lucide-react";
 import { useAuthStore } from "@/stores/auth.store";
 import { storeConfig } from "@/config/store.config";
+import { isFeatureEnabled } from "@/config/feature.config";
 import { AuthService } from "@/services/auth.service";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 
@@ -13,6 +14,26 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTarget = searchParams.get("redirect") || "/";
+  const oauthErrorParam = searchParams.get("error");
+
+  const oauthErrorMessage = React.useMemo(() => {
+    if (!oauthErrorParam) return null;
+    switch (oauthErrorParam) {
+      case "google_cancelled":
+        return "Google sign-in was cancelled. Please try again or use your email and password.";
+      case "google_oauth_unconfigured":
+        return "Google OAuth is not yet configured in .env.local. Please set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.";
+      case "invalid_oauth_state":
+        return "Sign-in session expired. Please click Continue with Google again.";
+      case "google_token_exchange_failed":
+      case "google_profile_fetch_failed":
+        return "Failed to complete authentication with Google. Please try again.";
+      case "session_sync_failed":
+        return "Could not synchronize login session. Please sign in again.";
+      default:
+        return "An error occurred during Google sign-in. Please try again.";
+    }
+  }, [oauthErrorParam]);
 
   const { login, socialLogin, isLoading, error, clearError } = useAuthStore();
 
@@ -115,10 +136,10 @@ function LoginForm() {
         </div>
 
         {/* Global Error Banner */}
-        {error && (
+        {(oauthErrorMessage || error) && (
           <div className="p-3.5 bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold rounded-2xl flex items-center gap-2.5 animate-in fade-in">
             <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0" />
-            <span>{error}</span>
+            <span>{oauthErrorMessage || error}</span>
           </div>
         )}
 
@@ -228,20 +249,22 @@ function LoginForm() {
           </div>
 
           {/* 1-Click Social Sign-In with Google */}
-          <div className="pt-2 space-y-3">
-            <div className="relative flex py-2 items-center">
-              <div className="flex-grow border-t border-neutral-200"></div>
-              <span className="flex-shrink mx-3 text-[10px] uppercase font-bold tracking-widest text-neutral-400">
-                Or Continue With
-              </span>
-              <div className="flex-grow border-t border-neutral-200"></div>
-            </div>
+          {isFeatureEnabled("googleAuth") && (
+            <div className="pt-2 space-y-3">
+              <div className="relative flex py-2 items-center">
+                <div className="flex-grow border-t border-neutral-200"></div>
+                <span className="flex-shrink mx-3 text-[10px] uppercase font-bold tracking-widest text-neutral-400">
+                  Or Continue With
+                </span>
+                <div className="flex-grow border-t border-neutral-200"></div>
+              </div>
 
-            <GoogleSignInButton
-              redirectTarget={redirectTarget}
-              text="continue_with"
-            />
-          </div>
+              <GoogleSignInButton
+                redirectTarget={redirectTarget}
+                text="continue_with"
+              />
+            </div>
+          )}
         </form>
 
         {/* Footer Link */}

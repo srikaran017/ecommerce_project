@@ -313,7 +313,7 @@ export class AuthService {
       });
 
       if (!response.ok) {
-        if (response.status === 401) {
+        if (response.status === 401 && !token.startsWith("google_")) {
           this.setAccessToken(null);
         }
         return null;
