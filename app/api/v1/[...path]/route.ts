@@ -29,9 +29,6 @@ async function proxyRequest(
       }
     });
 
-    // Provide whitelisted origin so backend never rejects with CORS error
-    forwardHeaders.set("origin", "http://localhost:3000");
-
     let body: any = null;
     if (req.method !== "GET" && req.method !== "HEAD") {
       body = await req.arrayBuffer();

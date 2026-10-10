@@ -19,7 +19,8 @@ import {
   Sparkles,
 } from "lucide-react";
 import { storeConfig } from "@/config/store.config";
-import { SAMPLE_ADMIN_ORDERS, AdminOrder } from "../page";
+import { SAMPLE_ADMIN_ORDERS } from "../page";
+import { AdminOrder, AdminOrderItem } from "@/types/admin.types";
 import { Button } from "@/components/ui/Button";
 
 export default function OrderDetailsPage() {
@@ -65,7 +66,7 @@ export default function OrderDetailsPage() {
               </span>
             </div>
             <p className="text-xs text-slate-400 mt-0.5">
-              Placed on {order.date} • Paid via {order.paymentMethod}
+              Placed on {order.createdAt || "Recent"} • Paid via {order.paymentMethod}
             </p>
           </div>
         </div>
@@ -90,11 +91,11 @@ export default function OrderDetailsPage() {
           <div className="bg-slate-950 border border-slate-800 rounded-lg p-6 space-y-4">
             <h3 className="text-sm font-bold uppercase tracking-wider text-white border-b border-slate-800 pb-3 flex items-center gap-2">
               <Package className="w-4 h-4 text-amber-400" />
-              <span>Garment Items Ordered ({order.items.reduce((acc, i) => acc + i.quantity, 0)})</span>
+              <span>Garment Items Ordered ({order.items.reduce((acc: number, i: AdminOrderItem) => acc + i.quantity, 0)})</span>
             </h3>
 
             <div className="divide-y divide-slate-800">
-              {order.items.map((item, idx) => (
+              {order.items.map((item: AdminOrderItem, idx: number) => (
                 <div key={idx} className="py-4 flex items-center justify-between gap-4">
                   <div>
                     <h4 className="font-bold text-white text-xs uppercase">{item.title}</h4>
@@ -237,7 +238,9 @@ export default function OrderDetailsPage() {
             </h3>
 
             <p className="text-slate-300 leading-relaxed">
-              {order.shippingAddress}
+              {typeof order.shippingAddress === "object"
+                ? `${order.shippingAddress.street}, ${order.shippingAddress.city}, ${order.shippingAddress.state} - ${order.shippingAddress.postalCode}, ${order.shippingAddress.country}`
+                : order.shippingAddress}
             </p>
           </div>
 
@@ -307,7 +310,7 @@ export default function OrderDetailsPage() {
                 <div className="text-right">
                   <h3 className="text-lg font-bold uppercase">TAX INVOICE</h3>
                   <p className="font-mono font-bold mt-1">{order.orderNumber}</p>
-                  <p className="text-gray-500">Date: {order.date}</p>
+                  <p className="text-gray-500">Date: {order.createdAt || "Today"}</p>
                 </div>
               </div>
 
@@ -321,7 +324,11 @@ export default function OrderDetailsPage() {
                 </div>
                 <div>
                   <h4 className="font-bold uppercase text-gray-700 mb-1">Shipping Destination:</h4>
-                  <p className="text-gray-600">{order.shippingAddress}</p>
+                  <p className="text-gray-600">
+                    {typeof order.shippingAddress === "object"
+                      ? `${order.shippingAddress.street}, ${order.shippingAddress.city}, ${order.shippingAddress.state} - ${order.shippingAddress.postalCode}`
+                      : order.shippingAddress}
+                  </p>
                 </div>
               </div>
 
@@ -337,7 +344,7 @@ export default function OrderDetailsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {order.items.map((item, i) => (
+                  {order.items.map((item: AdminOrderItem, i: number) => (
                     <tr key={i}>
                       <td className="py-2.5 font-semibold">{item.title}</td>
                       <td className="py-2.5 text-gray-600">{item.size} / {item.color}</td>

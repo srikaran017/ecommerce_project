@@ -15,24 +15,13 @@ export function getApiBaseUrl(): string {
   }
 
   // 2. Client-side execution in Browser
+  // If explicitly configured with a relative path (e.g. /api/v1), use it
   if (envUrl && envUrl.startsWith("/")) {
     return envUrl;
   }
 
-  const isLocalhost =
-    typeof window !== "undefined" &&
-    (window.location.hostname === "localhost" ||
-      window.location.hostname === "127.0.0.1");
-
-  // When deployed to production (e.g. Vercel) and targeting the Render backend:
-  // Render's CORS policy blocks non-localhost origins unless explicitly added.
-  // Using the Next.js same-origin proxy (/api/v1) seamlessly bypasses CORS in the browser.
-  if (
-    !isLocalhost &&
-    (!envUrl || envUrl.includes("dress-ecomm-backend.onrender.com"))
-  ) {
-    return "/api/v1";
-  }
-
-  return envUrl || "https://dress-ecomm-backend.onrender.com/api/v1";
+  // In browser, ALWAYS use the Next.js same-origin proxy (/api/v1).
+  // This completely eliminates browser CORS preflight failures and ensures
+  // authenticated requests pass smoothly server-to-server.
+  return "/api/v1";
 }

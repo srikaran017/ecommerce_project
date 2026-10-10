@@ -20,6 +20,8 @@ import {
 import { storeConfig } from "@/config/store.config";
 import { useAuthStore } from "@/stores/auth.store";
 
+import { canAccessAdmin } from "@/lib/rbac";
+
 export default function AdminLayout({
   children,
 }: {
@@ -34,14 +36,7 @@ export default function AdminLayout({
     setIsMounted(true);
   }, []);
 
-  const isAdmin = Boolean(
-    isAuthenticated &&
-    user?.role &&
-    (user.role === "STORE_ADMIN" ||
-      user.role === "SUPER_ADMIN" ||
-      user.role === "STAFF" ||
-      user.role.toUpperCase().includes("ADMIN"))
-  );
+  const isAdmin = Boolean(isAuthenticated && canAccessAdmin(user?.role));
 
   useEffect(() => {
     if (!isMounted) return;
