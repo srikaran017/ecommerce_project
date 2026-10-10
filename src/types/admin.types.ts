@@ -29,6 +29,31 @@ export type AdminPermission =
   | "settings:edit"
   | "audit:view";
 
+export type ModulePermissionCode =
+  | "products:read"
+  | "products:write"
+  | "products:delete"
+  | "categories:manage"
+  | "collections:manage"
+  | "inventory:read"
+  | "inventory:write"
+  | "orders:read"
+  | "orders:write"
+  | "orders:cancel"
+  | "coupons:manage"
+  | "promotions:manage"
+  | "settings:manage"
+  | "users:read"
+  | "users:write"
+  | "staff:manage"
+  | "analytics:read";
+
+export interface PermissionDefinition {
+  code: ModulePermissionCode;
+  name: string;
+  category: "Catalog" | "Inventory" | "Orders" | "Marketing" | "Settings" | "Users" | "Analytics";
+}
+
 export interface AdminUser {
   id: string;
   name: string;
@@ -37,6 +62,61 @@ export interface AdminUser {
   avatarUrl?: string;
   isActive: boolean;
   createdAt: string;
+}
+
+export interface AdminManagedUser {
+  id: string;
+  name: string;
+  email: string;
+  role: AdminRole;
+  permissions: ModulePermissionCode[];
+  phone?: string | null;
+  isActive: boolean;
+  createdById?: string | null;
+  creator?: {
+    id: string;
+    name: string;
+    role: AdminRole;
+  } | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateSubordinateUserInput {
+  name: string;
+  email: string;
+  password: string;
+  role: "STORE_ADMIN" | "STAFF" | "CUSTOMER";
+  phone?: string;
+  permissions?: ModulePermissionCode[];
+}
+
+export interface UpdateSubordinateUserInput {
+  name?: string;
+  phone?: string;
+  permissions?: ModulePermissionCode[];
+  isActive?: boolean;
+}
+
+export interface UserListQueryParams {
+  page?: number;
+  limit?: number;
+  role?: AdminRole | "ALL";
+  search?: string;
+  isActive?: boolean | "true" | "false";
+}
+
+export interface UsersListResponse {
+  success: boolean;
+  statusCode: number;
+  message: string;
+  data: AdminManagedUser[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
 }
 
 // ==========================================
@@ -348,7 +428,7 @@ export interface AuditLogEntry {
   adminName: string;
   adminEmail: string;
   action: string;
-  targetType: "PRODUCT" | "ORDER" | "INVENTORY" | "SETTINGS" | "COUPON";
+  targetType: "PRODUCT" | "ORDER" | "INVENTORY" | "SETTINGS" | "COUPON" | "USER";
   targetId: string;
   details: string;
   timestamp: string;

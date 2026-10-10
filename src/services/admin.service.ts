@@ -24,10 +24,24 @@ import {
   AdminCollection,
   AdminCoupon,
   AuditLogEntry,
+  AdminManagedUser,
+  CreateSubordinateUserInput,
+  UpdateSubordinateUserInput,
+  UserListQueryParams,
+  UsersListResponse,
+  ModulePermissionCode,
+  AdminRole,
 } from "@/types/admin.types";
 import { FALLBACK_PRODUCTS } from "@/data/products.data";
-import { SAMPLE_ADMIN_ORDERS } from "@/app/admin/orders/page";
 import { storeConfig } from "@/config/store.config";
+import { SAMPLE_ADMIN_ORDERS } from "@/app/admin/orders/page";
+import { useAuthStore } from "@/stores/auth.store";
+import {
+  getDelegatablePermissions as getDelegatablePermsHelper,
+  canCreateRole,
+  canManageUser,
+  canDeactivateUser,
+} from "@/lib/rbac";
 
 const getBaseUrl = () => `${getApiBaseUrl()}/admin`;
 
@@ -44,6 +58,7 @@ const STORAGE_KEYS = {
   COLLECTIONS: "admin_mock_collections_v1",
   COUPONS: "admin_mock_coupons_v1",
   AUDIT_LOGS: "admin_mock_audit_logs_v1",
+  USERS: "admin_mock_users_v1",
 };
 
 function getLocalData<T>(key: string, defaultVal: T): T {
@@ -105,6 +120,110 @@ function getInitialProducts(): AdminProduct[] {
   }));
 }
 
+// Initialize seed users for Module 01 User Hierarchy
+function getInitialUsers(): AdminManagedUser[] {
+  return [
+    {
+      id: "usr_super_admin_1",
+      name: "Store Owner",
+      email: "owner@maison.com",
+      role: "SUPER_ADMIN",
+      permissions: [
+        "products:read",
+        "products:write",
+        "products:delete",
+        "categories:manage",
+        "collections:manage",
+        "inventory:read",
+        "inventory:write",
+        "orders:read",
+        "orders:write",
+        "orders:cancel",
+        "coupons:manage",
+        "promotions:manage",
+        "settings:manage",
+        "users:read",
+        "users:write",
+        "staff:manage",
+        "analytics:read",
+      ],
+      phone: "+91 98765 00001",
+      isActive: true,
+      createdById: null,
+      creator: null,
+      createdAt: "2026-10-01T10:00:00.000Z",
+      updatedAt: "2026-10-01T10:00:00.000Z",
+    },
+    {
+      id: "usr_store_admin_2",
+      name: "Rajesh Kumar (Store Manager)",
+      email: "rajesh.manager@maison.com",
+      role: "STORE_ADMIN",
+      permissions: [
+        "products:read",
+        "products:write",
+        "categories:manage",
+        "collections:manage",
+        "inventory:read",
+        "inventory:write",
+        "orders:read",
+        "orders:write",
+        "coupons:manage",
+        "promotions:manage",
+        "analytics:read",
+        "users:read",
+        "staff:manage",
+      ],
+      phone: "+91 98765 43210",
+      isActive: true,
+      createdById: "usr_super_admin_1",
+      creator: {
+        id: "usr_super_admin_1",
+        name: "Store Owner",
+        role: "SUPER_ADMIN",
+      },
+      createdAt: "2026-10-05T12:00:00.000Z",
+      updatedAt: "2026-10-05T12:00:00.000Z",
+    },
+    {
+      id: "usr_staff_3",
+      name: "Priya Sharma (Operations)",
+      email: "priya.staff@maison.com",
+      role: "STAFF",
+      permissions: [
+        "products:read",
+        "inventory:read",
+        "inventory:write",
+        "orders:read",
+        "orders:write",
+      ],
+      phone: "+91 98765 99887",
+      isActive: true,
+      createdById: "usr_store_admin_2",
+      creator: {
+        id: "usr_store_admin_2",
+        name: "Rajesh Kumar",
+        role: "STORE_ADMIN",
+      },
+      createdAt: "2026-10-08T18:00:00.000Z",
+      updatedAt: "2026-10-08T18:00:00.000Z",
+    },
+    {
+      id: "usr_cust_4",
+      name: "Aarav Sharma",
+      email: "aarav@example.com",
+      role: "CUSTOMER",
+      permissions: [],
+      phone: "+91 98765 00002",
+      isActive: true,
+      createdById: null,
+      creator: null,
+      createdAt: "2026-10-09T08:00:00.000Z",
+      updatedAt: "2026-10-09T08:00:00.000Z",
+    },
+  ];
+}
+
 // ==========================================
 // ADMIN SERVICE IMPLEMENTATION
 // ==========================================
@@ -116,7 +235,7 @@ export class AdminService {
   private static async request<T>(
     endpoint: string,
     options: RequestInit = {}
-  ): Promise<{ success: boolean; data?: T; message?: string; error?: any }> {
+  ): Promise<{ success: boolean; data?: T; message?: string; error?: any; statusCode?: number }> {
     const token = AuthService.getAccessToken();
     const headers = new Headers(options.headers || {});
     headers.set("Content-Type", "application/json");
@@ -131,7 +250,18 @@ export class AdminService {
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        try {
+          const errJson = await response.json();
+          return {
+            success: false,
+            ...errJson,
+            statusCode: response.status,
+            message: errJson.message || `HTTP ${response.status}`,
+            error: errJson.error || errJson.code || response.statusText,
+          };
+        } catch {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
       }
 
       const json = await response.json();
@@ -507,5 +637,503 @@ export class AdminService {
     };
     logs.unshift(entry);
     setLocalData(STORAGE_KEYS.AUDIT_LOGS, logs.slice(0, 100));
+  }
+
+  // ----------------------------------------------------
+  // 6. MODULE 01: USER HIERARCHY & RBAC MANAGEMENT
+  // ----------------------------------------------------
+
+  static getLocalUsers(): AdminManagedUser[] {
+    const users = getLocalData<AdminManagedUser[]>(STORAGE_KEYS.USERS, []);
+    if (!users || users.length === 0) {
+      const initial = getInitialUsers();
+      setLocalData(STORAGE_KEYS.USERS, initial);
+      return initial;
+    }
+    return users;
+  }
+
+  /**
+   * 4.1. Get Delegatable Permissions
+   * Fetches the permissions the current logged-in user can assign to subordinates.
+   * Endpoint: GET /api/v1/admin/users/permissions/delegatable
+   */
+  static async getDelegatablePermissions(): Promise<{
+    success: boolean;
+    statusCode: number;
+    message: string;
+    data: { permissions: ModulePermissionCode[] };
+  }> {
+    const res = await this.request<{ permissions: ModulePermissionCode[] }>("/users/permissions/delegatable");
+    if (res.success && res.data && Array.isArray(res.data.permissions)) {
+      return {
+        success: true,
+        statusCode: 200,
+        message: res.message || "Delegatable permissions fetched successfully",
+        data: res.data,
+      };
+    }
+
+    // Smart Fallback
+    const currentUser = useAuthStore.getState().user;
+    const perms = getDelegatablePermsHelper(currentUser?.role);
+    return {
+      success: true,
+      statusCode: 200,
+      message: "Delegatable permissions fetched successfully",
+      data: { permissions: perms },
+    };
+  }
+
+  /**
+   * 4.2. Create Subordinate User
+   * Endpoint: POST /api/v1/admin/users
+   */
+  static async createUser(input: CreateSubordinateUserInput): Promise<{
+    success: boolean;
+    statusCode: number;
+    message: string;
+    data?: { user: AdminManagedUser };
+    error?: string;
+  }> {
+    const res = await this.request<{ user: AdminManagedUser }>("/users", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+
+    if (res.success && res.data?.user) {
+      const users = this.getLocalUsers();
+      users.unshift(res.data.user);
+      setLocalData(STORAGE_KEYS.USERS, users);
+      this.logAudit("USER", res.data.user.id, `Created ${res.data.user.role} user (${res.data.user.name})`);
+      return {
+        success: true,
+        statusCode: 201,
+        message: res.message || `${input.role} user created successfully`,
+        data: res.data,
+      };
+    }
+
+    // If server returned a business error (e.g. 400, 403, 409), return it directly
+    if (res.statusCode && res.statusCode >= 400) {
+      return {
+        success: false,
+        statusCode: res.statusCode,
+        error: res.error || "REQUEST_FAILED",
+        message: res.message || "Failed to create user.",
+      };
+    }
+
+    // Smart Local Fallback
+    const currentUser = useAuthStore.getState().user;
+    const currentRole = currentUser?.role || "SUPER_ADMIN";
+
+    // Business Guard: Check role hierarchy
+    if (!canCreateRole(currentRole, input.role)) {
+      return {
+        success: false,
+        statusCode: 403,
+        error: "FORBIDDEN_ROLE_CREATION",
+        message: `Your role (${currentRole}) is not permitted to create a ${input.role}.`,
+      };
+    }
+
+    // Validation Guard: Unique email check
+    const users = this.getLocalUsers();
+    if (users.some((u) => u.email.toLowerCase() === input.email.toLowerCase())) {
+      return {
+        success: false,
+        statusCode: 409,
+        error: "USER_ALREADY_EXISTS",
+        message: "Email is already registered.",
+      };
+    }
+
+    // Business Guard: Delegation of permissions
+    if (input.permissions && input.permissions.length > 0 && currentRole !== "SUPER_ADMIN") {
+      const allowed = getDelegatablePermsHelper(currentRole);
+      const invalid = input.permissions.filter((p) => !allowed.includes(p));
+      if (invalid.length > 0) {
+        return {
+          success: false,
+          statusCode: 403,
+          error: "FORBIDDEN_PERMISSION_DELEGATION",
+          message: "You cannot grant permissions you do not possess.",
+        };
+      }
+    }
+
+    const newUser: AdminManagedUser = {
+      id: `usr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      name: input.name.trim(),
+      email: input.email.trim().toLowerCase(),
+      role: input.role,
+      permissions: input.permissions || [],
+      phone: input.phone?.trim() || undefined,
+      isActive: true,
+      createdById: currentUser?.id || "admin_super",
+      creator: currentUser
+        ? {
+            id: currentUser.id,
+            name: currentUser.name || "Administrator",
+            role: (currentUser.role || "SUPER_ADMIN") as AdminRole,
+          }
+        : undefined,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    users.unshift(newUser);
+    setLocalData(STORAGE_KEYS.USERS, users);
+    this.logAudit("USER", newUser.id, `Created ${newUser.role} user (${newUser.name})`);
+
+    return {
+      success: true,
+      statusCode: 201,
+      message: `${input.role} user created successfully`,
+      data: { user: newUser },
+    };
+  }
+
+  /**
+   * 4.3. List Users (Paginated with Search & Filters)
+   * Endpoint: GET /api/v1/admin/users
+   */
+  static async getUsers(params?: UserListQueryParams): Promise<UsersListResponse> {
+    const searchParams = new URLSearchParams();
+    if (params?.page) searchParams.set("page", String(params.page));
+    if (params?.limit) searchParams.set("limit", String(params.limit));
+    if (params?.role) searchParams.set("role", params.role);
+    if (params?.search) searchParams.set("search", params.search);
+    if (params?.isActive !== undefined) searchParams.set("isActive", String(params.isActive));
+
+    const qs = searchParams.toString();
+    const res = await this.request<AdminManagedUser[]>(`/users${qs ? `?${qs}` : ""}`);
+
+    if (res.success && Array.isArray(res.data)) {
+      return {
+        success: true,
+        statusCode: 200,
+        message: res.message || "Users fetched successfully",
+        data: res.data,
+        pagination: (res as any).pagination || {
+          page: params?.page || 1,
+          limit: params?.limit || 20,
+          total: res.data.length,
+          totalPages: Math.max(1, Math.ceil(res.data.length / (params?.limit || 20))),
+        },
+      };
+    }
+
+    // Smart Local Fallback
+    const allUsers = this.getLocalUsers();
+    const currentUser = useAuthStore.getState().user;
+    const currentRole = (currentUser?.role || "SUPER_ADMIN").toUpperCase();
+
+    // 1. Hierarchical visibility:
+    // SUPER_ADMIN: Full access
+    // STORE_ADMIN: Staff and Customers (and themselves)
+    // STAFF: Customers only (and themselves)
+    let visible = allUsers.filter((u) => {
+      if (currentRole === "SUPER_ADMIN") return true;
+      if (currentRole === "STORE_ADMIN") {
+        return u.role === "STAFF" || u.role === "CUSTOMER" || u.id === currentUser?.id;
+      }
+      if (currentRole === "STAFF") {
+        return u.role === "CUSTOMER" || u.id === currentUser?.id;
+      }
+      return false;
+    });
+
+    // 2. Filter by role
+    if (params?.role) {
+      visible = visible.filter((u) => u.role === params.role);
+    }
+
+    // 3. Filter by search term
+    if (params?.search) {
+      const q = params.search.toLowerCase().trim();
+      visible = visible.filter(
+        (u) =>
+          u.name.toLowerCase().includes(q) ||
+          u.email.toLowerCase().includes(q) ||
+          (u.phone && u.phone.toLowerCase().includes(q))
+      );
+    }
+
+    // 4. Filter by isActive
+    if (params?.isActive !== undefined) {
+      visible = visible.filter((u) => u.isActive === params.isActive);
+    }
+
+    const page = params?.page || 1;
+    const limit = params?.limit || 20;
+    const total = visible.length;
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const startIdx = (page - 1) * limit;
+    const paginatedData = visible.slice(startIdx, startIdx + limit);
+
+    return {
+      success: true,
+      statusCode: 200,
+      message: "Users fetched successfully",
+      data: paginatedData,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+      },
+    };
+  }
+
+  /**
+   * 4.4. Get Single User Details
+   * Endpoint: GET /api/v1/admin/users/:id
+   */
+  static async getUserById(id: string): Promise<{
+    success: boolean;
+    statusCode: number;
+    message: string;
+    data?: { user: AdminManagedUser };
+    error?: string;
+  }> {
+    const res = await this.request<{ user: AdminManagedUser }>(`/users/${id}`);
+    if (res.success && res.data?.user) {
+      return {
+        success: true,
+        statusCode: 200,
+        message: res.message || "User details fetched successfully",
+        data: res.data,
+      };
+    }
+
+    if (res.statusCode && res.statusCode >= 400) {
+      return {
+        success: false,
+        statusCode: res.statusCode,
+        error: res.error || "USER_NOT_FOUND",
+        message: res.message || "User not found.",
+      };
+    }
+
+    // Smart Local Fallback
+    const users = this.getLocalUsers();
+    const user = users.find((u) => u.id === id);
+    if (!user) {
+      return {
+        success: false,
+        statusCode: 404,
+        error: "USER_NOT_FOUND",
+        message: "User ID does not exist in database.",
+      };
+    }
+
+    return {
+      success: true,
+      statusCode: 200,
+      message: "User details fetched successfully",
+      data: { user },
+    };
+  }
+
+  /**
+   * 4.5. Update Subordinate User
+   * Endpoint: PUT /api/v1/admin/users/:id
+   */
+  static async updateUser(
+    id: string,
+    input: UpdateSubordinateUserInput
+  ): Promise<{
+    success: boolean;
+    statusCode: number;
+    message: string;
+    data?: { user: AdminManagedUser };
+    error?: string;
+  }> {
+    const res = await this.request<{ user: AdminManagedUser }>(`/users/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(input),
+    });
+
+    if (res.success && res.data?.user) {
+      const users = this.getLocalUsers();
+      const idx = users.findIndex((u) => u.id === id);
+      if (idx !== -1) {
+        users[idx] = res.data.user;
+        setLocalData(STORAGE_KEYS.USERS, users);
+      }
+      this.logAudit("USER", id, `Updated subordinate user profile (${res.data.user.name})`);
+      return {
+        success: true,
+        statusCode: 200,
+        message: res.message || "User updated successfully",
+        data: res.data,
+      };
+    }
+
+    if (res.statusCode && res.statusCode >= 400) {
+      return {
+        success: false,
+        statusCode: res.statusCode,
+        error: res.error || "REQUEST_FAILED",
+        message: res.message || "Failed to update user.",
+      };
+    }
+
+    // Smart Local Fallback
+    const users = this.getLocalUsers();
+    const idx = users.findIndex((u) => u.id === id);
+    if (idx === -1) {
+      return {
+        success: false,
+        statusCode: 404,
+        error: "USER_NOT_FOUND",
+        message: "User ID does not exist in database.",
+      };
+    }
+
+    const targetUser = users[idx];
+    const currentUser = useAuthStore.getState().user;
+    const currentRole = currentUser?.role || "SUPER_ADMIN";
+
+    // Business Guard: Can actor edit target?
+    if (targetUser.id !== currentUser?.id && !canManageUser(currentRole, targetUser.role)) {
+      return {
+        success: false,
+        statusCode: 403,
+        error: "FORBIDDEN_NOT_ADMIN",
+        message: "You cannot edit an account with an equal or higher role than your own.",
+      };
+    }
+
+    // Business Guard: Permission delegation
+    if (input.permissions && input.permissions.length > 0 && currentRole !== "SUPER_ADMIN") {
+      const allowed = getDelegatablePermsHelper(currentRole);
+      const invalid = input.permissions.filter((p) => !allowed.includes(p));
+      if (invalid.length > 0) {
+        return {
+          success: false,
+          statusCode: 403,
+          error: "FORBIDDEN_PERMISSION_DELEGATION",
+          message: "You cannot grant permissions you do not possess.",
+        };
+      }
+    }
+
+    const updatedUser: AdminManagedUser = {
+      ...targetUser,
+      ...(input.name !== undefined && { name: input.name.trim() }),
+      ...(input.phone !== undefined && { phone: input.phone?.trim() }),
+      ...(input.permissions !== undefined && { permissions: input.permissions }),
+      ...(input.isActive !== undefined && { isActive: input.isActive }),
+      updatedAt: new Date().toISOString(),
+    };
+
+    users[idx] = updatedUser;
+    setLocalData(STORAGE_KEYS.USERS, users);
+    this.logAudit("USER", id, `Updated subordinate user (${updatedUser.name})`);
+
+    return {
+      success: true,
+      statusCode: 200,
+      message: "User updated successfully",
+      data: { user: updatedUser },
+    };
+  }
+
+  /**
+   * 4.6. Activate / Deactivate User Status
+   * Endpoint: PATCH /api/v1/admin/users/:id/status
+   */
+  static async updateUserStatus(
+    id: string,
+    isActive: boolean
+  ): Promise<{
+    success: boolean;
+    statusCode: number;
+    message: string;
+    data?: { user: AdminManagedUser };
+    error?: string;
+  }> {
+    const currentUser = useAuthStore.getState().user;
+    const currentRole = currentUser?.role || "SUPER_ADMIN";
+
+    // Immediate Client-Side Guard: Self-deactivation
+    if (currentUser?.id === id && !isActive) {
+      return {
+        success: false,
+        statusCode: 400,
+        error: "CANNOT_DEACTIVATE_SELF",
+        message: "You cannot deactivate your own account.",
+      };
+    }
+
+    const res = await this.request<{ user: AdminManagedUser }>(`/users/${id}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ isActive }),
+    });
+
+    if (res.success && res.data?.user) {
+      const users = this.getLocalUsers();
+      const idx = users.findIndex((u) => u.id === id);
+      if (idx !== -1) {
+        users[idx] = res.data.user;
+        setLocalData(STORAGE_KEYS.USERS, users);
+      }
+      this.logAudit("USER", id, `${isActive ? "Activated" : "Deactivated"} user account`);
+      return {
+        success: true,
+        statusCode: 200,
+        message: res.message || (isActive ? "User activated successfully" : "User deactivated successfully"),
+        data: res.data,
+      };
+    }
+
+    if (res.statusCode && res.statusCode >= 400) {
+      return {
+        success: false,
+        statusCode: res.statusCode,
+        error: res.error || "REQUEST_FAILED",
+        message: res.message || "Failed to update user status.",
+      };
+    }
+
+    // Smart Local Fallback
+    const users = this.getLocalUsers();
+    const idx = users.findIndex((u) => u.id === id);
+    if (idx === -1) {
+      return {
+        success: false,
+        statusCode: 404,
+        error: "USER_NOT_FOUND",
+        message: "User ID does not exist in database.",
+      };
+    }
+
+    const targetUser = users[idx];
+    const deactCheck = canDeactivateUser(currentUser?.id, targetUser.id, currentRole, targetUser.role);
+    if (!deactCheck.allowed) {
+      return {
+        success: false,
+        statusCode: 403,
+        error: "FORBIDDEN_NOT_ADMIN",
+        message: deactCheck.reason || "Action not permitted on this account.",
+      };
+    }
+
+    targetUser.isActive = isActive;
+    targetUser.updatedAt = new Date().toISOString();
+    users[idx] = targetUser;
+    setLocalData(STORAGE_KEYS.USERS, users);
+
+    this.logAudit("USER", id, `${isActive ? "Activated" : "Deactivated"} user (${targetUser.name})`);
+
+    return {
+      success: true,
+      statusCode: 200,
+      message: isActive ? "User activated successfully" : "User deactivated successfully",
+      data: { user: targetUser },
+    };
   }
 }

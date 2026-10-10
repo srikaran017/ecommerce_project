@@ -16,6 +16,7 @@ import {
   ArrowLeft,
   ShieldAlert,
   Lock,
+  Users,
 } from "lucide-react";
 import { storeConfig } from "@/config/store.config";
 import { useAuthStore } from "@/stores/auth.store";
@@ -118,6 +119,7 @@ export default function AdminLayout({
     { label: "Collections", href: "/admin/collections", icon: Sparkles },
     { label: "Flash Sales", href: "/admin/promotions", icon: Sparkles },
     { label: "Discounts", href: "/admin/discounts", icon: Tag },
+    { label: "Staff & Users", href: "/admin/users", icon: Users },
   ];
 
   const storeNav = [
