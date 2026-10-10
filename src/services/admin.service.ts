@@ -46,6 +46,20 @@ import {
   AdminOrder,
   OrderStatus,
   CourierInfo,
+  AdminOrderItem,
+  AdminOrderPayment,
+  AdminOrderAddress,
+  AdminOrderSummary,
+  OrdersSummary,
+  OrderStatusHistoryEntry,
+  OrderListQueryParams,
+  OrdersListResponse,
+  OrderDetailResponse,
+  AdvanceOrderStatusInput,
+  AssignShippingInput,
+  UpdateOrderNotesInput,
+  CancelOrderInput,
+  UpdateOrderStatusInput,
   AdminCategory,
   CreateCategoryInput,
   UpdateCategoryInput,
@@ -70,7 +84,6 @@ import {
 } from "@/types/admin.types";
 import { FALLBACK_PRODUCTS } from "@/data/products.data";
 import { storeConfig } from "@/config/store.config";
-import { SAMPLE_ADMIN_ORDERS } from "@/app/admin/orders/page";
 import { useAuthStore } from "@/stores/auth.store";
 import {
   getDelegatablePermissions as getDelegatablePermsHelper,
@@ -116,6 +129,517 @@ function setLocalData<T>(key: string, val: T): void {
     console.warn(`[AdminService] Storage save error for ${key}:`, err);
   }
 }
+
+/**
+ * Module 05: Order Fulfillment State Machine Transition Map
+ */
+export const ALLOWED_ORDER_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
+  PENDING: ["CONFIRMED", "CANCELLED"],
+  CONFIRMED: ["PROCESSING", "CANCELLED"],
+  PROCESSING: ["PACKED", "CANCELLED"],
+  PACKED: ["SHIPPED", "CANCELLED"],
+  SHIPPED: ["OUT_FOR_DELIVERY"],
+  OUT_FOR_DELIVERY: ["DELIVERED"],
+  DELIVERED: ["RETURN_REQUESTED"],
+  RETURN_REQUESTED: ["RETURNED"],
+  RETURNED: ["REFUNDED"],
+  CANCELLED: [],
+  REFUNDED: [],
+};
+
+export const INITIAL_SAMPLE_ORDERS: AdminOrder[] = [
+  {
+    id: "ord_uuid_101",
+    orderNumber: "ORD-20261008-9823",
+    userId: "usr_uuid_001",
+    customerName: "Aarav Sharma",
+    customerEmail: "aarav@example.com",
+    customerPhone: "+91 98765 00002",
+    subtotal: "18999.00",
+    discountAmount: "0.00",
+    taxAmount: "0.00",
+    shippingAmount: "0.00",
+    totalAmount: "18999.00",
+    total: 18999,
+    status: "CONFIRMED",
+    paymentStatus: "COMPLETED",
+    paymentMethod: "RAZORPAY",
+    shippingAddress: {
+      street: "102, Skyline Residency, Linking Road",
+      city: "Mumbai",
+      state: "Maharashtra",
+      postalCode: "400050",
+      country: "India",
+      landmark: "Near Bandra Post Office",
+    },
+    notes: "Please include festive gift wrap card.",
+    internalAdminNotes: "VIP customer. Ensure silk box is sealed with wax atelier stamp.",
+    itemsCount: 1,
+    items: [
+      {
+        id: "item_uuid_1",
+        productId: "04de36fe-1b09-4c27-a793-5bf9c9ff0412",
+        variantId: "04de36fe-1b09-4c27-a793-5bf9c9ff0412-s",
+        title: "Mulberry Silk Draped Evening Gown",
+        sku: "MSG-001-S",
+        size: "S",
+        color: "Midnight Navy",
+        quantity: 1,
+        price: "18999.00",
+        totalPrice: "18999.00",
+        imageUrl: "https://images.unsplash.com/photo-1566174053879-31528523f8ae?w=800",
+        product: {
+          id: "04de36fe-1b09-4c27-a793-5bf9c9ff0412",
+          name: "Mulberry Silk Draped Evening Gown",
+          slug: "mulberry-silk-draped-evening-gown",
+          brand: "Maison De Élégance",
+        },
+        variant: {
+          id: "04de36fe-1b09-4c27-a793-5bf9c9ff0412-s",
+          sku: "MSG-001-S",
+          stockQuantity: 14,
+        },
+      },
+    ],
+    payments: [
+      {
+        id: "pay_uuid_1",
+        gateway: "RAZORPAY",
+        status: "COMPLETED",
+        transactionId: "pay_rzp_9812739812",
+        amount: "18999.00",
+        currency: "INR",
+        createdAt: "2026-10-08T14:16:00.000Z",
+      },
+    ],
+    statusHistory: [
+      {
+        id: "hist_1",
+        previousStatus: null,
+        newStatus: "PENDING",
+        comment: "Order initiated via Razorpay checkout",
+        createdAt: "2026-10-08T14:15:00.000Z",
+        changedBy: null,
+      },
+      {
+        id: "hist_2",
+        previousStatus: "PENDING",
+        newStatus: "CONFIRMED",
+        comment: "Payment captured and order verified by store manager",
+        createdAt: "2026-10-08T14:20:00.000Z",
+        changedBy: {
+          id: "admin_uuid_1",
+          name: "Elena Rostova",
+          email: "elena@atelier.com",
+          role: "STORE_ADMIN",
+        },
+      },
+    ],
+    createdAt: "2026-10-08T14:15:00.000Z",
+    updatedAt: "2026-10-08T14:20:00.000Z",
+  },
+  {
+    id: "ord_uuid_102",
+    orderNumber: "ORD-20261009-1142",
+    userId: "usr_uuid_002",
+    customerName: "Priya Sengupta",
+    customerEmail: "priya@example.com",
+    customerPhone: "+91 98765 00003",
+    subtotal: "28999.00",
+    discountAmount: "2899.00",
+    discount: 2899,
+    taxAmount: "0.00",
+    shippingAmount: "0.00",
+    totalAmount: "26100.00",
+    total: 26100,
+    status: "PROCESSING",
+    paymentStatus: "COMPLETED",
+    paymentMethod: "RAZORPAY",
+    shippingAddress: {
+      street: "45, Park Street, Flat 4B",
+      city: "Kolkata",
+      state: "West Bengal",
+      postalCode: "700016",
+      country: "India",
+    },
+    itemsCount: 1,
+    items: [
+      {
+        id: "item_uuid_2",
+        productId: "35ee7bcf-40a2-4a0b-93df-4993181816f1",
+        variantId: "35ee7bcf-40a2-4a0b-93df-4993181816f1-free",
+        title: "Handcrafted Banarasi Raw Silk Saree",
+        sku: "BS-RAW-001",
+        size: "Free Size",
+        color: "Royal Magenta",
+        quantity: 1,
+        price: "28999.00",
+        totalPrice: "28999.00",
+        imageUrl: "https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=800",
+        product: {
+          id: "35ee7bcf-40a2-4a0b-93df-4993181816f1",
+          name: "Handcrafted Banarasi Raw Silk Saree",
+          slug: "handcrafted-banarasi-raw-silk-saree",
+          brand: "Varanasi Heritage Weaves",
+        },
+        variant: {
+          id: "35ee7bcf-40a2-4a0b-93df-4993181816f1-free",
+          sku: "BS-RAW-001",
+          stockQuantity: 8,
+        },
+      },
+    ],
+    payments: [
+      {
+        id: "pay_uuid_2",
+        gateway: "RAZORPAY",
+        status: "COMPLETED",
+        transactionId: "pay_rzp_9812739815",
+        amount: "26100.00",
+        currency: "INR",
+        createdAt: "2026-10-09T11:42:00.000Z",
+      },
+    ],
+    statusHistory: [
+      {
+        id: "hist_102_1",
+        previousStatus: null,
+        newStatus: "PENDING",
+        comment: "Order placed online",
+        createdAt: "2026-10-09T11:40:00.000Z",
+      },
+      {
+        id: "hist_102_2",
+        previousStatus: "PENDING",
+        newStatus: "CONFIRMED",
+        comment: "Order confirmed by inventory lead",
+        createdAt: "2026-10-09T11:45:00.000Z",
+      },
+      {
+        id: "hist_102_3",
+        previousStatus: "CONFIRMED",
+        newStatus: "PROCESSING",
+        comment: "Transferred to bespoke tailoring department for finishing",
+        createdAt: "2026-10-09T12:00:00.000Z",
+        changedBy: {
+          id: "admin_uuid_1",
+          name: "Elena Rostova",
+          email: "elena@atelier.com",
+          role: "SUPER_ADMIN",
+        },
+      },
+    ],
+    internalAdminNotes: "Silk fabric pre-checked. Awaiting falls & edging stitching.",
+    createdAt: "2026-10-09T11:40:00.000Z",
+    updatedAt: "2026-10-09T12:00:00.000Z",
+  },
+  {
+    id: "ord_uuid_103",
+    orderNumber: "ORD-20261009-4081",
+    userId: "usr_uuid_003",
+    customerName: "Rohan Varma",
+    customerEmail: "rohan@example.com",
+    customerPhone: "+91 98765 00004",
+    subtotal: "4999.00",
+    totalAmount: "4999.00",
+    total: 4999,
+    status: "PACKED",
+    paymentStatus: "PENDING",
+    paymentMethod: "COD",
+    shippingAddress: {
+      street: "12/A, Cunningham Road",
+      city: "Bengaluru",
+      state: "Karnataka",
+      postalCode: "560052",
+      country: "India",
+    },
+    itemsCount: 1,
+    items: [
+      {
+        id: "item_uuid_3",
+        productId: "prod_uuid_shirt_01",
+        variantId: "var_uuid_shirt_l",
+        title: "Structured Belgian Linen Shirt",
+        sku: "SBL-001-L",
+        size: "L",
+        color: "Crisp Ivory",
+        quantity: 1,
+        price: "4999.00",
+        totalPrice: "4999.00",
+        imageUrl: "https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=800",
+        product: {
+          id: "prod_uuid_shirt_01",
+          name: "Structured Belgian Linen Shirt",
+          slug: "structured-belgian-linen-shirt",
+          brand: "Atelier Masculin",
+        },
+        variant: {
+          id: "var_uuid_shirt_l",
+          sku: "SBL-001-L",
+          stockQuantity: 18,
+        },
+      },
+    ],
+    statusHistory: [
+      {
+        id: "hist_103_1",
+        previousStatus: null,
+        newStatus: "PENDING",
+        comment: "COD order placed",
+        createdAt: "2026-10-09T15:20:00.000Z",
+      },
+      {
+        id: "hist_103_2",
+        previousStatus: "PENDING",
+        newStatus: "CONFIRMED",
+        comment: "Customer tele-verified for COD",
+        createdAt: "2026-10-09T15:35:00.000Z",
+      },
+      {
+        id: "hist_103_3",
+        previousStatus: "CONFIRMED",
+        newStatus: "PROCESSING",
+        comment: "Picking from shelf B-14",
+        createdAt: "2026-10-09T16:00:00.000Z",
+      },
+      {
+        id: "hist_103_4",
+        previousStatus: "PROCESSING",
+        newStatus: "PACKED",
+        comment: "Garment boxed in premium packaging with cedar hanger",
+        createdAt: "2026-10-09T17:15:00.000Z",
+        changedBy: {
+          id: "admin_uuid_1",
+          name: "Elena Rostova",
+          email: "elena@atelier.com",
+          role: "SUPER_ADMIN",
+        },
+      },
+    ],
+    internalAdminNotes: "COD verification call completed. Customer confirmed evening dispatch.",
+    createdAt: "2026-10-09T15:20:00.000Z",
+    updatedAt: "2026-10-09T17:15:00.000Z",
+  },
+  {
+    id: "ord_uuid_104",
+    orderNumber: "ORD-20261007-8821",
+    userId: "usr_uuid_004",
+    customerName: "Natasha Alva",
+    customerEmail: "natasha@example.com",
+    customerPhone: "+91 98765 00005",
+    subtotal: "42000.00",
+    totalAmount: "42000.00",
+    total: 42000,
+    status: "SHIPPED",
+    paymentStatus: "COMPLETED",
+    paymentMethod: "STRIPE",
+    shippingAddress: {
+      street: "704, Sea Green Apartments, Worli Sea Face",
+      city: "Mumbai",
+      state: "Maharashtra",
+      postalCode: "400030",
+      country: "India",
+    },
+    courierPartner: "BlueDart Express",
+    trackingNumber: "BLD-9812739128",
+    courier: {
+      carrierName: "BlueDart Express",
+      trackingNumber: "BLD-9812739128",
+      trackingUrl: "https://www.bluedart.com/tracking/BLD-9812739128",
+      shippedAt: "2026-10-08T09:30:00.000Z",
+      estimatedDelivery: "2026-10-12T18:00:00.000Z",
+    },
+    itemsCount: 1,
+    items: [
+      {
+        id: "item_uuid_4",
+        productId: "prod_uuid_blazer_02",
+        variantId: "var_uuid_blazer_m",
+        title: "Tailored Double-Breasted Wool Blazer",
+        sku: "TDB-002-M",
+        size: "M",
+        color: "Camel",
+        quantity: 1,
+        price: "42000.00",
+        totalPrice: "42000.00",
+        imageUrl: "https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=800",
+        product: {
+          id: "prod_uuid_blazer_02",
+          name: "Tailored Double-Breasted Wool Blazer",
+          slug: "tailored-double-breasted-wool-blazer",
+          brand: "Maison De Élégance",
+        },
+        variant: {
+          id: "var_uuid_blazer_m",
+          sku: "TDB-002-M",
+          stockQuantity: 5,
+        },
+      },
+    ],
+    statusHistory: [
+      {
+        id: "hist_104_1",
+        previousStatus: "PACKED",
+        newStatus: "SHIPPED",
+        comment: "Handed over to BlueDart pickup driver",
+        createdAt: "2026-10-08T09:30:00.000Z",
+      },
+    ],
+    shippedAt: "2026-10-08T09:30:00.000Z",
+    createdAt: "2026-10-07T18:40:00.000Z",
+    updatedAt: "2026-10-08T09:30:00.000Z",
+  },
+  {
+    id: "ord_uuid_105",
+    orderNumber: "ORD-20261006-2109",
+    userId: "usr_uuid_005",
+    customerName: "Vikramaditya Singhania",
+    customerEmail: "vikram@example.com",
+    customerPhone: "+91 98765 00006",
+    subtotal: "35000.00",
+    totalAmount: "35000.00",
+    total: 35000,
+    status: "DELIVERED",
+    paymentStatus: "COMPLETED",
+    paymentMethod: "RAZORPAY",
+    shippingAddress: {
+      street: "Villa 9, The Palm Springs, Golf Course Road",
+      city: "Gurugram",
+      state: "Haryana",
+      postalCode: "122002",
+      country: "India",
+    },
+    courierPartner: "Delhivery Air",
+    trackingNumber: "DEL-4412093120",
+    itemsCount: 1,
+    items: [
+      {
+        id: "item_uuid_5",
+        productId: "prod_uuid_suit_01",
+        variantId: "var_uuid_suit_40r",
+        title: "Italian Super 150s Merino Tuxedo",
+        sku: "TUX-150-40R",
+        size: "40R",
+        color: "Midnight Black",
+        quantity: 1,
+        price: "35000.00",
+        totalPrice: "35000.00",
+        imageUrl: "https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=800",
+      },
+    ],
+    statusHistory: [
+      {
+        id: "hist_105_1",
+        previousStatus: "OUT_FOR_DELIVERY",
+        newStatus: "DELIVERED",
+        comment: "Signed by recipient at reception",
+        createdAt: "2026-10-09T17:45:00.000Z",
+      },
+    ],
+    deliveredAt: "2026-10-09T17:45:00.000Z",
+    createdAt: "2026-10-06T10:15:00.000Z",
+    updatedAt: "2026-10-09T17:45:00.000Z",
+  },
+  {
+    id: "ord_uuid_106",
+    orderNumber: "ORD-20261005-7740",
+    userId: "usr_uuid_006",
+    customerName: "Ananya Iyer",
+    customerEmail: "ananya@example.com",
+    customerPhone: "+91 98765 00007",
+    subtotal: "12500.00",
+    totalAmount: "12500.00",
+    total: 12500,
+    status: "CANCELLED",
+    paymentStatus: "REFUNDED",
+    paymentMethod: "RAZORPAY",
+    shippingAddress: {
+      street: "88, Jubilee Hills",
+      city: "Hyderabad",
+      state: "Telangana",
+      postalCode: "500033",
+      country: "India",
+    },
+    cancelReason: "Customer requested cancellation prior to dispatch",
+    cancelledAt: "2026-10-06T11:00:00.000Z",
+    itemsCount: 1,
+    items: [
+      {
+        id: "item_uuid_6",
+        productId: "04de36fe-1b09-4c27-a793-5bf9c9ff0412",
+        variantId: "04de36fe-1b09-4c27-a793-5bf9c9ff0412-s",
+        title: "Mulberry Silk Draped Evening Gown",
+        sku: "MSG-001-S",
+        size: "S",
+        color: "Midnight Navy",
+        quantity: 1,
+        price: "12500.00",
+        totalPrice: "12500.00",
+        imageUrl: "https://images.unsplash.com/photo-1566174053879-31528523f8ae?w=800",
+      },
+    ],
+    statusHistory: [
+      {
+        id: "hist_106_1",
+        previousStatus: "CONFIRMED",
+        newStatus: "CANCELLED",
+        comment: "Customer requested cancellation prior to dispatch. Restocked.",
+        createdAt: "2026-10-06T11:00:00.000Z",
+      },
+    ],
+    createdAt: "2026-10-05T09:20:00.000Z",
+    updatedAt: "2026-10-06T11:00:00.000Z",
+  },
+  {
+    id: "ord_uuid_107",
+    orderNumber: "ORD-20261010-0199",
+    userId: "usr_uuid_007",
+    customerName: "Devika Roy",
+    customerEmail: "devika@example.com",
+    customerPhone: "+91 98765 00008",
+    subtotal: "9999.00",
+    totalAmount: "9999.00",
+    total: 9999,
+    status: "PENDING",
+    paymentStatus: "PENDING",
+    paymentMethod: "RAZORPAY",
+    shippingAddress: {
+      street: "Plot 302, Sector 15",
+      city: "Chandigarh",
+      state: "Punjab",
+      postalCode: "160015",
+      country: "India",
+    },
+    itemsCount: 1,
+    items: [
+      {
+        id: "item_uuid_7",
+        productId: "04de36fe-1b09-4c27-a793-5bf9c9ff0412",
+        title: "Mulberry Silk Draped Evening Gown",
+        sku: "MSG-001-M",
+        size: "M",
+        color: "Midnight Navy",
+        quantity: 1,
+        price: "9999.00",
+        totalPrice: "9999.00",
+        imageUrl: "https://images.unsplash.com/photo-1566174053879-31528523f8ae?w=800",
+      },
+    ],
+    statusHistory: [
+      {
+        id: "hist_107_1",
+        previousStatus: null,
+        newStatus: "PENDING",
+        comment: "Checkout session initiated",
+        createdAt: "2026-10-10T21:10:00.000Z",
+      },
+    ],
+    createdAt: "2026-10-10T21:10:00.000Z",
+    updatedAt: "2026-10-10T21:10:00.000Z",
+  },
+];
+
+export const SAMPLE_ADMIN_ORDERS = INITIAL_SAMPLE_ORDERS;
 
 // Initialize seed products conforming to Module 03
 function getInitialProducts(): AdminProduct[] {
@@ -2135,59 +2659,716 @@ export class AdminService {
   }
 
   // ----------------------------------------------------
-  // 4. ORDER FULFILLMENT (/api/v1/admin/orders)
+  // 4. ORDER LIFECYCLE & FULFILLMENT (/api/v1/admin/orders) - Module 05
   // ----------------------------------------------------
 
-  static getLocalOrders(): AdminOrder[] {
-    return getLocalData<AdminOrder[]>(STORAGE_KEYS.ORDERS, SAMPLE_ADMIN_ORDERS as any);
+  static getCurrentAdminUser(): { id: string; name: string; email: string; role: string } {
+    try {
+      const storeUser = useAuthStore.getState().user;
+      if (storeUser) {
+        return {
+          id: storeUser.id,
+          name: storeUser.name || "Elena Rostova",
+          email: storeUser.email || "elena@atelier.com",
+          role: (storeUser.role as string) || "SUPER_ADMIN",
+        };
+      }
+    } catch {}
+
+    return {
+      id: "admin_uuid_1",
+      name: "Elena Rostova",
+      email: "elena@atelier.com",
+      role: "SUPER_ADMIN",
+    };
   }
 
-  static async getOrders(status?: string, search?: string): Promise<AdminOrder[]> {
-    const params = new URLSearchParams();
-    if (status && status !== "ALL") params.set("status", status);
-    if (search) params.set("search", search);
+  static getLocalOrders(): AdminOrder[] {
+    return getLocalData<AdminOrder[]>(STORAGE_KEYS.ORDERS, INITIAL_SAMPLE_ORDERS);
+  }
 
-    const res = await this.request<AdminOrder[]>(`/orders?${params.toString()}`);
-    if (res.success && Array.isArray(res.data)) return res.data;
+  /**
+   * 2.1. GET /api/v1/admin/orders
+   * Retrieves paginated orders with faceted filters and KPI summary counters
+   */
+  static async getOrdersList(
+    params?: OrderListQueryParams
+  ): Promise<OrdersListResponse> {
+    const qp = new URLSearchParams();
+    if (params?.page) qp.set("page", String(params.page));
+    if (params?.limit) qp.set("limit", String(params.limit));
+    if (params?.search) qp.set("search", params.search);
+    if (params?.status && params.status !== "ALL") qp.set("status", params.status);
+    if (params?.paymentStatus && params.paymentStatus !== "ALL") qp.set("paymentStatus", params.paymentStatus);
+    if (params?.paymentMethod && params.paymentMethod !== "ALL") qp.set("paymentMethod", params.paymentMethod);
+    if (params?.startDate) qp.set("startDate", params.startDate);
+    if (params?.endDate) qp.set("endDate", params.endDate);
+    if (params?.minAmount !== undefined) qp.set("minAmount", String(params.minAmount));
+    if (params?.maxAmount !== undefined) qp.set("maxAmount", String(params.maxAmount));
+    if (params?.sort) qp.set("sort", params.sort);
 
-    let orders = this.getLocalOrders();
-    if (status && status !== "ALL") {
-      orders = orders.filter((o) => o.status === status);
+    const qs = qp.toString() ? `?${qp.toString()}` : "";
+    const res = await this.request<OrdersListResponse>(`/orders${qs}`);
+    if (res.success && res.data && Array.isArray(res.data.data)) {
+      return res.data;
     }
-    if (search && search.trim()) {
-      const q = search.toLowerCase().trim();
-      orders = orders.filter(
+
+    // Local Fallback Engine
+    const allOrders = this.getLocalOrders();
+
+    // KPI Summary computed across entire order ledger
+    const summary: OrdersSummary = {
+      totalOrders: allOrders.length,
+      totalRevenue: allOrders
+        .filter((o) => o.status !== "CANCELLED")
+        .reduce((sum, o) => sum + Number(o.totalAmount ?? o.total ?? 0), 0),
+      pendingCount: allOrders.filter((o) => o.status === "PENDING").length,
+      confirmedCount: allOrders.filter((o) => o.status === "CONFIRMED").length,
+      processingCount: allOrders.filter((o) => o.status === "PROCESSING").length,
+      packedCount: allOrders.filter((o) => o.status === "PACKED").length,
+      shippedCount: allOrders.filter((o) => o.status === "SHIPPED").length,
+      deliveredCount: allOrders.filter((o) => o.status === "DELIVERED").length,
+      cancelledCount: allOrders.filter((o) => o.status === "CANCELLED").length,
+    };
+
+    let filtered = [...allOrders];
+
+    // Filter by Status
+    if (params?.status && params.status !== "ALL") {
+      filtered = filtered.filter((o) => o.status === params.status);
+    }
+
+    // Filter by Payment Status
+    if (params?.paymentStatus && params.paymentStatus !== "ALL") {
+      filtered = filtered.filter((o) => o.paymentStatus === params.paymentStatus);
+    }
+
+    // Filter by Payment Method
+    if (params?.paymentMethod && params.paymentMethod !== "ALL") {
+      filtered = filtered.filter((o) => o.paymentMethod.toUpperCase() === params.paymentMethod?.toUpperCase());
+    }
+
+    // Filter by Search (orderNumber, customerName, customerEmail, customerPhone, trackingNumber)
+    if (params?.search && params.search.trim()) {
+      const q = params.search.trim().toLowerCase();
+      filtered = filtered.filter(
         (o) =>
           o.orderNumber.toLowerCase().includes(q) ||
           o.customerName.toLowerCase().includes(q) ||
-          o.customerEmail.toLowerCase().includes(q)
+          o.customerEmail.toLowerCase().includes(q) ||
+          (o.customerPhone && o.customerPhone.toLowerCase().includes(q)) ||
+          (o.trackingNumber && o.trackingNumber.toLowerCase().includes(q))
       );
     }
-    return orders;
+
+    // Filter by Date Range
+    if (params?.startDate) {
+      const start = new Date(params.startDate).getTime();
+      filtered = filtered.filter((o) => new Date(o.createdAt).getTime() >= start);
+    }
+    if (params?.endDate) {
+      const end = new Date(params.endDate).getTime();
+      filtered = filtered.filter((o) => new Date(o.createdAt).getTime() <= end);
+    }
+
+    // Filter by Amount
+    if (params?.minAmount !== undefined) {
+      filtered = filtered.filter((o) => Number(o.totalAmount ?? o.total) >= Number(params.minAmount));
+    }
+    if (params?.maxAmount !== undefined) {
+      filtered = filtered.filter((o) => Number(o.totalAmount ?? o.total) <= Number(params.maxAmount));
+    }
+
+    // Sort Orders
+    const sortMode = params?.sort || "newest";
+    filtered.sort((a, b) => {
+      switch (sortMode) {
+        case "newest":
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        case "oldest":
+          return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+        case "total_asc":
+          return Number(a.totalAmount ?? a.total) - Number(b.totalAmount ?? b.total);
+        case "total_desc":
+          return Number(b.totalAmount ?? b.total) - Number(a.totalAmount ?? a.total);
+        default:
+          return 0;
+      }
+    });
+
+    const page = Math.max(1, Number(params?.page || 1));
+    const limit = Math.min(100, Math.max(1, Number(params?.limit || 20)));
+    const total = filtered.length;
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const startIndex = (page - 1) * limit;
+    const paginated = filtered.slice(startIndex, startIndex + limit);
+
+    return {
+      success: true,
+      statusCode: 200,
+      message: "Orders fetched successfully",
+      data: paginated,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+      },
+      meta: {
+        summary,
+      },
+    };
   }
 
+  /**
+   * Backward-compatible getOrders wrapper
+   */
+  static async getOrders(
+    paramsOrStatus?: OrderListQueryParams | string,
+    legacySearch?: string
+  ): Promise<AdminOrder[]> {
+    if (typeof paramsOrStatus === "object" && paramsOrStatus !== null) {
+      const res = await this.getOrdersList(paramsOrStatus);
+      return res.data;
+    }
+
+    const status = typeof paramsOrStatus === "string" ? paramsOrStatus : undefined;
+    const res = await this.getOrdersList({
+      status: (status as any) || "ALL",
+      search: legacySearch,
+    });
+    return res.data;
+  }
+
+  /**
+   * 2.2. GET /api/v1/admin/orders/:id
+   * Retrieves complete order file with live variant stock and audit history
+   */
+  static async getOrderDetail(orderId: string): Promise<OrderDetailResponse> {
+    const res = await this.request<OrderDetailResponse>(`/orders/${orderId}`);
+    if (res.success && res.data && res.data.data) {
+      return res.data;
+    }
+
+    const orders = this.getLocalOrders();
+    const order = orders.find((o) => o.id === orderId || o.orderNumber === orderId);
+
+    if (!order) {
+      throw new Error(`Order #${orderId} not found`);
+    }
+
+    // Attach live variant stock from product catalog
+    const products = this.getLocalProducts();
+    const enrichedItems = order.items.map((item) => {
+      const prod = products.find((p) => p.id === item.productId);
+      const variant = prod?.variants?.find((v) => v.id === item.variantId || v.sku === item.sku);
+      return {
+        ...item,
+        product: item.product || (prod ? { id: prod.id, name: prod.name, slug: prod.slug, brand: prod.brand } : undefined),
+        variant: {
+          id: variant?.id || item.variantId || "var_unknown",
+          sku: variant?.sku || item.sku || "SKU-N/A",
+          stockQuantity: Number(variant?.stockQuantity ?? variant?.stock ?? 12),
+        },
+      };
+    });
+
+    const enrichedOrder: AdminOrder = {
+      ...order,
+      items: enrichedItems,
+    };
+
+    return {
+      success: true,
+      statusCode: 200,
+      message: "Order details fetched successfully",
+      data: enrichedOrder,
+    };
+  }
+
+  /**
+   * 2.3. PATCH /api/v1/admin/orders/:id/status
+   * Advances order status according to fulfillment state machine with audit history logging
+   */
+  static async advanceOrderStatus(
+    orderId: string,
+    input: AdvanceOrderStatusInput
+  ): Promise<{
+    success: boolean;
+    statusCode: number;
+    message: string;
+    data?: {
+      id: string;
+      orderNumber: string;
+      status: OrderStatus;
+      updatedAt: string;
+    };
+    error?: { code: string };
+  }> {
+    const res = await this.request<{
+      id: string;
+      orderNumber: string;
+      status: OrderStatus;
+      updatedAt: string;
+    }>(`/orders/${orderId}/status`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    });
+
+    if (res.success && res.data) {
+      return {
+        success: true,
+        statusCode: 200,
+        message: res.message || `Order status updated to ${input.status}`,
+        data: res.data,
+      };
+    }
+
+    const orders = this.getLocalOrders();
+    const idx = orders.findIndex((o) => o.id === orderId || o.orderNumber === orderId);
+    if (idx === -1) {
+      return {
+        success: false,
+        statusCode: 404,
+        message: `Order #${orderId} not found`,
+        error: { code: "ORDER_NOT_FOUND" },
+      };
+    }
+
+    const currentOrder = orders[idx];
+    const prevStatus = currentOrder.status;
+    const allowed = ALLOWED_ORDER_TRANSITIONS[prevStatus] || [];
+
+    if (!allowed.includes(input.status)) {
+      return {
+        success: false,
+        statusCode: 400,
+        message: `Illegal transition from '${prevStatus}' to '${input.status}'. Allowed: ${allowed.join(", ") || "None"}`,
+        error: { code: "ILLEGAL_STATUS_TRANSITION" },
+      };
+    }
+
+    const now = new Date().toISOString();
+    currentOrder.status = input.status;
+    currentOrder.updatedAt = now;
+
+    if (input.status === "DELIVERED") {
+      currentOrder.deliveredAt = now;
+    }
+
+    currentOrder.statusHistory = currentOrder.statusHistory || [];
+    currentOrder.statusHistory.push({
+      id: `hist_${Date.now()}`,
+      previousStatus: prevStatus,
+      newStatus: input.status,
+      comment: input.comment || `Order status updated to ${input.status}`,
+      createdAt: now,
+      changedBy: this.getCurrentAdminUser(),
+    });
+
+    setLocalData(STORAGE_KEYS.ORDERS, orders);
+    this.logAudit(
+      "ORDER",
+      currentOrder.orderNumber,
+      `Order status advanced from ${prevStatus} to ${input.status}${input.comment ? `: ${input.comment}` : ""}`
+    );
+
+    return {
+      success: true,
+      statusCode: 200,
+      message: `Order #${currentOrder.orderNumber} status updated to ${input.status}`,
+      data: {
+        id: currentOrder.id,
+        orderNumber: currentOrder.orderNumber,
+        status: currentOrder.status,
+        updatedAt: currentOrder.updatedAt,
+      },
+    };
+  }
+
+  /**
+   * 2.4. PATCH /api/v1/admin/orders/:id/shipping
+   * Assigns AWB tracking credentials and automatically advances status to SHIPPED
+   */
+  static async assignCourierShipping(
+    orderId: string,
+    input: AssignShippingInput
+  ): Promise<{
+    success: boolean;
+    statusCode: number;
+    message: string;
+    data?: {
+      id: string;
+      orderNumber: string;
+      courierPartner: string;
+      trackingNumber: string;
+      status: OrderStatus;
+      shippedAt: string;
+    };
+    error?: { code: string };
+  }> {
+    const res = await this.request<{
+      id: string;
+      orderNumber: string;
+      courierPartner: string;
+      trackingNumber: string;
+      status: OrderStatus;
+      shippedAt: string;
+    }>(`/orders/${orderId}/shipping`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    });
+
+    if (res.success && res.data) {
+      return {
+        success: true,
+        statusCode: 200,
+        message: res.message || `Shipment assigned via ${input.courierPartner}`,
+        data: res.data,
+      };
+    }
+
+    const orders = this.getLocalOrders();
+    const idx = orders.findIndex((o) => o.id === orderId || o.orderNumber === orderId);
+    if (idx === -1) {
+      return {
+        success: false,
+        statusCode: 404,
+        message: `Order #${orderId} not found`,
+        error: { code: "ORDER_NOT_FOUND" },
+      };
+    }
+
+    const now = new Date().toISOString();
+    const currentOrder = orders[idx];
+    const prevStatus = currentOrder.status;
+    const targetStatus = input.status || "SHIPPED";
+
+    currentOrder.courierPartner = input.courierPartner;
+    currentOrder.trackingNumber = input.trackingNumber;
+    currentOrder.status = targetStatus;
+    currentOrder.shippedAt = now;
+    currentOrder.updatedAt = now;
+    currentOrder.courier = {
+      carrierName: input.courierPartner,
+      trackingNumber: input.trackingNumber,
+      estimatedDelivery: input.estimatedDelivery,
+      shippedAt: now,
+      trackingUrl: `https://www.tracktrace.delivery/${input.trackingNumber}`,
+    };
+
+    currentOrder.statusHistory = currentOrder.statusHistory || [];
+    currentOrder.statusHistory.push({
+      id: `hist_${Date.now()}`,
+      previousStatus: prevStatus,
+      newStatus: targetStatus,
+      comment: `Shipment assigned via ${input.courierPartner} (AWB: ${input.trackingNumber})${input.notes ? `. Note: ${input.notes}` : ""}`,
+      createdAt: now,
+      changedBy: this.getCurrentAdminUser(),
+    });
+
+    setLocalData(STORAGE_KEYS.ORDERS, orders);
+    this.logAudit(
+      "ORDER",
+      currentOrder.orderNumber,
+      `Assigned courier ${input.courierPartner} (AWB: ${input.trackingNumber})`
+    );
+
+    return {
+      success: true,
+      statusCode: 200,
+      message: `Shipment assigned for #${currentOrder.orderNumber} via ${input.courierPartner}`,
+      data: {
+        id: currentOrder.id,
+        orderNumber: currentOrder.orderNumber,
+        courierPartner: currentOrder.courierPartner,
+        trackingNumber: currentOrder.trackingNumber,
+        status: currentOrder.status,
+        shippedAt: currentOrder.shippedAt,
+      },
+    };
+  }
+
+  /**
+   * 2.5. PATCH /api/v1/admin/orders/:id/notes
+   * Updates internal admin notes (hidden from customer receipts)
+   */
+  static async updateOrderInternalNotes(
+    orderId: string,
+    input: UpdateOrderNotesInput
+  ): Promise<{
+    success: boolean;
+    statusCode: number;
+    message: string;
+    data?: {
+      id: string;
+      orderNumber: string;
+      internalAdminNotes: string;
+    };
+    error?: { code: string };
+  }> {
+    const res = await this.request<{
+      id: string;
+      orderNumber: string;
+      internalAdminNotes: string;
+    }>(`/orders/${orderId}/notes`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    });
+
+    if (res.success && res.data) {
+      return {
+        success: true,
+        statusCode: 200,
+        message: "Internal admin notes updated successfully",
+        data: res.data,
+      };
+    }
+
+    const orders = this.getLocalOrders();
+    const idx = orders.findIndex((o) => o.id === orderId || o.orderNumber === orderId);
+    if (idx === -1) {
+      return {
+        success: false,
+        statusCode: 404,
+        message: `Order #${orderId} not found`,
+        error: { code: "ORDER_NOT_FOUND" },
+      };
+    }
+
+    const currentOrder = orders[idx];
+    currentOrder.internalAdminNotes = input.internalAdminNotes;
+    currentOrder.updatedAt = new Date().toISOString();
+
+    setLocalData(STORAGE_KEYS.ORDERS, orders);
+    this.logAudit("ORDER", currentOrder.orderNumber, "Updated internal atelier notes");
+
+    return {
+      success: true,
+      statusCode: 200,
+      message: "Internal admin notes updated successfully",
+      data: {
+        id: currentOrder.id,
+        orderNumber: currentOrder.orderNumber,
+        internalAdminNotes: currentOrder.internalAdminNotes,
+      },
+    };
+  }
+
+  /**
+   * 2.6. POST /api/v1/admin/orders/:id/cancel
+   * Cancels order with atomic stock restitution and double-entry audit logging
+   * Permission Required: orders:cancel (SUPER_ADMIN or STORE_ADMIN only)
+   */
+  static async cancelOrder(
+    orderId: string,
+    reason: string
+  ): Promise<{
+    success: boolean;
+    statusCode: number;
+    message: string;
+    data?: {
+      id: string;
+      orderNumber: string;
+      status: OrderStatus;
+      cancelReason: string;
+      cancelledAt: string;
+    };
+    error?: { code: string };
+  }> {
+    const res = await this.request<{
+      id: string;
+      orderNumber: string;
+      status: OrderStatus;
+      cancelReason: string;
+      cancelledAt: string;
+    }>(`/orders/${orderId}/cancel`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    });
+
+    if (res.success && res.data) {
+      return {
+        success: true,
+        statusCode: 200,
+        message: res.message || "Order successfully cancelled",
+        data: res.data,
+      };
+    }
+
+    const orders = this.getLocalOrders();
+    const idx = orders.findIndex((o) => o.id === orderId || o.orderNumber === orderId);
+    if (idx === -1) {
+      return {
+        success: false,
+        statusCode: 404,
+        message: `Order #${orderId} not found`,
+        error: { code: "ORDER_NOT_FOUND" },
+      };
+    }
+
+    const currentOrder = orders[idx];
+
+    // Status Validation Guards
+    if (currentOrder.status === "DELIVERED") {
+      return {
+        success: false,
+        statusCode: 400,
+        message: "Cannot cancel an order that has already been delivered",
+        error: { code: "ORDER_DELIVERED" },
+      };
+    }
+
+    if (currentOrder.status === "SHIPPED" || currentOrder.status === "OUT_FOR_DELIVERY") {
+      return {
+        success: false,
+        statusCode: 400,
+        message: "Cannot cancel an order that has already been dispatched. Must proceed through return.",
+        error: { code: "ORDER_ALREADY_SHIPPED" },
+      };
+    }
+
+    if (currentOrder.status === "CANCELLED") {
+      return {
+        success: false,
+        statusCode: 400,
+        message: "Order is already cancelled.",
+        error: { code: "ORDER_ALREADY_CANCELLED" },
+      };
+    }
+
+    const now = new Date().toISOString();
+    const prevStatus = currentOrder.status;
+
+    // ----------------------------------------------------
+    // ATOMIC STOCK RESTITUTION & AUDIT LEDGER LOGGING
+    // ----------------------------------------------------
+    const products = this.getLocalProducts();
+    const adminUser = this.getCurrentAdminUser();
+    const inventoryLogs = this.getInventoryTransactions();
+
+    for (const item of currentOrder.items) {
+      const restockQty = Number(item.quantity || 1);
+      // Locate product
+      let matchedProd = products.find(
+        (p) => p.id === item.productId || (p.variants && p.variants.some((v) => v.id === item.variantId || v.sku === item.sku))
+      );
+
+      if (matchedProd) {
+        let matchedVariant = (matchedProd.variants || []).find(
+          (v) => v.id === item.variantId || v.sku === item.sku
+        );
+
+        if (matchedVariant) {
+          const prevVariantStock = Number(matchedVariant.stockQuantity ?? matchedVariant.stock ?? 0);
+          const newVariantStock = prevVariantStock + restockQty;
+          matchedVariant.stockQuantity = newVariantStock;
+          matchedVariant.stock = newVariantStock;
+
+          // Recalculate parent product total stock
+          matchedProd.stockQuantity = (matchedProd.variants || []).reduce(
+            (sum, v) => sum + Number(v.stockQuantity ?? v.stock ?? 0),
+            0
+          );
+          matchedProd.totalStock = matchedProd.stockQuantity;
+
+          // Record immutable RETURN entry in InventoryTransaction ledger
+          inventoryLogs.unshift({
+            id: `tx_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+            variantId: matchedVariant.id,
+            productId: matchedProd.id,
+            productName: matchedProd.name,
+            variantSku: matchedVariant.sku,
+            type: "RETURN",
+            quantityChange: restockQty,
+            previousStock: prevVariantStock,
+            newStock: newVariantStock,
+            reason: `Restocked from cancelled order #${currentOrder.orderNumber}: ${reason}`,
+            referenceId: currentOrder.orderNumber,
+            createdAt: now,
+            createdBy: adminUser,
+          });
+        } else {
+          // Standalone product
+          const prevProdStock = Number(matchedProd.stockQuantity ?? matchedProd.totalStock ?? 0);
+          const newProdStock = prevProdStock + restockQty;
+          matchedProd.stockQuantity = newProdStock;
+          matchedProd.totalStock = newProdStock;
+
+          inventoryLogs.unshift({
+            id: `tx_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+            productId: matchedProd.id,
+            productName: matchedProd.name,
+            type: "RETURN",
+            quantityChange: restockQty,
+            previousStock: prevProdStock,
+            newStock: newProdStock,
+            reason: `Restocked from cancelled order #${currentOrder.orderNumber}: ${reason}`,
+            referenceId: currentOrder.orderNumber,
+            createdAt: now,
+            createdBy: adminUser,
+          });
+        }
+      }
+    }
+
+    setLocalData(STORAGE_KEYS.PRODUCTS, products);
+    setLocalData(STORAGE_KEYS.INVENTORY_LOGS, inventoryLogs.slice(0, 300));
+
+    // Update order state
+    currentOrder.status = "CANCELLED";
+    currentOrder.cancelReason = reason;
+    currentOrder.cancelledAt = now;
+    currentOrder.updatedAt = now;
+
+    currentOrder.statusHistory = currentOrder.statusHistory || [];
+    currentOrder.statusHistory.push({
+      id: `hist_${Date.now()}`,
+      previousStatus: prevStatus,
+      newStatus: "CANCELLED",
+      comment: `Order cancelled: ${reason}. Garment stock atomically restored.`,
+      createdAt: now,
+      changedBy: adminUser,
+    });
+
+    setLocalData(STORAGE_KEYS.ORDERS, orders);
+    this.logAudit("ORDER", currentOrder.orderNumber, `Order cancelled: ${reason}`);
+
+    return {
+      success: true,
+      statusCode: 200,
+      message: `Order #${currentOrder.orderNumber} successfully cancelled`,
+      data: {
+        id: currentOrder.id,
+        orderNumber: currentOrder.orderNumber,
+        status: "CANCELLED",
+        cancelReason: reason,
+        cancelledAt: now,
+      },
+    };
+  }
+
+  /**
+   * Backward-compatible updateOrderStatus method
+   */
   static async updateOrderStatus(
     orderId: string,
     status: OrderStatus,
     courier?: CourierInfo
   ): Promise<{ success: boolean; order?: AdminOrder }> {
-    const res = await this.request<AdminOrder>(`/orders/${orderId}/status`, {
-      method: "PATCH",
-      body: JSON.stringify({ status, courier }),
-    });
-    if (res.success && res.data) return { success: true, order: res.data };
+    if (courier && courier.trackingNumber) {
+      await this.assignCourierShipping(orderId, {
+        courierPartner: courier.carrierName,
+        trackingNumber: courier.trackingNumber,
+        estimatedDelivery: courier.estimatedDelivery,
+        status,
+      });
+    } else {
+      await this.advanceOrderStatus(orderId, { status });
+    }
 
-    const orders = this.getLocalOrders();
-    const idx = orders.findIndex((o) => o.id === orderId || o.orderNumber === orderId);
-    if (idx === -1) return { success: false };
-
-    orders[idx].status = status;
-    if (courier) orders[idx].courier = courier;
-    orders[idx].updatedAt = new Date().toISOString();
-
-    setLocalData(STORAGE_KEYS.ORDERS, orders);
-    this.logAudit("ORDER", orders[idx].orderNumber, `Fulfillment state changed to ${status}${courier ? ` with ${courier.carrierName} (${courier.trackingNumber})` : ""}`);
-    return { success: true, order: orders[idx] };
+    const orderRes = await this.getOrderDetail(orderId);
+    return { success: true, order: orderRes.data };
   }
 
   // ----------------------------------------------------

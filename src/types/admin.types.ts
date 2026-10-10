@@ -664,7 +664,7 @@ export interface UpdateThresholdResponse {
 }
 
 // ==========================================
-// 5. ORDER LIFECYCLE & COURIER FULFILLMENT
+// 5. ORDER LIFECYCLE, FULFILLMENT & COURIER TRACKING (Module 05)
 // ==========================================
 
 export type OrderStatus =
@@ -673,8 +673,12 @@ export type OrderStatus =
   | "PROCESSING"
   | "PACKED"
   | "SHIPPED"
+  | "OUT_FOR_DELIVERY"
   | "DELIVERED"
-  | "CANCELLED";
+  | "CANCELLED"
+  | "RETURN_REQUESTED"
+  | "RETURNED"
+  | "REFUNDED";
 
 export type PaymentStatus = "PENDING" | "COMPLETED" | "FAILED" | "REFUNDED";
 
@@ -683,12 +687,24 @@ export interface AdminOrderItem {
   productId: string;
   variantId?: string;
   title: string;
+  sku?: string;
   size: string;
   color: string;
-  sku?: string;
   quantity: number;
-  price: number;
+  price: string | number;
+  totalPrice?: string | number;
   imageUrl?: string;
+  product?: {
+    id: string;
+    name: string;
+    slug?: string;
+    brand?: string;
+  };
+  variant?: {
+    id: string;
+    sku?: string;
+    stockQuantity?: number;
+  };
 }
 
 export interface CourierInfo {
@@ -697,6 +713,77 @@ export interface CourierInfo {
   trackingUrl?: string;
   estimatedDelivery?: string;
   shippedAt?: string;
+}
+
+export interface OrderStatusHistoryEntry {
+  id: string;
+  previousStatus: OrderStatus | null;
+  newStatus: OrderStatus;
+  comment?: string;
+  createdAt: string;
+  changedBy?: {
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+  } | null;
+}
+
+export interface AdminOrderPayment {
+  id: string;
+  gateway: "RAZORPAY" | "STRIPE" | "COD" | string;
+  status: "PENDING" | "COMPLETED" | "FAILED" | "REFUNDED";
+  transactionId?: string;
+  amount: string | number;
+  currency?: string;
+  createdAt?: string;
+}
+
+export interface AdminOrderAddress {
+  street: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  country: string;
+  landmark?: string;
+}
+
+export interface AdminOrder {
+  id: string;
+  orderNumber: string;
+  userId?: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  subtotal: string | number;
+  discountAmount?: string | number;
+  discount?: number;
+  taxAmount?: string | number;
+  tax?: number;
+  shippingAmount?: string | number;
+  shipping?: number;
+  totalAmount?: string | number;
+  total: number;
+  status: OrderStatus;
+  paymentStatus: PaymentStatus;
+  paymentMethod: "RAZORPAY" | "COD" | "STRIPE" | string;
+  shippingAddress: AdminOrderAddress;
+  billingAddress?: AdminOrderAddress | null;
+  trackingNumber?: string | null;
+  courierPartner?: string | null;
+  courier?: CourierInfo;
+  itemsCount?: number;
+  items: AdminOrderItem[];
+  payments?: AdminOrderPayment[];
+  statusHistory?: OrderStatusHistoryEntry[];
+  notes?: string | null;
+  internalAdminNotes?: string | null;
+  shippedAt?: string | null;
+  deliveredAt?: string | null;
+  cancelledAt?: string | null;
+  cancelReason?: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface AdminOrderSummary {
@@ -711,32 +798,74 @@ export interface AdminOrderSummary {
   createdAt: string;
 }
 
-export interface AdminOrder {
-  id: string;
-  orderNumber: string;
-  customerName: string;
-  customerEmail: string;
-  customerPhone: string;
-  items: AdminOrderItem[];
-  subtotal: number;
-  discount: number;
-  shipping: number;
-  tax: number;
-  total: number;
-  status: OrderStatus;
-  paymentMethod: "RAZORPAY" | "COD" | "STRIPE" | string;
-  paymentStatus: PaymentStatus;
-  shippingAddress: {
-    street: string;
-    city: string;
-    state: string;
-    postalCode: string;
-    country: string;
+export interface OrdersSummary {
+  totalOrders: number;
+  totalRevenue: number;
+  pendingCount: number;
+  confirmedCount: number;
+  processingCount: number;
+  packedCount: number;
+  shippedCount: number;
+  deliveredCount: number;
+  cancelledCount: number;
+}
+
+export interface OrderListQueryParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  status?: OrderStatus | "ALL";
+  paymentStatus?: PaymentStatus | "ALL";
+  paymentMethod?: "ALL" | "RAZORPAY" | "STRIPE" | "COD" | string;
+  startDate?: string;
+  endDate?: string;
+  minAmount?: number;
+  maxAmount?: number;
+  sort?: "newest" | "oldest" | "total_asc" | "total_desc";
+}
+
+export interface OrdersListResponse {
+  success: boolean;
+  statusCode: number;
+  message: string;
+  data: AdminOrder[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
   };
-  courier?: CourierInfo;
+  meta: {
+    summary: OrdersSummary;
+  };
+}
+
+export interface OrderDetailResponse {
+  success: boolean;
+  statusCode: number;
+  message: string;
+  data: AdminOrder;
+}
+
+export interface AdvanceOrderStatusInput {
+  status: OrderStatus;
+  comment?: string;
+}
+
+export interface AssignShippingInput {
+  courierPartner: string;
+  trackingNumber: string;
+  estimatedDelivery?: string;
+  status?: OrderStatus;
   notes?: string;
-  createdAt: string;
-  updatedAt: string;
+}
+
+export interface UpdateOrderNotesInput {
+  internalAdminNotes: string;
+}
+
+export interface CancelOrderInput {
+  reason: string;
 }
 
 export interface UpdateOrderStatusInput {
@@ -744,6 +873,7 @@ export interface UpdateOrderStatusInput {
   status: OrderStatus;
   courier?: CourierInfo;
   notes?: string;
+  comment?: string;
 }
 
 // ==========================================

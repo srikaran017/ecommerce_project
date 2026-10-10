@@ -238,6 +238,26 @@ export const rbac = {
   canManageDiscounts: (role?: string) => hasPermission(role, "discounts:manage"),
   canViewAuditLogs: (role?: string) => hasPermission(role, "audit:view"),
 
+  // Module 05 Order Lifecycle, Fulfillment & Courier Tracking Helpers
+  canReadOrders: (role?: string) => {
+    if (!role) return false;
+    const r = role.toUpperCase();
+    if (r === "SUPER_ADMIN" || r === "STORE_ADMIN" || r === "STAFF") return true;
+    return hasPermission(role, "orders:view");
+  },
+  canWriteOrders: (role?: string) => {
+    if (!role) return false;
+    const r = role.toUpperCase();
+    if (r === "SUPER_ADMIN" || r === "STORE_ADMIN") return true;
+    return hasPermission(role, "orders:update_status");
+  },
+  canCancelOrders: (role?: string) => {
+    if (!role) return false;
+    const r = role.toUpperCase();
+    if (r === "SUPER_ADMIN" || r === "STORE_ADMIN") return true;
+    return hasPermission(role, "orders:cancel");
+  },
+
   // Module 01 UI Role Helpers
   canCreateStoreAdmin: (role?: string) => canCreateRole(role, "STORE_ADMIN"),
   canCreateStaff: (role?: string) => canCreateRole(role, "STAFF"),

@@ -59,31 +59,77 @@ export function exportToCsv<T extends Record<string, any>>(
 export function exportOrdersCsv(orders: any[], storeName: string = "Store"): void {
   const dateStr = new Date().toISOString().split("T")[0];
   exportToCsv(
-    `${storeName.toLowerCase().replace(/\s+/g, "_")}_orders_${dateStr}.csv`,
+    `orders-manifest-${dateStr}.csv`,
     orders,
     [
-      { key: "orderNumber", header: "Order ID" },
+      { key: "orderNumber", header: "Order Number" },
+      { key: "createdAt", header: "Order Date", format: (o) => o.createdAt || "N/A" },
       { key: "customerName", header: "Customer Name" },
-      { key: "customerPhone", header: "Phone" },
-      { key: "customerEmail", header: "Email" },
+      { key: "customerEmail", header: "Customer Email" },
+      { key: "customerPhone", header: "Customer Phone" },
       {
-        key: "shippingAddress",
-        header: "Delivery Address",
-        format: (o) => (typeof o.shippingAddress === "object" ? Object.values(o.shippingAddress).join(", ") : o.shippingAddress),
+        key: "address",
+        header: "Address",
+        format: (o) =>
+          typeof o.shippingAddress === "object" && o.shippingAddress !== null
+            ? o.shippingAddress.street || Object.values(o.shippingAddress).join(", ")
+            : o.shippingAddress || "",
       },
+      {
+        key: "city",
+        header: "City",
+        format: (o) =>
+          typeof o.shippingAddress === "object" && o.shippingAddress !== null
+            ? o.shippingAddress.city || ""
+            : "",
+      },
+      {
+        key: "postalCode",
+        header: "Postal Code",
+        format: (o) =>
+          typeof o.shippingAddress === "object" && o.shippingAddress !== null
+            ? o.shippingAddress.postalCode || ""
+            : "",
+      },
+      { key: "status", header: "Order Status" },
+      { key: "paymentStatus", header: "Payment Status" },
+      { key: "paymentMethod", header: "Payment Method" },
       {
         key: "items",
-        header: "Items Ordered",
+        header: "Items",
         format: (o) =>
           Array.isArray(o.items)
-            ? o.items.map((i: any) => `${i.title} (${i.size || "Standard"}, ${i.color || "Default"}) x${i.quantity}`).join("; ")
+            ? o.items
+                .map(
+                  (i: any) =>
+                    `${i.title} (${i.size || "Standard"}, ${i.color || "Default"}) x${i.quantity || 1}`
+                )
+                .join("; ")
             : "N/A",
       },
-      { key: "total", header: "Order Total (₹)" },
-      { key: "paymentMethod", header: "Payment Mode" },
-      { key: "paymentStatus", header: "Payment Status" },
-      { key: "status", header: "Fulfillment Status" },
-      { key: "date", header: "Order Date", format: (o) => o.createdAt || o.date || "N/A" },
+      {
+        key: "totalUnits",
+        header: "Total Units",
+        format: (o) =>
+          Array.isArray(o.items)
+            ? o.items.reduce((acc: number, i: any) => acc + (Number(i.quantity) || 1), 0)
+            : 1,
+      },
+      {
+        key: "totalAmount",
+        header: "Total Amount (INR)",
+        format: (o) => o.totalAmount ?? o.total ?? 0,
+      },
+      {
+        key: "courierPartner",
+        header: "Courier Partner",
+        format: (o) => o.courierPartner || o.courier?.carrierName || "N/A",
+      },
+      {
+        key: "trackingNumber",
+        header: "Tracking Number",
+        format: (o) => o.trackingNumber || o.courier?.trackingNumber || "N/A",
+      },
     ]
   );
 }
