@@ -18,6 +18,7 @@ import {
   Lock,
   Users,
   FileText,
+  TrendingUp,
 } from "lucide-react";
 import { storeConfig } from "@/config/store.config";
 import { useAuthStore } from "@/stores/auth.store";
@@ -113,6 +114,7 @@ export default function AdminLayout({
 
   const mainNav = [
     { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
+    { label: "Analytics", href: "/admin/analytics", icon: TrendingUp },
     { label: "Orders", href: "/admin/orders", icon: ShoppingBag },
     { label: "Products", href: "/admin/products", icon: Package },
     { label: "Inventory", href: "/admin/inventory", icon: Layers },

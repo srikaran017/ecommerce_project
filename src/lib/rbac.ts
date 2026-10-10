@@ -250,6 +250,12 @@ export const rbac = {
     const r = role.toUpperCase();
     return r === "SUPER_ADMIN" || r === "STORE_ADMIN" || hasPermission(role, "audit:view");
   },
+  canReadAnalytics: (role?: string) => {
+    if (!role) return false;
+    const r = role.toUpperCase();
+    if (r === "SUPER_ADMIN" || r === "STORE_ADMIN") return true;
+    return hasPermission(role, "analytics:read") || hasPermission(role, "analytics:view");
+  },
 
   // Module 06 Coupons, Discounts & Flash Campaigns Helpers
   canManageCoupons: (role?: string) => {

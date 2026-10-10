@@ -30,7 +30,8 @@ export type AdminPermission =
   | "settings:view"
   | "settings:edit"
   | "settings:manage"
-  | "audit:view";
+  | "audit:view"
+  | "analytics:read";
 
 export type ModulePermissionCode =
   | "products:read"
@@ -1354,4 +1355,96 @@ export interface AuditLogDetailResponse {
   message: string;
   data: AdminAuditLog;
 }
+
+// ==========================================
+// 10. PERFORMANCE ANALYTICS & IN-MEMORY TELEMETRY (Module 08)
+// ==========================================
+
+export type AnalyticsPeriod = "7d" | "30d" | "90d" | "year" | "all";
+
+export interface AnalyticsOverviewData {
+  period: AnalyticsPeriod;
+  totalRevenue: number;
+  revenueChangePct: number;
+  ordersCount: number;
+  ordersChangePct: number;
+  averageOrderValue: number;
+  aovChangePct: number;
+  activeOrdersCount: number;
+  pendingDispatchCount: number;
+  registeredCustomersCount: number;
+  newCustomersCount: number;
+  lowStockCount: number;
+  outOfStockCount: number;
+  currency: string;
+  currencySymbol: string;
+}
+
+export interface AnalyticsMeta {
+  period?: AnalyticsPeriod;
+  fromCache: boolean;
+  ttl?: number;
+  totalOrders?: number;
+}
+
+export interface AnalyticsOverviewResponse {
+  success: boolean;
+  statusCode: number;
+  message: string;
+  data: AnalyticsOverviewData;
+  meta: AnalyticsMeta;
+}
+
+export interface RevenueChartPoint {
+  date: string;
+  revenue: number;
+  orders: number;
+}
+
+export interface RevenueChartResponse {
+  success: boolean;
+  statusCode: number;
+  message: string;
+  data: RevenueChartPoint[];
+  meta: AnalyticsMeta;
+}
+
+export interface TopProductItem {
+  productId: string;
+  name: string;
+  brand: string;
+  slug: string;
+  thumbnail: string;
+  unitsSold: number;
+  revenue: number;
+}
+
+export interface TopProductsResponse {
+  success: boolean;
+  statusCode: number;
+  message: string;
+  data: TopProductItem[];
+  meta: AnalyticsMeta;
+}
+
+export interface OrderStatusDistributionItem {
+  status: string;
+  count: number;
+  percentage: number;
+}
+
+export interface OrderDistributionResponse {
+  success: boolean;
+  statusCode: number;
+  message: string;
+  data: OrderStatusDistributionItem[];
+  meta: AnalyticsMeta;
+}
+
+export interface PurgeCacheResponse {
+  success: boolean;
+  statusCode: number;
+  message: string;
+}
+
 
