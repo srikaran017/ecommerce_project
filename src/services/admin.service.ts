@@ -1455,8 +1455,14 @@ export class AdminService {
       headers.set("Authorization", `Bearer ${token}`);
     }
 
+    // Ensure all admin endpoints route to /api/v1/admin/* as specified by the architecture
+    const cleanEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+    const adminPath = cleanEndpoint.startsWith("/admin/")
+      ? cleanEndpoint
+      : `/admin${cleanEndpoint}`;
+
     try {
-      const response = await fetch(`${getBaseUrl()}${endpoint}`, {
+      const response = await fetch(`${getBaseUrl()}${adminPath}`, {
         ...options,
         headers,
       });

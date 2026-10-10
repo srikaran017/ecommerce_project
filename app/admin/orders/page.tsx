@@ -192,6 +192,20 @@ export default function AdminOrdersPage() {
   };
 
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const statusParam = params.get("status")?.toUpperCase();
+      if (statusParam && (statusParam === "ALL" || statusParam in STATUS_BADGE_CONFIG)) {
+        setStatusFilter(statusParam as any);
+      }
+      const searchParam = params.get("search");
+      if (searchParam) {
+        setSearchTerm(searchParam);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
     loadOrders();
   }, [searchTerm, statusFilter, paymentStatusFilter, paymentMethodFilter, sortOption, currentPage]);
 

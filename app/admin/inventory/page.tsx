@@ -112,6 +112,16 @@ export default function AdminInventoryPage() {
 
   useEffect(() => {
     loadUrgentAlerts();
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const statusParam = params.get("status")?.toUpperCase();
+      if (
+        statusParam &&
+        ["ALL", "IN_STOCK", "LOW_STOCK", "OUT_OF_STOCK"].includes(statusParam)
+      ) {
+        setStatusFilter(statusParam as any);
+      }
+    }
   }, []);
 
   // Load Inventory Table with Faceted Filters & Pagination
