@@ -45,7 +45,7 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
 
     addItem({
       productId: product.id,
-      variantId: selectedVariant.id,
+      variantId: selectedVariant.id === "default" ? undefined : selectedVariant.id,
       name: product.name,
       price: selectedVariant.price,
       compareAtPrice: selectedVariant.compareAtPrice || undefined,

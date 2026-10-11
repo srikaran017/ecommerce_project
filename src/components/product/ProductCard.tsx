@@ -66,7 +66,7 @@ export function ProductCard({ product }: ProductCardProps) {
 
     addItem({
       productId: product.id,
-      variantId: selectedVariant.id,
+      variantId: selectedVariant.id === "default" ? undefined : selectedVariant.id,
       name: product.name,
       price: selectedVariant.price || effectivePrice,
       compareAtPrice: selectedVariant.compareAtPrice || regularPrice,

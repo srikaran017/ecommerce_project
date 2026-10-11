@@ -217,25 +217,35 @@ export const useCartStore = create<CartState>()(
           selectedModifiers: input.selectedModifiers || [],
         };
 
-        try {
-          const updatedCart = await CartApi.addItem({
-            productId: input.productId,
-            variantId: input.variantId || null,
-            quantity: qty,
-            modifierOptionIds: input.modifierOptionIds || [],
-            metafields: input.metafields,
-          });
+        const isUuid = (val?: string | null): boolean =>
+          typeof val === "string" &&
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(val);
 
-          if (updatedCart && updatedCart.items && updatedCart.items.length > 0) {
-            set({
-              apiCart: updatedCart,
-              items: updatedCart.items.map(transformApiItemToStoreItem),
+        // Only call backend API if productId is a valid UUID supported by the database
+        if (isUuid(input.productId)) {
+          try {
+            const sanitizedVariantId = isUuid(input.variantId) ? input.variantId : null;
+            const sanitizedModifiers = (input.modifierOptionIds || []).filter(isUuid);
+
+            const updatedCart = await CartApi.addItem({
+              productId: input.productId,
+              variantId: sanitizedVariantId,
+              quantity: qty,
+              modifierOptionIds: sanitizedModifiers,
+              metafields: input.metafields,
             });
-            return;
+
+            if (updatedCart && updatedCart.items && updatedCart.items.length > 0) {
+              set({
+                apiCart: updatedCart,
+                items: updatedCart.items.map(transformApiItemToStoreItem),
+              });
+              return;
+            }
+          } catch (err: any) {
+            console.warn("Backend add item failed, using local fallback:", err.message);
+            set({ error: err.message });
           }
-        } catch (err: any) {
-          console.warn("Backend add item failed, using local fallback:", err.message);
-          set({ error: err.message });
         }
 
         // Local state fallback if backend request failed
