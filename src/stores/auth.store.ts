@@ -24,6 +24,7 @@ export interface AuthState {
   logout: () => Promise<void>;
   clearError: () => void;
   setUser: (user: AuthUser | null) => void;
+  updateUser: (partial: Partial<AuthUser>) => void;
   checkSession: () => Promise<void>;
 }
 
@@ -178,6 +179,12 @@ export const useAuthStore = create<AuthState>()(
 
       clearError: () => set({ error: null }),
       setUser: (user) => set({ user, isAuthenticated: !!user }),
+      updateUser: (partial) => {
+        const current = get().user;
+        if (!current) return;
+        const updated = { ...current, ...partial };
+        set({ user: updated });
+      },
     }),
     {
       name: "auth-session-store",

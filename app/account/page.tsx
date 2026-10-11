@@ -1,70 +1,48 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { notFound } from "next/navigation";
-import { featureConfig } from "@/config/feature.config";
-import { storeConfig } from "@/config/store.config";
 import { useAuthStore } from "@/stores/auth.store";
-import { User, MapPin, Package, Heart, LogOut, ArrowRight, LogIn, Sparkles, Plus } from "lucide-react";
-import { AdminService } from "@/services/admin.service";
-import { AdminOrder } from "@/types/admin.types";
+import { CustomerService, AccountDetails } from "@/services/customer.service";
+import {
+  Package,
+  CreditCard,
+  MapPin,
+  Heart,
+  ChevronRight,
+  LogOut,
+  ShieldCheck,
+  User,
+  LogIn,
+  Contact2,
+} from "lucide-react";
 
-export default function AccountPage() {
+export default function AccountCenterPage() {
   const router = useRouter();
   const { user, isAuthenticated, logout } = useAuthStore();
+  const [account, setAccount] = useState<AccountDetails | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  if (!featureConfig.customerAccounts) {
-    notFound();
-  }
-
-  const [orders, setOrders] = React.useState<AdminOrder[]>([]);
-  const [isLoadingOrders, setIsLoadingOrders] = React.useState(true);
-  const [savedAddress, setSavedAddress] = React.useState<any>(null);
-
-  React.useEffect(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const raw = localStorage.getItem("customer_saved_address");
-        if (raw) setSavedAddress(JSON.parse(raw));
-      } catch {}
-    }
-  }, []);
-
-  React.useEffect(() => {
-    async function loadUserOrders() {
-      if (!user?.email) {
-        setIsLoadingOrders(false);
+  useEffect(() => {
+    async function loadAccount() {
+      if (!isAuthenticated) {
+        setIsLoading(false);
         return;
       }
       try {
-        const res = await AdminService.getOrdersList({ search: user.email });
-        if (res.data && res.data.length > 0) {
-          setOrders(res.data);
-        } else {
-          // Check local ledger if email matches
-          const local = AdminService.getLocalOrders();
-          const userOrders = local.filter(
-            (o) => o.customerEmail?.toLowerCase() === user.email.toLowerCase()
-          );
-          setOrders(userOrders);
+        const res = await CustomerService.getAccountDetails();
+        if (res.success && res.data) {
+          setAccount(res.data);
         }
       } catch {
-        const local = AdminService.getLocalOrders();
-        const userOrders = local.filter(
-          (o) => o.customerEmail?.toLowerCase() === user.email.toLowerCase()
-        );
-        setOrders(userOrders);
+        // Fallback to auth store user
       } finally {
-        setIsLoadingOrders(false);
+        setIsLoading(false);
       }
     }
-
-    if (isAuthenticated) {
-      loadUserOrders();
-    }
-  }, [user, isAuthenticated]);
+    loadAccount();
+  }, [isAuthenticated]);
 
   const handleSignOut = async () => {
     await logout();
@@ -73,23 +51,25 @@ export default function AccountPage() {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-[70vh] flex items-center justify-center px-4 py-16">
-        <div className="max-w-md w-full text-center bg-white p-8 sm:p-10 rounded-3xl border border-neutral-100 shadow-xl space-y-6">
-          <div className="w-14 h-14 bg-amber-50 rounded-full flex items-center justify-center mx-auto text-amber-700">
-            <User className="w-6 h-6" />
+      <div className="min-h-[70vh] flex items-center justify-center px-4 py-16 bg-[#fafafa]">
+        <div className="max-w-md w-full text-center bg-white p-8 sm:p-10 rounded-2xl border border-neutral-200/80 shadow-md space-y-6">
+          <div className="w-16 h-16 bg-[#eef8fb] rounded-full flex items-center justify-center mx-auto text-[#2b97ba]">
+            <User className="w-7 h-7" />
           </div>
 
           <div className="space-y-2">
-            <h2 className="text-xl font-bold text-neutral-900">Sign In to Your Account</h2>
-            <p className="text-xs text-neutral-500">
-              Access your personal wardrobe wishlist, past order invoices, and saved delivery addresses.
+            <h2 className="text-xl font-bold uppercase tracking-tight text-neutral-900 font-heading">
+              Account Center
+            </h2>
+            <p className="text-xs text-neutral-500 leading-relaxed">
+              Please sign in to access your orders, account details, saved addresses, and favorites.
             </p>
           </div>
 
-          <div className="pt-2 flex flex-col gap-2.5">
+          <div className="pt-2 flex flex-col gap-3">
             <Link
               href="/login?redirect=/account"
-              className="w-full py-3.5 bg-neutral-900 hover:bg-amber-600 text-white font-bold text-xs uppercase tracking-widest rounded-2xl transition-all shadow-md flex items-center justify-center gap-2"
+              className="w-full py-3.5 bg-neutral-900 hover:bg-[#2b97ba] text-white font-bold text-xs uppercase tracking-widest rounded-xl transition-all shadow-sm flex items-center justify-center gap-2"
             >
               <LogIn className="w-4 h-4" />
               <span>Sign In</span>
@@ -97,7 +77,7 @@ export default function AccountPage() {
 
             <Link
               href="/signup?redirect=/account"
-              className="w-full py-3.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 font-bold text-xs uppercase tracking-widest rounded-2xl transition-all flex items-center justify-center"
+              className="w-full py-3.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 font-bold text-xs uppercase tracking-widest rounded-xl transition-all flex items-center justify-center"
             >
               <span>Create New Account</span>
             </Link>
@@ -107,61 +87,43 @@ export default function AccountPage() {
     );
   }
 
-  const displayName = user?.name || "Valued Client";
-  const displayEmail = user?.email || "customer@example.com";
-  const displayPhone = user?.phone || "+91 98765 00002";
+  // Display name formatting (e.g. "Aarav S" or "John Doe")
+  const displayName = account?.name || user?.name || "Valued Client";
 
   return (
-    <div className="py-12 bg-neutral-50/60 min-h-screen">
+    <div className="min-h-screen bg-[#fafafa] py-10 sm:py-14">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
         
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 sm:p-8 rounded-3xl border border-neutral-200/80 shadow-sm">
-          <div className="flex items-center gap-4">
-            {user?.avatarUrl ? (
-              <img
-                src={user.avatarUrl}
-                alt={displayName}
-                className="w-14 h-14 rounded-2xl border border-neutral-200 object-cover"
-              />
-            ) : (
-              <div className="w-14 h-14 bg-amber-50 rounded-2xl flex items-center justify-center text-amber-800 font-bold text-lg border border-amber-200">
-                {displayName.charAt(0).toUpperCase()}
-              </div>
-            )}
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-amber-800 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">
-                  {user?.role || "CUSTOMER"}
-                </span>
-                {user?.isActive !== false && (
-                  <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-1 border border-emerald-200">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
-                    Active
-                  </span>
-                )}
-              </div>
-              <h1 className="font-heading text-xl sm:text-2xl font-bold uppercase tracking-tight text-neutral-900">
-                Welcome, {displayName}
-              </h1>
-              <p className="text-xs text-neutral-500 mt-0.5">
-                {displayEmail}
-              </p>
-            </div>
+        {/* Breadcrumb Navigation - matches image */}
+        <nav className="flex items-center gap-1.5 text-xs text-neutral-500 font-medium">
+          <Link href="/" className="hover:text-neutral-900 transition-colors">
+            Home
+          </Link>
+          <span>/</span>
+          <span className="text-neutral-900 font-semibold">Account Center</span>
+        </nav>
+
+        {/* Welcome Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-normal text-neutral-900 font-sans tracking-tight">
+              Welcome, <span className="font-bold text-[#2b97ba]">{displayName}!</span>
+            </h1>
           </div>
 
-          <div className="flex items-center gap-2 self-start sm:self-auto">
+          <div className="flex items-center gap-3">
             {(user?.role === "STORE_ADMIN" || user?.role === "SUPER_ADMIN") && (
               <Link
                 href="/admin"
-                className="px-4 py-2.5 bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all flex items-center gap-2"
+                className="px-4 py-2 bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all flex items-center gap-1.5"
               >
+                <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
                 <span>Admin Console</span>
               </Link>
             )}
             <button
               onClick={handleSignOut}
-              className="px-4 py-2.5 bg-neutral-100 hover:bg-rose-50 text-neutral-700 hover:text-rose-600 text-xs font-bold uppercase tracking-wider rounded-xl transition-all flex items-center gap-2 cursor-pointer border border-neutral-200"
+              className="px-4 py-2 bg-white hover:bg-rose-50 text-neutral-700 hover:text-rose-600 border border-neutral-200 text-xs font-bold uppercase tracking-wider rounded-xl transition-all flex items-center gap-1.5 cursor-pointer"
             >
               <LogOut className="w-3.5 h-3.5" />
               <span>Sign Out</span>
@@ -169,152 +131,80 @@ export default function AccountPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
+        {/* 4 Feature Cards Grid - Identical layout to the uploaded screenshot */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
           
-          {/* Saved Delivery Addresses (5 cols) */}
-          <div className="md:col-span-5 bg-white p-6 sm:p-8 rounded-3xl border border-neutral-200/80 shadow-sm space-y-4">
-            <div className="flex items-center gap-2 text-neutral-900 border-b border-neutral-100 pb-3">
-              <MapPin className="w-4 h-4 text-amber-700" />
-              <h3 className="text-xs font-bold uppercase tracking-wider">
-                Default Delivery Address
-              </h3>
+          {/* Card 1: Orders */}
+          <Link
+            href="/account/orders"
+            className="group p-6 bg-[#f7f9fa] hover:bg-white border border-neutral-200/80 hover:border-[#2b97ba]/50 rounded-2xl shadow-xs hover:shadow-md transition-all flex items-center gap-5"
+          >
+            <div className="w-16 h-16 rounded-full bg-white border border-neutral-200/60 group-hover:border-[#2b97ba]/40 flex items-center justify-center flex-shrink-0 shadow-xs transition-colors">
+              <Package className="w-8 h-8 text-[#2b97ba] stroke-[1.75]" />
             </div>
-
-            {savedAddress && savedAddress.street ? (
-              <div className="text-xs space-y-1.5 text-neutral-600">
-                <p className="font-bold text-neutral-900 text-sm">
-                  {savedAddress.firstName ? `${savedAddress.firstName} ${savedAddress.lastName}` : displayName}
-                </p>
-                <p>{savedAddress.street}</p>
-                <p>
-                  {savedAddress.city}, {savedAddress.state} - {savedAddress.postalCode}
-                </p>
-                <p>{savedAddress.country || "India"}</p>
-                <p className="pt-2 text-neutral-500 font-mono">
-                  Phone: {savedAddress.phone || displayPhone}
-                </p>
-              </div>
-            ) : (
-              <div className="py-6 text-center space-y-2">
-                <p className="text-xs text-neutral-500">
-                  No delivery address saved yet.
-                </p>
-                <p className="text-[11px] text-neutral-400">
-                  Your address will automatically be preserved when placing an order at checkout.
-                </p>
-                <Link
-                  href="/products"
-                  className="inline-block mt-2 text-xs font-bold text-amber-800 hover:underline"
-                >
-                  Shop Collection →
-                </Link>
-              </div>
-            )}
-          </div>
-
-          {/* Past Order History (7 cols) */}
-          <div className="md:col-span-7 bg-white p-6 sm:p-8 rounded-3xl border border-neutral-200/80 shadow-sm space-y-4">
-            <div className="flex items-center gap-2 text-neutral-900 border-b border-neutral-100 pb-3">
-              <Package className="w-4 h-4 text-amber-700" />
-              <h3 className="text-xs font-bold uppercase tracking-wider">
-                Order History & Status
-              </h3>
+            <div className="space-y-1">
+              <h2 className="text-lg font-semibold text-neutral-900 group-hover:text-[#2b97ba] transition-colors">
+                Orders
+              </h2>
+              <p className="text-xs text-neutral-500 leading-relaxed">
+                Track, return, cancel, or replace items.
+              </p>
             </div>
+          </Link>
 
-            {isLoadingOrders ? (
-              <div className="py-12 text-center space-y-2">
-                <div className="w-6 h-6 border-2 border-neutral-300 border-t-neutral-900 rounded-full animate-spin mx-auto" />
-                <p className="text-xs text-neutral-400">Loading order ledger...</p>
-              </div>
-            ) : orders.length === 0 ? (
-              <div className="py-10 text-center space-y-3">
-                <div className="w-10 h-10 rounded-full bg-neutral-100 flex items-center justify-center mx-auto text-neutral-400">
-                  <Package className="w-5 h-5" />
-                </div>
-                <p className="text-xs font-bold uppercase tracking-wider text-neutral-700">
-                  No Past Orders Found
-                </p>
-                <p className="text-xs text-neutral-500 max-w-sm mx-auto">
-                  When you acquire bespoke garments, live fulfillment milestones and courier tracking will appear here.
-                </p>
-                <Link
-                  href="/products"
-                  className="inline-block pt-2 text-xs font-bold text-amber-800 uppercase tracking-widest hover:underline"
-                >
-                  Explore Collection →
-                </Link>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {orders.map((ord) => {
-                  const itemsSummary =
-                    ord.items && ord.items.length > 0
-                      ? ord.items
-                          .map((i: any) => `${i.productName || i.title || "Garment"} (${i.size || i.variantName || "M"}) x${i.quantity || 1}`)
-                          .join(", ")
-                      : "Bespoke Couture Garments";
+          {/* Card 2: Account Details */}
+          <Link
+            href="/account/details"
+            className="group p-6 bg-[#f7f9fa] hover:bg-white border border-neutral-200/80 hover:border-[#2b97ba]/50 rounded-2xl shadow-xs hover:shadow-md transition-all flex items-center gap-5"
+          >
+            <div className="w-16 h-16 rounded-full bg-white border border-neutral-200/60 group-hover:border-[#2b97ba]/40 flex items-center justify-center flex-shrink-0 shadow-xs transition-colors">
+              <Contact2 className="w-8 h-8 text-[#2b97ba] stroke-[1.75]" />
+            </div>
+            <div className="space-y-1">
+              <h2 className="text-lg font-semibold text-neutral-900 group-hover:text-[#2b97ba] transition-colors">
+                Account Details
+              </h2>
+              <p className="text-xs text-neutral-500 leading-relaxed">
+                Username, password, and contact information.
+              </p>
+            </div>
+          </Link>
 
-                  const orderDate = ord.createdAt
-                    ? new Date(ord.createdAt).toLocaleDateString("en-IN", {
-                        day: "numeric",
-                        month: "short",
-                        year: "numeric",
-                      })
-                    : "Recently";
+          {/* Card 3: Addresses */}
+          <Link
+            href="/account/addresses"
+            className="group p-6 bg-[#f7f9fa] hover:bg-white border border-neutral-200/80 hover:border-[#2b97ba]/50 rounded-2xl shadow-xs hover:shadow-md transition-all flex items-center gap-5"
+          >
+            <div className="w-16 h-16 rounded-full bg-white border border-neutral-200/60 group-hover:border-[#2b97ba]/40 flex items-center justify-center flex-shrink-0 shadow-xs transition-colors">
+              <MapPin className="w-8 h-8 text-[#2b97ba] stroke-[1.75]" />
+            </div>
+            <div className="space-y-1">
+              <h2 className="text-lg font-semibold text-neutral-900 group-hover:text-[#2b97ba] transition-colors">
+                Addresses
+              </h2>
+              <p className="text-xs text-neutral-500 leading-relaxed">
+                Add and edit addresses, set your default address.
+              </p>
+            </div>
+          </Link>
 
-                  const formattedTotal = `${storeConfig.currency.symbol}${Number(
-                    ord.totalAmount ?? ord.total ?? 0
-                  ).toLocaleString()}`;
-
-                  return (
-                    <div
-                      key={ord.id}
-                      className="p-4 rounded-2xl border border-neutral-100 bg-neutral-50/60 flex items-center justify-between gap-4"
-                    >
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono font-bold text-xs text-neutral-900">
-                            #{ord.orderNumber || ord.id.slice(0, 10)}
-                          </span>
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                              ord.status === "DELIVERED"
-                                ? "bg-emerald-100 text-emerald-800"
-                                : ord.status === "CANCELLED"
-                                ? "bg-rose-100 text-rose-800"
-                                : "bg-neutral-900 text-white"
-                            }`}
-                          >
-                            {ord.status}
-                          </span>
-                        </div>
-                        <p className="text-xs text-neutral-600 font-medium line-clamp-1">
-                          {itemsSummary}
-                        </p>
-                        <span className="text-[10px] text-neutral-400 font-mono block">
-                          Ordered {orderDate}
-                        </span>
-                      </div>
-
-                      <div className="text-right flex-shrink-0">
-                        <span className="text-sm font-bold text-neutral-900 block">
-                          {formattedTotal}
-                        </span>
-                        <Link
-                          href={`/order-success/${ord.orderNumber || ord.id}?method=${ord.paymentMethod?.toLowerCase() || "cod"}&amount=${ord.totalAmount ?? ord.total ?? 0}&email=${encodeURIComponent(
-                            ord.customerEmail || ""
-                          )}&phone=${encodeURIComponent(ord.customerPhone || "")}`}
-                          className="text-[10px] font-bold uppercase text-amber-700 hover:underline"
-                        >
-                          View Details →
-                        </Link>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+          {/* Card 4: Favorites and Lists */}
+          <Link
+            href="/account/wishlist"
+            className="group p-6 bg-[#f7f9fa] hover:bg-white border border-neutral-200/80 hover:border-[#2b97ba]/50 rounded-2xl shadow-xs hover:shadow-md transition-all flex items-center gap-5"
+          >
+            <div className="w-16 h-16 rounded-full bg-white border border-neutral-200/60 group-hover:border-[#2b97ba]/40 flex items-center justify-center flex-shrink-0 shadow-xs transition-colors">
+              <Heart className="w-8 h-8 text-[#2b97ba] stroke-[1.75]" />
+            </div>
+            <div className="space-y-1">
+              <h2 className="text-lg font-semibold text-neutral-900 group-hover:text-[#2b97ba] transition-colors">
+                Favorites and Lists
+              </h2>
+              <p className="text-xs text-neutral-500 leading-relaxed">
+                Your saved products and collections of products.
+              </p>
+            </div>
+          </Link>
 
         </div>
 
