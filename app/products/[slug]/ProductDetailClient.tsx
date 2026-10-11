@@ -22,6 +22,7 @@ import {
 import { storeConfig } from "@/config/store.config";
 import { featureConfig } from "@/config/feature.config";
 import { useCartStore } from "@/stores/cart.store";
+import { useWishlistStore } from "@/stores/wishlist.store";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { ProductCard } from "@/components/product/ProductCard";
@@ -57,31 +58,41 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
   );
 
   const [quantity, setQuantity] = useState(1);
-  const [isWishlisted, setIsWishlisted] = useState(false);
+  const { isWishlisted: checkWishlist, toggleWishlist: storeToggleWishlist } = useWishlistStore();
+  const isWishlisted = checkWishlist(product.id);
   const [isSizeChartOpen, setIsSizeChartOpen] = useState(false);
   const [unitSystem, setUnitSystem] = useState<"inches" | "cm">("inches");
   const [activeTab, setActiveTab] = useState<"fabric" | "care" | "shipping">("fabric");
   const [addedAnimation, setAddedAnimation] = useState(false);
 
-  // Reviews state
-  const [reviews, setReviews] = useState([
-    {
-      id: "rev_1",
-      author: "Priya Sengupta",
-      rating: 5,
-      date: "3 weeks ago",
-      title: "Impeccable silk drape and craftsmanship",
-      comment: "The fabric weight is substantial yet breathes wonderfully. Wore this to an evening gala in Mumbai and received endless compliments. Sizing is true to standard bespoke.",
-    },
-    {
-      id: "rev_2",
-      author: "Rajeshwar Rao",
-      rating: 5,
-      date: "1 month ago",
-      title: "Finest quality linen I have ever owned",
-      comment: "Mother-of-pearl buttons and single-needle stitching confirm the high atelier standards. Looks exceptionally sharp even in warm coastal weather.",
-    },
-  ]);
+  // Reviews state - dynamically loaded and persisted per product
+  const [reviews, setReviews] = useState<
+    Array<{
+      id: string;
+      author: string;
+      rating: number;
+      date: string;
+      title: string;
+      comment: string;
+    }>
+  >(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem(`reviews_${product.id}`);
+        if (saved) return JSON.parse(saved);
+      } catch {}
+    }
+    return [
+      {
+        id: `rev_init_1`,
+        author: "Verified Client",
+        rating: Math.round((product as any).rating || 5),
+        date: "Recently verified",
+        title: `Exquisite tailoring on ${product.name}`,
+        comment: `The atelier craftsmanship and silhouette of this ${product.name} are exceptional. Fits true to size with magnificent finish and fabric drape.`,
+      },
+    ];
+  });
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [newRating, setNewRating] = useState(5);
   const [newTitle, setNewTitle] = useState("");
@@ -237,17 +248,21 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
     e.preventDefault();
     if (!newAuthor || !newComment) return;
 
-    setReviews([
-      {
-        id: `rev_${Date.now()}`,
-        author: newAuthor,
-        rating: newRating,
-        date: "Just now",
-        title: newTitle || "Verified Customer Review",
-        comment: newComment,
-      },
-      ...reviews,
-    ]);
+    const newEntry = {
+      id: `rev_${Date.now()}`,
+      author: newAuthor.trim(),
+      rating: newRating,
+      date: "Just now",
+      title: newTitle.trim() || `Verified Review for ${product.name}`,
+      comment: newComment.trim(),
+    };
+
+    const updated = [newEntry, ...reviews];
+    setReviews(updated);
+
+    try {
+      localStorage.setItem(`reviews_${product.id}`, JSON.stringify(updated));
+    } catch {}
 
     setNewAuthor("");
     setNewTitle("");
@@ -571,7 +586,7 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
                 {/* Wishlist Button */}
                 {featureConfig.wishlist && (
                   <button
-                    onClick={() => setIsWishlisted(!isWishlisted)}
+                    onClick={() => storeToggleWishlist(product.id)}
                     aria-label="Toggle Wishlist"
                     className="p-3.5 rounded-[var(--radius)] border border-[var(--border)] hover:bg-[var(--muted)] text-[var(--foreground)] transition-colors cursor-pointer"
                   >

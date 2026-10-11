@@ -7,6 +7,7 @@ import { Heart, ShoppingBag, Eye, Check, SlidersHorizontal, Sparkles } from "luc
 import { storeConfig } from "@/config/store.config";
 import { featureConfig } from "@/config/feature.config";
 import { useCartStore } from "@/stores/cart.store";
+import { useWishlistStore } from "@/stores/wishlist.store";
 import { ProductData, ProductVariantData } from "@/data/products.data";
 import { QuickViewModal } from "./QuickViewModal";
 
@@ -34,7 +35,8 @@ export function ProductCard({ product }: ProductCardProps) {
   };
 
   const [selectedVariant, setSelectedVariant] = useState<ProductVariantData>(defaultVariant);
-  const [isWishlisted, setIsWishlisted] = useState(product.isWishlisted ?? false);
+  const { isWishlisted: checkWishlist, toggleWishlist: storeToggleWishlist } = useWishlistStore();
+  const isWishlisted = checkWishlist(product.id);
   const [isQuickViewOpen, setIsQuickViewOpen] = useState(false);
   const [added, setAdded] = useState(false);
   const addItem = useCartStore((state) => state.addItem);
@@ -92,7 +94,7 @@ export function ProductCard({ product }: ProductCardProps) {
   const toggleWishlist = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setIsWishlisted(!isWishlisted);
+    storeToggleWishlist(product.id);
   };
 
   return (

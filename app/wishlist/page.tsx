@@ -15,8 +15,8 @@ export default function WishlistPage() {
     notFound();
   }
 
-  // Sample wishlisted products
-  const wishlistedProducts = FALLBACK_PRODUCTS.slice(0, 3);
+  // Pass catalog to client component to filter against user's actual saved wishlist
+  const wishlistedProducts = FALLBACK_PRODUCTS;
 
   return <WishlistClient products={wishlistedProducts} />;
 }

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores/auth.store";
+import { useWishlistStore } from "@/stores/wishlist.store";
 import { ProductCard } from "@/components/product/ProductCard";
 import { Heart } from "lucide-react";
 import { Button } from "@/components/ui/Button";
@@ -12,6 +13,7 @@ import { ProductData } from "@/data/products.data";
 export function WishlistClient({ products }: { products: ProductData[] }) {
   const router = useRouter();
   const { isAuthenticated } = useAuthStore();
+  const { wishlistIds } = useWishlistStore();
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
@@ -52,24 +54,27 @@ export function WishlistClient({ products }: { products: ProductData[] }) {
           </p>
         </div>
 
-        {products.length === 0 ? (
-          <div className="py-16 text-center space-y-4 max-w-md mx-auto">
-            <p className="text-sm font-semibold uppercase tracking-widest text-[var(--muted-foreground)]">
-              Your wishlist is currently empty
-            </p>
-            <Link href="/products">
-              <Button variant="primary" size="md">
-                EXPLORE COLLECTION
-              </Button>
-            </Link>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-            {products.map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
-          </div>
-        )}
+        {(() => {
+          const activeWishlistProducts = products.filter((p) => wishlistIds.includes(p.id));
+          return activeWishlistProducts.length === 0 ? (
+            <div className="py-16 text-center space-y-4 max-w-md mx-auto">
+              <p className="text-sm font-semibold uppercase tracking-widest text-[var(--muted-foreground)]">
+                Your wishlist is currently empty
+              </p>
+              <Link href="/products">
+                <Button variant="primary" size="md">
+                  EXPLORE COLLECTION
+                </Button>
+              </Link>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+              {activeWishlistProducts.map((product) => (
+                <ProductCard key={product.id} product={product} />
+              ))}
+            </div>
+          );
+        })()}
       </div>
     </div>
   );

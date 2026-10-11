@@ -7,8 +7,9 @@ import { notFound } from "next/navigation";
 import { featureConfig } from "@/config/feature.config";
 import { storeConfig } from "@/config/store.config";
 import { useAuthStore } from "@/stores/auth.store";
-import { User, MapPin, Package, Heart, LogOut, ArrowRight, LogIn, Sparkles } from "lucide-react";
-import { Button } from "@/components/ui/Button";
+import { User, MapPin, Package, Heart, LogOut, ArrowRight, LogIn, Sparkles, Plus } from "lucide-react";
+import { AdminService } from "@/services/admin.service";
+import { AdminOrder } from "@/types/admin.types";
 
 export default function AccountPage() {
   const router = useRouter();
@@ -18,10 +19,52 @@ export default function AccountPage() {
     notFound();
   }
 
-  const sampleOrders = [
-    { id: "ORD-98231", items: "Handcrafted Banarasi Raw Silk Saree (Free Size)", total: "₹28,999", status: "Confirmed", date: "Today" },
-    { id: "ORD-97450", items: "Pure Chanderi Silk Anarkali Suit Set (M)", total: "₹12,999", status: "Delivered", date: "Jan 12, 2026" },
-  ];
+  const [orders, setOrders] = React.useState<AdminOrder[]>([]);
+  const [isLoadingOrders, setIsLoadingOrders] = React.useState(true);
+  const [savedAddress, setSavedAddress] = React.useState<any>(null);
+
+  React.useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const raw = localStorage.getItem("customer_saved_address");
+        if (raw) setSavedAddress(JSON.parse(raw));
+      } catch {}
+    }
+  }, []);
+
+  React.useEffect(() => {
+    async function loadUserOrders() {
+      if (!user?.email) {
+        setIsLoadingOrders(false);
+        return;
+      }
+      try {
+        const res = await AdminService.getOrdersList({ search: user.email });
+        if (res.data && res.data.length > 0) {
+          setOrders(res.data);
+        } else {
+          // Check local ledger if email matches
+          const local = AdminService.getLocalOrders();
+          const userOrders = local.filter(
+            (o) => o.customerEmail?.toLowerCase() === user.email.toLowerCase()
+          );
+          setOrders(userOrders);
+        }
+      } catch {
+        const local = AdminService.getLocalOrders();
+        const userOrders = local.filter(
+          (o) => o.customerEmail?.toLowerCase() === user.email.toLowerCase()
+        );
+        setOrders(userOrders);
+      } finally {
+        setIsLoadingOrders(false);
+      }
+    }
+
+    if (isAuthenticated) {
+      loadUserOrders();
+    }
+  }, [user, isAuthenticated]);
 
   const handleSignOut = async () => {
     await logout();
@@ -137,13 +180,36 @@ export default function AccountPage() {
               </h3>
             </div>
 
-            <div className="text-xs space-y-1.5 text-neutral-600">
-              <p className="font-bold text-neutral-900 text-sm">{displayName}</p>
-              <p>102, Skyline Residency, Bandra West</p>
-              <p>Mumbai, Maharashtra - 400050</p>
-              <p>India</p>
-              <p className="pt-2 text-neutral-500 font-mono">Phone: {displayPhone}</p>
-            </div>
+            {savedAddress && savedAddress.street ? (
+              <div className="text-xs space-y-1.5 text-neutral-600">
+                <p className="font-bold text-neutral-900 text-sm">
+                  {savedAddress.firstName ? `${savedAddress.firstName} ${savedAddress.lastName}` : displayName}
+                </p>
+                <p>{savedAddress.street}</p>
+                <p>
+                  {savedAddress.city}, {savedAddress.state} - {savedAddress.postalCode}
+                </p>
+                <p>{savedAddress.country || "India"}</p>
+                <p className="pt-2 text-neutral-500 font-mono">
+                  Phone: {savedAddress.phone || displayPhone}
+                </p>
+              </div>
+            ) : (
+              <div className="py-6 text-center space-y-2">
+                <p className="text-xs text-neutral-500">
+                  No delivery address saved yet.
+                </p>
+                <p className="text-[11px] text-neutral-400">
+                  Your address will automatically be preserved when placing an order at checkout.
+                </p>
+                <Link
+                  href="/products"
+                  className="inline-block mt-2 text-xs font-bold text-amber-800 hover:underline"
+                >
+                  Shop Collection →
+                </Link>
+              </div>
+            )}
           </div>
 
           {/* Past Order History (7 cols) */}
@@ -155,38 +221,99 @@ export default function AccountPage() {
               </h3>
             </div>
 
-            <div className="space-y-3">
-              {sampleOrders.map((ord) => (
-                <div
-                  key={ord.id}
-                  className="p-4 rounded-2xl border border-neutral-100 bg-neutral-50/60 flex items-center justify-between gap-4"
-                >
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono font-bold text-xs text-neutral-900">
-                        #{ord.id}
-                      </span>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-neutral-900 text-white">
-                        {ord.status}
-                      </span>
-                    </div>
-                    <p className="text-xs text-neutral-600 font-medium line-clamp-1">
-                      {ord.items}
-                    </p>
-                    <span className="text-[10px] text-neutral-400 font-mono block">
-                      Ordered {ord.date}
-                    </span>
-                  </div>
-
-                  <div className="text-right flex-shrink-0">
-                    <span className="text-sm font-bold text-neutral-900 block">{ord.total}</span>
-                    <span className="text-[10px] font-bold uppercase text-amber-700">
-                      View Details →
-                    </span>
-                  </div>
+            {isLoadingOrders ? (
+              <div className="py-12 text-center space-y-2">
+                <div className="w-6 h-6 border-2 border-neutral-300 border-t-neutral-900 rounded-full animate-spin mx-auto" />
+                <p className="text-xs text-neutral-400">Loading order ledger...</p>
+              </div>
+            ) : orders.length === 0 ? (
+              <div className="py-10 text-center space-y-3">
+                <div className="w-10 h-10 rounded-full bg-neutral-100 flex items-center justify-center mx-auto text-neutral-400">
+                  <Package className="w-5 h-5" />
                 </div>
-              ))}
-            </div>
+                <p className="text-xs font-bold uppercase tracking-wider text-neutral-700">
+                  No Past Orders Found
+                </p>
+                <p className="text-xs text-neutral-500 max-w-sm mx-auto">
+                  When you acquire bespoke garments, live fulfillment milestones and courier tracking will appear here.
+                </p>
+                <Link
+                  href="/products"
+                  className="inline-block pt-2 text-xs font-bold text-amber-800 uppercase tracking-widest hover:underline"
+                >
+                  Explore Collection →
+                </Link>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {orders.map((ord) => {
+                  const itemsSummary =
+                    ord.items && ord.items.length > 0
+                      ? ord.items
+                          .map((i: any) => `${i.productName || i.title || "Garment"} (${i.size || i.variantName || "M"}) x${i.quantity || 1}`)
+                          .join(", ")
+                      : "Bespoke Couture Garments";
+
+                  const orderDate = ord.createdAt
+                    ? new Date(ord.createdAt).toLocaleDateString("en-IN", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      })
+                    : "Recently";
+
+                  const formattedTotal = `${storeConfig.currency.symbol}${Number(
+                    ord.totalAmount ?? ord.total ?? 0
+                  ).toLocaleString()}`;
+
+                  return (
+                    <div
+                      key={ord.id}
+                      className="p-4 rounded-2xl border border-neutral-100 bg-neutral-50/60 flex items-center justify-between gap-4"
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-bold text-xs text-neutral-900">
+                            #{ord.orderNumber || ord.id.slice(0, 10)}
+                          </span>
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              ord.status === "DELIVERED"
+                                ? "bg-emerald-100 text-emerald-800"
+                                : ord.status === "CANCELLED"
+                                ? "bg-rose-100 text-rose-800"
+                                : "bg-neutral-900 text-white"
+                            }`}
+                          >
+                            {ord.status}
+                          </span>
+                        </div>
+                        <p className="text-xs text-neutral-600 font-medium line-clamp-1">
+                          {itemsSummary}
+                        </p>
+                        <span className="text-[10px] text-neutral-400 font-mono block">
+                          Ordered {orderDate}
+                        </span>
+                      </div>
+
+                      <div className="text-right flex-shrink-0">
+                        <span className="text-sm font-bold text-neutral-900 block">
+                          {formattedTotal}
+                        </span>
+                        <Link
+                          href={`/order-success/${ord.orderNumber || ord.id}?method=${ord.paymentMethod?.toLowerCase() || "cod"}&amount=${ord.totalAmount ?? ord.total ?? 0}&email=${encodeURIComponent(
+                            ord.customerEmail || ""
+                          )}&phone=${encodeURIComponent(ord.customerPhone || "")}`}
+                          className="text-[10px] font-bold uppercase text-amber-700 hover:underline"
+                        >
+                          View Details →
+                        </Link>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
         </div>

@@ -18,6 +18,7 @@ import { useAuthStore } from "@/stores/auth.store";
 import { storeConfig } from "@/config/store.config";
 import { featureConfig } from "@/config/feature.config";
 import { paymentConfig } from "@/config/payment.config";
+import { AdminService } from "@/services/admin.service";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 
@@ -67,18 +68,27 @@ export default function CheckoutPage() {
   const discount = getDiscountAmount();
   const total = getTotal();
 
-  // Checkout Form State
-  const [formData, setFormData] = useState({
-    email: user?.email || "",
-    firstName: user?.name?.split(" ")[0] || "",
-    lastName: user?.name?.split(" ").slice(1).join(" ") || "",
-    phone: user?.phone || "",
-    street: "102, Skyline Residency, Bandra West",
-    city: "Mumbai",
-    state: "Maharashtra",
-    postalCode: "400050",
-    country: "India",
-    paymentMethod: "razorpay" as "razorpay" | "cod",
+  // Checkout Form State - load previously saved address if available
+  const [formData, setFormData] = useState(() => {
+    let saved: any = {};
+    if (typeof window !== "undefined") {
+      try {
+        const raw = localStorage.getItem("customer_saved_address");
+        if (raw) saved = JSON.parse(raw);
+      } catch {}
+    }
+    return {
+      email: user?.email || saved.email || "",
+      firstName: user?.name?.split(" ")[0] || saved.firstName || "",
+      lastName: user?.name?.split(" ").slice(1).join(" ") || saved.lastName || "",
+      phone: user?.phone || saved.phone || "",
+      street: saved.street || "",
+      city: saved.city || "",
+      state: saved.state || "",
+      postalCode: saved.postalCode || "",
+      country: saved.country || "India",
+      paymentMethod: (saved.paymentMethod as "razorpay" | "cod") || "razorpay",
+    };
   });
 
   // Sync form data when user logs in
@@ -96,35 +106,68 @@ export default function CheckoutPage() {
 
   const [couponInput, setCouponInput] = useState("");
   const [couponError, setCouponError] = useState("");
+  const [isCouponValidating, setIsCouponValidating] = useState(false);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleApplyCoupon = (e: React.FormEvent) => {
+  const handleApplyCoupon = async (e: React.FormEvent) => {
     e.preventDefault();
     setCouponError("");
     const code = couponInput.trim().toUpperCase();
+    if (!code) return;
     const merchandiseBase = subtotal + modifiersTotal;
 
-    if (code === "LUXE10") {
+    setIsCouponValidating(true);
+    try {
+      const res = await AdminService.getCouponsList({ search: code });
+      const found = res.data?.find((c) => c.code.toUpperCase() === code && c.isActive);
+
+      if (!found) {
+        setCouponError("Invalid or inactive coupon code.");
+        setIsCouponValidating(false);
+        return;
+      }
+
+      if (found.endDate && new Date(found.endDate).getTime() < Date.now()) {
+        setCouponError("This promotional code has expired.");
+        setIsCouponValidating(false);
+        return;
+      }
+
+      const minOrder = Number(found.minOrderAmount || 0);
+      if (minOrder > 0 && merchandiseBase < minOrder) {
+        setCouponError(
+          `Order subtotal must be at least ${storeConfig.currency.symbol}${minOrder.toLocaleString()} to apply this coupon.`
+        );
+        setIsCouponValidating(false);
+        return;
+      }
+
+      let calcDiscount = 0;
+      if (found.discountType === "PERCENTAGE") {
+        const pct = Number(found.discountValue);
+        calcDiscount = Math.round((merchandiseBase * pct) / 100);
+        const maxDiscount = Number(found.maxDiscountAmount || 0);
+        if (maxDiscount > 0 && calcDiscount > maxDiscount) {
+          calcDiscount = maxDiscount;
+        }
+      } else {
+        calcDiscount = Math.min(Number(found.discountValue), merchandiseBase);
+      }
+
       applyCoupon({
-        code: "LUXE10",
-        discountType: "PERCENTAGE",
-        discountValue: 10,
-        calculatedDiscount: Math.round((merchandiseBase * 10) / 100),
+        code: found.code,
+        discountType: (found.discountType === "PERCENTAGE" ? "PERCENTAGE" : "FIXED") as "PERCENTAGE" | "FIXED",
+        discountValue: Number(found.discountValue),
+        calculatedDiscount: calcDiscount,
       });
       setCouponInput("");
-    } else if (code === "WELCOME1000") {
-      applyCoupon({
-        code: "WELCOME1000",
-        discountType: "FIXED",
-        discountValue: 1000,
-        calculatedDiscount: Math.min(1000, merchandiseBase),
-      });
-      setCouponInput("");
-    } else {
-      setCouponError("Invalid coupon code.");
+    } catch {
+      setCouponError("Unable to validate coupon at this time.");
+    } finally {
+      setIsCouponValidating(false);
     }
   };
 
@@ -136,9 +179,50 @@ export default function CheckoutPage() {
     setIsOrderPlaced(true);
 
     try {
-      const orderId = `ORD-${Date.now().toString().slice(-6)}`;
+      const orderNumber = `ORD-${Date.now().toString().slice(-6)}`;
       const finalAmount = total;
-      const targetUrl = `/order-success/${orderId}?method=${formData.paymentMethod}&amount=${finalAmount}&email=${encodeURIComponent(
+
+      // Save user address for seamless future checkout
+      try {
+        localStorage.setItem("customer_saved_address", JSON.stringify(formData));
+      } catch {}
+
+      // Register order with administrative fulfillment engine
+      await AdminService.createOrderFromCheckout({
+        orderNumber,
+        customerName: `${formData.firstName} ${formData.lastName}`.trim(),
+        customerEmail: formData.email,
+        customerPhone: formData.phone,
+        shippingAddress: {
+          street: formData.street,
+          city: formData.city,
+          state: formData.state,
+          postalCode: formData.postalCode,
+          country: formData.country,
+        },
+        items: items.map((it) => ({
+          id: `item_${it.id}`,
+          productId: it.productId,
+          variantId: it.variantId || it.id,
+          title: it.name,
+          sku: it.sku || `SKU-${it.productId.slice(0, 8)}`,
+          quantity: it.quantity,
+          price: it.price,
+          totalPrice: it.price * it.quantity,
+          size: it.size,
+          color: it.colorName || "Standard",
+          imageUrl: it.imageUrl,
+        })),
+        subtotal,
+        shippingAmount: shipping,
+        discountAmount: discount,
+        totalAmount: total,
+        paymentMethod: formData.paymentMethod === "razorpay" ? "RAZORPAY" : "COD",
+        paymentStatus: formData.paymentMethod === "razorpay" ? "COMPLETED" : "PENDING",
+        couponCode: appliedCoupon?.code,
+      });
+
+      const targetUrl = `/order-success/${orderNumber}?method=${formData.paymentMethod}&amount=${finalAmount}&email=${encodeURIComponent(
         formData.email
       )}&phone=${encodeURIComponent(formData.phone)}`;
 

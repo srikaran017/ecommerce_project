@@ -128,7 +128,7 @@ import {
   hasPermission,
 } from "@/lib/rbac";
 
-const getBaseUrl = () => `${getApiBaseUrl()}/admin`;
+const getBaseUrl = () => getApiBaseUrl();
 
 // ==========================================
 // LOCAL PERSISTENT STORAGE MOCKS
@@ -1797,9 +1797,25 @@ export class AdminService {
     if (params?.sort) qp.set("sort", params.sort);
 
     const queryString = qp.toString() ? `?${qp.toString()}` : "";
-    const res = await this.request<ProductsListResponse>(`/products${queryString}`);
-    if (res.success && res.data && Array.isArray(res.data.data)) {
-      return res.data;
+    const res = await this.request<any>(`/products${queryString}`);
+    if (res.success && res.data) {
+      const items = Array.isArray(res.data) ? res.data : Array.isArray(res.data.data) ? res.data.data : null;
+      if (items) {
+        return {
+          success: true,
+          statusCode: res.statusCode || 200,
+          message: res.message || "Products fetched successfully",
+          data: items,
+          pagination: (res as any).pagination || (res.data as any).pagination || {
+            page: Number(params?.page) || 1,
+            limit: Number(params?.limit) || 20,
+            total: items.length,
+            totalPages: Math.max(1, Math.ceil(items.length / (Number(params?.limit) || 20))),
+            hasNextPage: false,
+            hasPreviousPage: false,
+          },
+        };
+      }
     }
 
     // Local Fallback Engine
@@ -2478,9 +2494,31 @@ export class AdminService {
     if (params?.sort) qp.set("sort", params.sort);
 
     const qs = qp.toString() ? `?${qp.toString()}` : "";
-    const res = await this.request<InventoryListResponse>(`/inventory${qs}`);
-    if (res.success && res.data && Array.isArray(res.data.data)) {
-      return res.data;
+    const res = await this.request<any>(`/inventory${qs}`);
+    if (res.success && res.data) {
+      const items = Array.isArray(res.data) ? res.data : Array.isArray(res.data.data) ? res.data.data : null;
+      if (items) {
+        return {
+          success: true,
+          statusCode: res.statusCode || 200,
+          message: res.message || "Inventory fetched successfully",
+          data: items,
+          pagination: (res as any).pagination || (res.data as any).pagination || {
+            page: Number(params?.page) || 1,
+            limit: Number(params?.limit) || 20,
+            total: items.length,
+            totalPages: Math.max(1, Math.ceil(items.length / (Number(params?.limit) || 20))),
+          },
+          meta: (res as any).meta || {
+            summary: (res as any).summary || (res.data as any).summary || {
+              totalVariants: items.length,
+              totalStockUnits: items.reduce((sum: number, it: any) => sum + Number(it.stockQuantity || 0), 0),
+              lowStockCount: items.filter((it: any) => it.status === "LOW_STOCK").length,
+              outOfStockCount: items.filter((it: any) => it.status === "OUT_OF_STOCK").length,
+            },
+          },
+        };
+      }
     }
 
     // Local Fallback Engine
@@ -2749,9 +2787,23 @@ export class AdminService {
     if (params?.endDate) qp.set("endDate", params.endDate);
 
     const qs = qp.toString() ? `?${qp.toString()}` : "";
-    const res = await this.request<InventoryTransactionsResponse>(`/inventory/transactions${qs}`);
-    if (res.success && res.data && Array.isArray(res.data.data)) {
-      return res.data;
+    const res = await this.request<any>(`/inventory/transactions${qs}`);
+    if (res.success && res.data) {
+      const items = Array.isArray(res.data) ? res.data : Array.isArray(res.data.data) ? res.data.data : null;
+      if (items) {
+        return {
+          success: true,
+          statusCode: res.statusCode || 200,
+          message: res.message || "Inventory transactions fetched successfully",
+          data: items,
+          pagination: (res as any).pagination || (res.data as any).pagination || {
+            page: Number(params?.page) || 1,
+            limit: Number(params?.limit) || 20,
+            total: items.length,
+            totalPages: Math.max(1, Math.ceil(items.length / (Number(params?.limit) || 20))),
+          },
+        };
+      }
     }
 
     // Local Fallback Engine
@@ -2903,9 +2955,18 @@ export class AdminService {
    * Urgent low-stock & stockout alerts list
    */
   static async getInventoryAlerts(): Promise<InventoryAlertsResponse> {
-    const res = await this.request<InventoryAlertsResponse>("/inventory/alerts");
-    if (res.success && res.data && Array.isArray(res.data.data)) {
-      return res.data;
+    const res = await this.request<any>("/inventory/alerts");
+    if (res.success && res.data) {
+      const items = Array.isArray(res.data) ? res.data : Array.isArray(res.data.data) ? res.data.data : null;
+      if (items) {
+        return {
+          success: true,
+          statusCode: res.statusCode || 200,
+          message: res.message || "Inventory alerts fetched successfully",
+          data: items,
+          meta: (res as any).meta || { totalAlerts: items.length },
+        };
+      }
     }
 
     const items = this.getFlattenedInventoryItems();
@@ -3062,9 +3123,38 @@ export class AdminService {
     if (params?.sort) qp.set("sort", params.sort);
 
     const qs = qp.toString() ? `?${qp.toString()}` : "";
-    const res = await this.request<OrdersListResponse>(`/orders${qs}`);
-    if (res.success && res.data && Array.isArray(res.data.data)) {
-      return res.data;
+    const res = await this.request<any>(`/orders${qs}`);
+    if (res.success && res.data) {
+      const items = Array.isArray(res.data) ? res.data : Array.isArray(res.data.data) ? res.data.data : null;
+      if (items) {
+        return {
+          success: true,
+          statusCode: res.statusCode || 200,
+          message: res.message || "Orders fetched successfully",
+          data: items,
+          pagination: (res as any).pagination || (res.data as any).pagination || {
+            page: Number(params?.page) || 1,
+            limit: Number(params?.limit) || 20,
+            total: items.length,
+            totalPages: Math.max(1, Math.ceil(items.length / (Number(params?.limit) || 20))),
+          },
+          meta: (res as any).meta || {
+            summary: (res as any).summary || (res.data as any).summary || {
+              totalOrders: items.length,
+              totalRevenue: items
+                .filter((o: any) => o.status !== "CANCELLED")
+                .reduce((sum: number, o: any) => sum + Number(o.totalAmount ?? o.total ?? 0), 0),
+              pendingCount: items.filter((o: any) => o.status === "PENDING").length,
+              confirmedCount: items.filter((o: any) => o.status === "CONFIRMED").length,
+              processingCount: items.filter((o: any) => o.status === "PROCESSING").length,
+              packedCount: items.filter((o: any) => o.status === "PACKED").length,
+              shippedCount: items.filter((o: any) => o.status === "SHIPPED").length,
+              deliveredCount: items.filter((o: any) => o.status === "DELIVERED").length,
+              cancelledCount: items.filter((o: any) => o.status === "CANCELLED").length,
+            },
+          },
+        };
+      }
     }
 
     // Local Fallback Engine
@@ -3199,9 +3289,17 @@ export class AdminService {
    * Retrieves complete order file with live variant stock and audit history
    */
   static async getOrderDetail(orderId: string): Promise<OrderDetailResponse> {
-    const res = await this.request<OrderDetailResponse>(`/orders/${orderId}`);
-    if (res.success && res.data && res.data.data) {
-      return res.data;
+    const res = await this.request<any>(`/orders/${orderId}`);
+    if (res.success && res.data) {
+      const order = (res.data as any).data || res.data;
+      if (order && (order.id || order.orderNumber)) {
+        return {
+          success: true,
+          statusCode: res.statusCode || 200,
+          message: res.message || "Order fetched successfully",
+          data: order,
+        };
+      }
     }
 
     const orders = this.getLocalOrders();
@@ -5376,9 +5474,23 @@ export class AdminService {
     if (params?.sort) qp.set("sort", params.sort);
 
     const qs = qp.toString() ? `?${qp.toString()}` : "";
-    const res = await this.request<CouponsListResponse>(`/coupons${qs}`);
-    if (res.success && res.data && Array.isArray(res.data.data)) {
-      return res.data;
+    const res = await this.request<any>(`/coupons${qs}`);
+    if (res.success && res.data) {
+      const items = Array.isArray(res.data) ? res.data : Array.isArray(res.data.data) ? res.data.data : null;
+      if (items) {
+        return {
+          success: true,
+          statusCode: res.statusCode || 200,
+          message: res.message || "Coupons fetched successfully",
+          data: items,
+          pagination: (res as any).pagination || (res.data as any).pagination || {
+            page: Number(params?.page) || 1,
+            limit: Number(params?.limit) || 20,
+            total: items.length,
+            totalPages: Math.max(1, Math.ceil(items.length / (Number(params?.limit) || 20))),
+          },
+        };
+      }
     }
 
     // Local Fallback Engine
@@ -5443,9 +5555,17 @@ export class AdminService {
    * Retrieves coupon configuration with customer redemption usages
    */
   static async getCouponDetail(id: string): Promise<CouponDetailResponse> {
-    const res = await this.request<CouponDetailResponse>(`/coupons/${id}`);
-    if (res.success && res.data && res.data.data) {
-      return res.data;
+    const res = await this.request<any>(`/coupons/${id}`);
+    if (res.success && res.data) {
+      const coupon = (res.data as any).data || res.data;
+      if (coupon && (coupon.id || coupon.code)) {
+        return {
+          success: true,
+          statusCode: res.statusCode || 200,
+          message: res.message || "Coupon details fetched successfully",
+          data: coupon,
+        };
+      }
     }
 
     const coupons = this.getLocalCoupons();
@@ -5740,9 +5860,23 @@ export class AdminService {
     if (params?.status && params.status !== "ALL") qp.set("status", params.status);
 
     const qs = qp.toString() ? `?${qp.toString()}` : "";
-    const res = await this.request<PromotionsListResponse>(`/promotions${qs}`);
-    if (res.success && res.data && Array.isArray(res.data.data)) {
-      return res.data;
+    const res = await this.request<any>(`/promotions${qs}`);
+    if (res.success && res.data) {
+      const items = Array.isArray(res.data) ? res.data : Array.isArray(res.data.data) ? res.data.data : null;
+      if (items) {
+        return {
+          success: true,
+          statusCode: res.statusCode || 200,
+          message: res.message || "Promotions fetched successfully",
+          data: items,
+          pagination: (res as any).pagination || (res.data as any).pagination || {
+            page: Number(params?.page) || 1,
+            limit: Number(params?.limit) || 20,
+            total: items.length,
+            totalPages: Math.max(1, Math.ceil(items.length / (Number(params?.limit) || 20))),
+          },
+        };
+      }
     }
 
     let promotions = this.getLocalPromotions();
@@ -6006,9 +6140,17 @@ export class AdminService {
    * Retrieves complete store configuration, active theme preset, shipping thresholds, and feature flags
    */
   static async getStoreSettings(): Promise<StoreSettingsResponse> {
-    const res = await this.request<StoreSettingsResponse>("/settings");
-    if (res.success && res.data && (res.data as any).data) {
-      return res.data;
+    const res = await this.request<any>("/settings");
+    if (res.success && res.data) {
+      const settings = (res.data as any).data || res.data;
+      if (settings && (settings.storeName || settings.currency)) {
+        return {
+          success: true,
+          statusCode: res.statusCode || 200,
+          message: res.message || "Store settings fetched successfully",
+          data: settings,
+        };
+      }
     }
 
     const local = this.getLocalSettings();
@@ -6027,13 +6169,21 @@ export class AdminService {
   static async updateStoreSettings(
     input: UpdateStoreSettingsInput
   ): Promise<StoreSettingsResponse> {
-    const res = await this.request<StoreSettingsResponse>("/settings", {
+    const res = await this.request<any>("/settings", {
       method: "PUT",
       body: JSON.stringify(input),
     });
 
-    if (res.success && res.data && (res.data as any).data) {
-      return res.data;
+    if (res.success && res.data) {
+      const settings = (res.data as any).data || res.data;
+      if (settings && (settings.storeName || settings.currency)) {
+        return {
+          success: true,
+          statusCode: res.statusCode || 200,
+          message: res.message || "Store settings updated successfully",
+          data: settings,
+        };
+      }
     }
 
     const current = this.getLocalSettings();
@@ -6183,9 +6333,23 @@ export class AdminService {
     if (params?.endDate) qp.set("endDate", params.endDate);
 
     const qs = qp.toString() ? `?${qp.toString()}` : "";
-    const res = await this.request<AuditLogsListResponse>(`/audit-logs${qs}`);
-    if (res.success && res.data && Array.isArray(res.data.data)) {
-      return res.data;
+    const res = await this.request<any>(`/audit-logs${qs}`);
+    if (res.success && res.data) {
+      const items = Array.isArray(res.data) ? res.data : Array.isArray(res.data.data) ? res.data.data : null;
+      if (items) {
+        return {
+          success: true,
+          statusCode: res.statusCode || 200,
+          message: res.message || "Audit logs fetched successfully",
+          data: items,
+          pagination: (res as any).pagination || (res.data as any).pagination || {
+            page: Number(params?.page) || 1,
+            limit: Number(params?.limit) || 50,
+            total: items.length,
+            totalPages: Math.max(1, Math.ceil(items.length / (Number(params?.limit) || 50))),
+          },
+        };
+      }
     }
 
     let logs = this.getLocalAuditLogs();
@@ -6297,14 +6461,26 @@ export class AdminService {
       };
     }
 
-    const res = await this.request<AnalyticsOverviewResponse>(`/analytics/overview?period=${period}`);
-    if (res.success && res.data && (res.data as any).data) {
-      const resp = res.data;
-      telemetryCache.set(cacheKey, {
-        data: resp,
-        expiresAt: now + TELEMETRY_CACHE_TTL_MS,
-      });
-      return resp;
+    const res = await this.request<any>(`/analytics/overview?period=${period}`);
+    if (res.success && res.data) {
+      const payload = (res.data as any).data || res.data;
+      if (payload && typeof payload === "object") {
+        const resp: AnalyticsOverviewResponse = {
+          success: true,
+          statusCode: res.statusCode || 200,
+          message: res.message || "Dashboard analytics overview fetched successfully",
+          data: payload,
+          meta: (res as any).meta || (res.data as any).meta || {
+            fromCache: false,
+            ttl: 60,
+          },
+        };
+        telemetryCache.set(cacheKey, {
+          data: resp,
+          expiresAt: now + TELEMETRY_CACHE_TTL_MS,
+        });
+        return resp;
+      }
     }
 
     // Local Aggregation Engine
@@ -6415,14 +6591,26 @@ export class AdminService {
       };
     }
 
-    const res = await this.request<RevenueChartResponse>(`/analytics/revenue-chart?period=${period}`);
-    if (res.success && res.data && (res.data as any).data) {
-      const resp = res.data;
-      telemetryCache.set(cacheKey, {
-        data: resp,
-        expiresAt: now + TELEMETRY_CACHE_TTL_MS,
-      });
-      return resp;
+    const res = await this.request<any>(`/analytics/revenue-chart?period=${period}`);
+    if (res.success && res.data) {
+      const points = Array.isArray(res.data) ? res.data : Array.isArray((res.data as any).data) ? (res.data as any).data : null;
+      if (points) {
+        const resp: RevenueChartResponse = {
+          success: true,
+          statusCode: res.statusCode || 200,
+          message: res.message || "Revenue chart time-series fetched successfully",
+          data: points,
+          meta: (res as any).meta || (res.data as any).meta || {
+            period,
+            fromCache: false,
+          },
+        };
+        telemetryCache.set(cacheKey, {
+          data: resp,
+          expiresAt: now + TELEMETRY_CACHE_TTL_MS,
+        });
+        return resp;
+      }
     }
 
     // Generate chronological bucketing
@@ -6485,14 +6673,25 @@ export class AdminService {
       };
     }
 
-    const res = await this.request<TopProductsResponse>(`/analytics/top-products?limit=${limit}&period=${period}`);
-    if (res.success && res.data && (res.data as any).data) {
-      const resp = res.data;
-      telemetryCache.set(cacheKey, {
-        data: resp,
-        expiresAt: now + TELEMETRY_CACHE_TTL_MS,
-      });
-      return resp;
+    const res = await this.request<any>(`/analytics/top-products?limit=${limit}&period=${period}`);
+    if (res.success && res.data) {
+      const items = Array.isArray(res.data) ? res.data : Array.isArray((res.data as any).data) ? (res.data as any).data : null;
+      if (items) {
+        const resp: TopProductsResponse = {
+          success: true,
+          statusCode: res.statusCode || 200,
+          message: res.message || "Top-selling products fetched successfully",
+          data: items,
+          meta: (res as any).meta || (res.data as any).meta || {
+            fromCache: false,
+          },
+        };
+        telemetryCache.set(cacheKey, {
+          data: resp,
+          expiresAt: now + TELEMETRY_CACHE_TTL_MS,
+        });
+        return resp;
+      }
     }
 
     const products = this.getLocalProducts();
@@ -6581,14 +6780,26 @@ export class AdminService {
       };
     }
 
-    const res = await this.request<OrderDistributionResponse>("/analytics/order-distribution");
-    if (res.success && res.data && (res.data as any).data) {
-      const resp = res.data;
-      telemetryCache.set(cacheKey, {
-        data: resp,
-        expiresAt: now + TELEMETRY_CACHE_TTL_MS,
-      });
-      return resp;
+    const res = await this.request<any>("/analytics/order-distribution");
+    if (res.success && res.data) {
+      const items = Array.isArray(res.data) ? res.data : Array.isArray((res.data as any).data) ? (res.data as any).data : null;
+      if (items) {
+        const resp: OrderDistributionResponse = {
+          success: true,
+          statusCode: res.statusCode || 200,
+          message: res.message || "Order status distribution fetched successfully",
+          data: items,
+          meta: (res as any).meta || (res.data as any).meta || {
+            totalOrders: items.reduce((sum: number, it: any) => sum + Number(it.count || 0), 0),
+            fromCache: false,
+          },
+        };
+        telemetryCache.set(cacheKey, {
+          data: resp,
+          expiresAt: now + TELEMETRY_CACHE_TTL_MS,
+        });
+        return resp;
+      }
     }
 
     const distribution: OrderStatusDistributionItem[] = [
@@ -6643,6 +6854,86 @@ export class AdminService {
       statusCode: 200,
       message: "Analytics telemetry cache successfully cleared",
     };
+  }
+
+  /**
+   * 11. CUSTOMER CHECKOUT ORDER PLACEMENT
+   * Records customer order in real-time, attempts backend dispatch, and registers with admin order ledger.
+   */
+  static async createOrderFromCheckout(input: {
+    orderNumber?: string;
+    customerName: string;
+    customerEmail: string;
+    customerPhone?: string;
+    shippingAddress: AdminOrderAddress;
+    billingAddress?: AdminOrderAddress;
+    items: AdminOrderItem[];
+    subtotal: number;
+    shippingAmount: number;
+    discountAmount: number;
+    totalAmount: number;
+    paymentMethod: "RAZORPAY" | "COD" | "STRIPE" | "UPI";
+    paymentStatus?: "PENDING" | "COMPLETED" | "FAILED";
+    couponCode?: string;
+    notes?: string;
+  }): Promise<AdminOrder> {
+    const orderId = `ord_${Date.now()}`;
+    const orderNumber = input.orderNumber || `ORD-${Date.now().toString().slice(-6)}`;
+    const nowIso = new Date().toISOString();
+
+    const newOrder: AdminOrder = {
+      id: orderId,
+      orderNumber,
+      customerName: input.customerName,
+      customerEmail: input.customerEmail,
+      customerPhone: input.customerPhone || "",
+      shippingAddress: input.shippingAddress,
+      billingAddress: input.billingAddress || input.shippingAddress,
+      items: input.items,
+      subtotal: input.subtotal,
+      shippingAmount: input.shippingAmount,
+      shipping: input.shippingAmount,
+      discountAmount: input.discountAmount,
+      discount: input.discountAmount,
+      totalAmount: input.totalAmount,
+      total: input.totalAmount,
+      status: "CONFIRMED",
+      paymentStatus: input.paymentStatus || (input.paymentMethod === "COD" ? "PENDING" : "COMPLETED"),
+      paymentMethod: input.paymentMethod,
+      notes: input.notes || (input.couponCode ? `Coupon applied: ${input.couponCode}` : null),
+      statusHistory: [
+        {
+          id: `hist_${Date.now()}`,
+          previousStatus: null,
+          newStatus: "CONFIRMED",
+          comment: `Order successfully placed via luxury storefront (${input.paymentMethod})`,
+          createdAt: nowIso,
+          changedBy: {
+            id: "customer",
+            name: input.customerName,
+            email: input.customerEmail,
+            role: "CUSTOMER",
+          },
+        },
+      ],
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    };
+
+    // Try posting to backend if endpoint becomes available in future
+    try {
+      await this.request("/orders", {
+        method: "POST",
+        body: JSON.stringify(newOrder),
+      });
+    } catch {}
+
+    // Persist into order ledger
+    const orders = this.getLocalOrders();
+    orders.unshift(newOrder);
+    setLocalData(STORAGE_KEYS.ORDERS, orders);
+
+    return newOrder;
   }
 }
 
