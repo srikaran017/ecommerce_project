@@ -100,14 +100,26 @@ export function AddressesTab({ onShowToast }: AddressesTabProps) {
 
     try {
       const payload: Partial<CustomerAddress> = {
-        ...formData,
         id: editingAddress ? editingAddress.id : undefined,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        address1: formData.street,
+        address2: formData.apartment,
+        city: formData.city,
+        state: formData.state,
+        postalCode: formData.postalCode,
+        country: formData.country,
+        phoneNumber: formData.phone,
+        tag: formData.tag,
+        isDefault: formData.isDefault,
       };
       const res = await CustomerService.saveAddress(payload);
       if (res.success) {
         setAddresses(res.data);
         setIsModalOpen(false);
         onShowToast(res.message);
+      } else {
+        onShowToast(res.message || "Failed to save address.");
       }
     } catch {
       onShowToast("Failed to save address.");

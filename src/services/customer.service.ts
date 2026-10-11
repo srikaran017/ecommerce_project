@@ -70,20 +70,6 @@ export interface CustomerAddress {
   tag?: "Home" | "Work" | "Other";
 }
 
-export interface CreateAddressPayload {
-  firstName: string;
-  lastName: string;
-  company?: string;
-  address1: string;
-  address2?: string;
-  city: string;
-  state: string;
-  country: string;
-  postalCode: string;
-  phoneNumber?: string;
-  isDefault?: boolean;
-}
-
 export interface CustomerPreferences {
   orderSms: boolean;
   preSaleAccess: boolean;
@@ -130,6 +116,13 @@ const STORAGE_KEYS = {
   PROFILE_EXTRA: "customer_profile_extra",
 };
 
+export function isUUID(str?: string): boolean {
+  return (
+    typeof str === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str)
+  );
+}
+
 function normalizeAddress(raw: any): CustomerAddress {
   const line1 = raw.address1 || raw.addressLine1 || raw.street || "";
   const line2 = raw.address2 || raw.addressLine2 || raw.apartment || "";
@@ -151,7 +144,7 @@ function normalizeAddress(raw: any): CustomerAddress {
     isDefault: !!raw.isDefault,
     createdAt: raw.createdAt,
     updatedAt: raw.updatedAt,
-    // Aliases
+    // Compatibility aliases
     addressLine1: line1,
     addressLine2: line2,
     street: line1,
@@ -162,8 +155,17 @@ function normalizeAddress(raw: any): CustomerAddress {
 }
 
 export class CustomerService {
-  private static getHeaders() {
-    const token = AuthService.getAccessToken();
+  public static getHeaders(): Record<string, string> {
+    let token = AuthService.getAccessToken();
+    if (!token && typeof window !== "undefined") {
+      token =
+        localStorage.getItem("auth_access_token") ||
+        localStorage.getItem("access_token") ||
+        localStorage.getItem("token") ||
+        sessionStorage.getItem("auth_access_token") ||
+        sessionStorage.getItem("access_token");
+    }
+
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
     };
@@ -179,7 +181,6 @@ export class CustomerService {
 
   /**
    * GET /api/v1/customer/account
-   * Retrieves authenticated customer account information
    */
   static async getAccountDetails(): Promise<{ success: boolean; data?: AccountDetails; message?: string }> {
     const baseUrl = getApiBaseUrl();
@@ -236,7 +237,6 @@ export class CustomerService {
 
   /**
    * PATCH /api/v1/customer/account
-   * Updates customer profile: firstName, lastName, email, phoneNumber
    */
   static async updateAccountDetails(
     payload: UpdateAccountPayload
@@ -308,7 +308,6 @@ export class CustomerService {
 
   /**
    * PATCH /api/v1/customer/account/password
-   * Changes customer password after verifying current password
    */
   static async changePassword(
     payload: ChangePasswordPayload
@@ -362,7 +361,6 @@ export class CustomerService {
 
   /**
    * GET /api/v1/customer/addresses
-   * Retrieves all saved addresses for the authenticated customer
    */
   static async getAddresses(): Promise<CustomerAddress[]> {
     const baseUrl = getApiBaseUrl();
@@ -397,7 +395,7 @@ export class CustomerService {
         return normalized;
       }
     } catch (err) {
-      console.warn("Failed to fetch addresses from backend, falling back to local storage:", err);
+      console.warn("Backend fetch addresses failed, falling back to local storage:", err);
     }
 
     return this.getStoredAddresses();
@@ -444,38 +442,63 @@ export class CustomerService {
 
   /**
    * POST /api/v1/customer/addresses or PATCH /api/v1/customer/addresses/:id
-   * Creates or updates a delivery address
+   * Creates or updates a delivery address on the live backend database!
    */
   static async saveAddress(
     address: Partial<CustomerAddress>
   ): Promise<{ success: boolean; data: CustomerAddress[]; message: string; error?: any }> {
     const baseUrl = getApiBaseUrl();
-    const isEdit = !!address.id && !address.id.startsWith("addr_local_");
-    const endpoint = isEdit
-      ? `${baseUrl}/customer/addresses/${address.id}`
-      : `${baseUrl}/customer/addresses`;
+    const hasValidUuid = isUUID(address.id);
+    const isEdit = hasValidUuid;
 
     const line1 = address.address1 || address.addressLine1 || address.street || "";
     const line2 = address.address2 || address.addressLine2 || address.apartment || "";
     const phone = address.phoneNumber || address.phone || "";
 
-    const payload: CreateAddressPayload = {
-      firstName: address.firstName?.trim() || "",
-      lastName: address.lastName?.trim() || "",
-      company: address.company?.trim() || undefined,
-      address1: line1.trim(),
-      address2: line2.trim() || undefined,
-      city: address.city?.trim() || "",
-      state: address.state?.trim() || "",
-      country: address.country?.trim() || "India",
-      postalCode: (address.postalCode || "").trim(),
-      phoneNumber: phone.trim() || undefined,
-      isDefault: address.isDefault,
-    };
+    const endpoint = isEdit
+      ? `${baseUrl}/customer/addresses/${address.id}`
+      : `${baseUrl}/customer/addresses`;
+
+    const method = isEdit ? "PATCH" : "POST";
+
+    // Strict payload generation for backend Zod validation
+    let payload: Record<string, any>;
+    if (isEdit) {
+      // Partial update payload (do not send empty strings for fields not being modified)
+      payload = {};
+      if (address.firstName?.trim()) payload.firstName = address.firstName.trim();
+      if (address.lastName?.trim()) payload.lastName = address.lastName.trim();
+      if (address.company !== undefined) payload.company = address.company?.trim() || null;
+      if (line1.trim()) payload.address1 = line1.trim();
+      if (line2 !== undefined) payload.address2 = line2.trim() || null;
+      if (address.city?.trim()) payload.city = address.city.trim();
+      if (address.state?.trim()) payload.state = address.state.trim();
+      if (address.country?.trim()) payload.country = address.country.trim();
+      if (address.postalCode?.trim()) payload.postalCode = address.postalCode.trim();
+      if (phone !== undefined) payload.phoneNumber = phone.trim() || null;
+      if (address.isDefault !== undefined) payload.isDefault = !!address.isDefault;
+    } else {
+      // Create payload (requires all mandatory fields)
+      payload = {
+        firstName: address.firstName?.trim() || "",
+        lastName: address.lastName?.trim() || "",
+        company: address.company?.trim() || undefined,
+        address1: line1.trim(),
+        address2: line2.trim() || undefined,
+        city: address.city?.trim() || "",
+        state: address.state?.trim() || "",
+        country: address.country?.trim() || "India",
+        postalCode: (address.postalCode || "").trim(),
+        phoneNumber: phone.trim() || undefined,
+        isDefault: !!address.isDefault,
+      };
+    }
+
+    console.log(`[CustomerService.saveAddress] Invoking API -> ${method} ${endpoint}:`, payload);
 
     try {
       const res = await fetch(endpoint, {
-        method: isEdit ? "PATCH" : "POST",
+        method,
         headers: this.getHeaders(),
         body: JSON.stringify(payload),
       });
@@ -483,7 +506,7 @@ export class CustomerService {
       const json = await res.json().catch(() => ({}));
 
       if (res.ok && json.success) {
-        // Refresh list from server
+        // Fetch fresh list from server
         const freshList = await this.getAddresses();
         return {
           success: true,
@@ -492,6 +515,7 @@ export class CustomerService {
         };
       }
 
+      console.warn("[CustomerService.saveAddress] Backend rejected address mutation:", json);
       if (json.message) {
         return {
           success: false,
@@ -501,10 +525,10 @@ export class CustomerService {
         };
       }
     } catch (err: any) {
-      console.warn("Backend address mutation failed, applying local fallback:", err);
+      console.error("[CustomerService.saveAddress] Network error calling address API:", err);
     }
 
-    // Local fallback persistence
+    // Local fallback persistence if offline or unauthenticated
     const currentList = this.getStoredAddresses();
     const targetId = address.id || `addr_local_${Date.now()}`;
     const newRecord = normalizeAddress({
@@ -545,27 +569,28 @@ export class CustomerService {
 
   /**
    * DELETE /api/v1/customer/addresses/:addressId
-   * Deletes an address
    */
   static async deleteAddress(id: string): Promise<{ success: boolean; data: CustomerAddress[]; message: string }> {
     const baseUrl = getApiBaseUrl();
-    try {
-      const res = await fetch(`${baseUrl}/customer/addresses/${id}`, {
-        method: "DELETE",
-        headers: this.getHeaders(),
-      });
-      const json = await res.json().catch(() => ({}));
+    if (isUUID(id)) {
+      try {
+        const res = await fetch(`${baseUrl}/customer/addresses/${id}`, {
+          method: "DELETE",
+          headers: this.getHeaders(),
+        });
+        const json = await res.json().catch(() => ({}));
 
-      if (res.ok && json.success) {
-        const freshList = await this.getAddresses();
-        return {
-          success: true,
-          data: freshList,
-          message: json.message || "Address deleted successfully",
-        };
+        if (res.ok && json.success) {
+          const freshList = await this.getAddresses();
+          return {
+            success: true,
+            data: freshList,
+            message: json.message || "Address deleted successfully",
+          };
+        }
+      } catch (err) {
+        console.warn("Backend address deletion failed, applying local fallback:", err);
       }
-    } catch (err) {
-      console.warn("Backend address deletion failed, applying local fallback:", err);
     }
 
     const currentList = this.getStoredAddresses();
@@ -587,6 +612,24 @@ export class CustomerService {
    * Sets default address via PATCH /api/v1/customer/addresses/:addressId { isDefault: true }
    */
   static async setDefaultAddress(id: string): Promise<{ success: boolean; data: CustomerAddress[]; message: string }> {
+    const baseUrl = getApiBaseUrl();
+    if (isUUID(id)) {
+      try {
+        const res = await fetch(`${baseUrl}/customer/addresses/${id}`, {
+          method: "PATCH",
+          headers: this.getHeaders(),
+          body: JSON.stringify({ isDefault: true }),
+        });
+        const json = await res.json().catch(() => ({}));
+        if (res.ok && json.success) {
+          const freshList = await this.getAddresses();
+          return { success: true, data: freshList, message: json.message || "Default address updated" };
+        }
+      } catch (err) {
+        console.warn("Backend setDefaultAddress error:", err);
+      }
+    }
+
     return this.saveAddress({ id, isDefault: true });
   }
 
