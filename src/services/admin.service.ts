@@ -881,113 +881,7 @@ export const INITIAL_STORE_SETTINGS: StoreSettings = {
   updatedAt: "2026-10-10T01:50:00.000Z",
 };
 
-export const INITIAL_AUDIT_LOGS: AdminAuditLog[] = [
-  {
-    id: "log_uuid_101",
-    action: "UPDATE_FEATURE_FLAGS",
-    entity: "STORE_CONFIG",
-    entityId: "default_store_config",
-    detailsJson: {
-      updatedFlags: {
-        guestCheckout: true,
-        cashOnDelivery: true,
-      },
-    },
-    ipAddress: "192.168.1.1",
-    userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    createdAt: "2026-10-10T01:55:00.000Z",
-    user: {
-      id: "usr_super_admin_1",
-      name: "Store Owner",
-      email: "owner@maison.com",
-      role: "SUPER_ADMIN",
-    },
-  },
-  {
-    id: "log_uuid_102",
-    action: "CREATE_PRODUCT",
-    entity: "PRODUCT",
-    entityId: "prod_001",
-    detailsJson: {
-      productName: "Midnight Silk Banarasi Evening Gown",
-      sku: "MSG-001",
-      regularPrice: 28999,
-      variantsCount: 4,
-    },
-    ipAddress: "192.168.1.1",
-    userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0",
-    createdAt: "2026-10-09T18:30:00.000Z",
-    user: {
-      id: "usr_super_admin_1",
-      name: "Store Owner",
-      email: "owner@maison.com",
-      role: "SUPER_ADMIN",
-    },
-  },
-  {
-    id: "log_uuid_103",
-    action: "SWITCH_THEME",
-    entity: "STORE_CONFIG",
-    entityId: "default_store_config",
-    detailsJson: {
-      previousTheme: "monochrome-minimal",
-      activeTheme: "luxury-fashion",
-    },
-    ipAddress: "192.168.1.1",
-    userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-    createdAt: "2026-10-09T12:00:00.000Z",
-    user: {
-      id: "usr_super_admin_1",
-      name: "Store Owner",
-      email: "owner@maison.com",
-      role: "SUPER_ADMIN",
-    },
-  },
-  {
-    id: "log_uuid_104",
-    action: "CREATE_COUPON",
-    entity: "COUPON",
-    entityId: "coup_uuid_101",
-    detailsJson: {
-      code: "DIWALI25",
-      discountType: "PERCENTAGE",
-      discountValue: 25,
-      minOrderAmount: 5000,
-      maxDiscountAmount: 3000,
-    },
-    ipAddress: "192.168.1.1",
-    userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-    createdAt: "2026-10-08T15:20:00.000Z",
-    user: {
-      id: "usr_super_admin_1",
-      name: "Store Owner",
-      email: "owner@maison.com",
-      role: "SUPER_ADMIN",
-    },
-  },
-  {
-    id: "log_uuid_105",
-    action: "ADJUST_STOCK",
-    entity: "INVENTORY",
-    entityId: "var_001_m",
-    detailsJson: {
-      sku: "MSG-001-M",
-      previousStock: 8,
-      newStock: 25,
-      quantityChange: 17,
-      reason: "Festive atelier restock batch",
-    },
-    ipAddress: "192.168.1.1",
-    userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-    createdAt: "2026-10-07T10:15:00.000Z",
-    user: {
-      id: "usr_store_admin_2",
-      name: "Rajesh Kumar (Store Manager)",
-      email: "rajesh.manager@maison.com",
-      role: "STORE_ADMIN",
-    },
-  },
-];
+export const INITIAL_AUDIT_LOGS: AdminAuditLog[] = [];
 
 // Initialize seed products conforming to Module 03
 function getInitialProducts(): AdminProduct[] {
@@ -3832,7 +3726,8 @@ export class AdminService {
   }
 
   static getLocalAuditLogs(): AdminAuditLog[] {
-    return getLocalData<AdminAuditLog[]>(STORAGE_KEYS.AUDIT_LOGS, INITIAL_AUDIT_LOGS);
+    const logs = getLocalData<AdminAuditLog[]>(STORAGE_KEYS.AUDIT_LOGS, []);
+    return (logs || []).filter((l) => !l.id?.startsWith("log_uuid_10"));
   }
 
   static logAudit(
@@ -3858,7 +3753,7 @@ export class AdminService {
     if (actionVerb.startsWith("DELETED_")) actionVerb = actionVerb.replace("DELETED_", "DELETE_");
 
     const entry: AdminAuditLog = {
-      id: `log_uuid_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+      id: `audit_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
       action: actionVerb,
       entity: targetTypeOrEntity.toUpperCase(),
       entityId: targetId,
@@ -6324,7 +6219,7 @@ export class AdminService {
   ): Promise<AuditLogsListResponse> {
     const qp = new URLSearchParams();
     if (params?.page) qp.set("page", String(params.page));
-    if (params?.limit) qp.set("limit", String(params.limit));
+    // Intentionally omit limit from query string as backend Prisma take expects integer and crashes on query string
     if (params?.action && params.action !== "ALL") qp.set("action", params.action);
     if (params?.entity && params.entity !== "ALL") qp.set("entity", params.entity);
     if (params?.userId && params.userId !== "ALL") qp.set("userId", params.userId);
@@ -6344,9 +6239,9 @@ export class AdminService {
           data: items,
           pagination: (res as any).pagination || (res.data as any).pagination || {
             page: Number(params?.page) || 1,
-            limit: Number(params?.limit) || 50,
+            limit: Number(params?.limit) || items.length || 20,
             total: items.length,
-            totalPages: Math.max(1, Math.ceil(items.length / (Number(params?.limit) || 50))),
+            totalPages: Math.max(1, Math.ceil(items.length / (Number(params?.limit) || 20))),
           },
         };
       }
@@ -6361,8 +6256,8 @@ export class AdminService {
           l.action.toLowerCase().includes(q) ||
           l.entity.toLowerCase().includes(q) ||
           l.entityId.toLowerCase().includes(q) ||
-          (l.user && l.user.name.toLowerCase().includes(q)) ||
-          (l.user && l.user.email.toLowerCase().includes(q))
+          (l.user && l.user.name?.toLowerCase().includes(q)) ||
+          (l.user && l.user.email?.toLowerCase().includes(q))
       );
     }
 
@@ -6396,9 +6291,9 @@ export class AdminService {
     const paginated = logs.slice(startIndex, startIndex + limit);
 
     return {
-      success: true,
-      statusCode: 200,
-      message: "Audit logs fetched successfully",
+      success: res.success || false,
+      statusCode: res.statusCode || 200,
+      message: res.message || "Audit logs fetched successfully",
       data: paginated,
       pagination: {
         page,
@@ -6414,9 +6309,15 @@ export class AdminService {
    * Retrieves complete metadata payload and change snapshot for an individual audit entry
    */
   static async getAuditLogDetail(id: string): Promise<AuditLogDetailResponse> {
-    const res = await this.request<AuditLogDetailResponse>(`/audit-logs/${id}`);
-    if (res.success && res.data && (res.data as any).data) {
-      return res.data;
+    const res = await this.request<any>(`/audit-logs/${id}`);
+    if (res.success && res.data) {
+      const log = res.data.data || res.data;
+      return {
+        success: true,
+        statusCode: res.statusCode || 200,
+        message: res.message || "Audit log details fetched successfully",
+        data: log,
+      };
     }
 
     const logs = this.getLocalAuditLogs();
