@@ -95,7 +95,6 @@ function SignupForm() {
       email: email.trim(),
       phone: phone.trim() || undefined,
       password,
-      role: "CUSTOMER",
     });
 
     if (success) {

@@ -111,7 +111,6 @@ export class AuthService {
           email: credentials.email.toLowerCase().trim(),
           password: credentials.password,
           phone: credentials.phone?.trim() || undefined,
-          role: credentials.role || "CUSTOMER",
         }),
       });
 
@@ -123,7 +122,7 @@ export class AuthService {
           name: credentials.name.trim(),
           email: credentials.email.toLowerCase().trim(),
           phone: credentials.phone?.trim(),
-          role: credentials.role || "CUSTOMER",
+          role: "CUSTOMER",
           createdAt: data.data?.createdAt,
         };
 
@@ -331,21 +330,84 @@ export class AuthService {
   }
 
   /**
-   * Helper to perform authenticated fetch calls
+   * Session / Token Refresh
+   * POST /auth/refresh
+   * Rotates JWT access token using HttpOnly cookie or optional JSON body payload.
+   */
+  static async refreshToken(customRefreshToken?: string): Promise<AuthResponse> {
+    try {
+      const body = customRefreshToken ? JSON.stringify({ refreshToken: customRefreshToken }) : undefined;
+      const response = await fetch(`${getBaseUrl()}/auth/refresh`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body,
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (response.ok && data.success) {
+        const token = data.data?.accessToken;
+        if (token) {
+          this.setAccessToken(token);
+        }
+
+        return {
+          success: true,
+          user: data.data?.user,
+          accessToken: token,
+          message: data.message || "Token refreshed successfully",
+        };
+      }
+
+      return {
+        success: false,
+        message: data.message || "Refresh token is invalid or expired",
+        error: data.error,
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        message: err.message || "Failed to refresh token",
+      };
+    }
+  }
+
+  /**
+   * Helper to perform authenticated fetch calls with automatic token rotation
    */
   static async fetchWithAuth(url: string, options: RequestInit = {}): Promise<Response> {
     const token = this.getAccessToken();
     const headers = new Headers(options.headers || {});
-    headers.set("Content-Type", "application/json");
+    if (!headers.has("Content-Type")) {
+      headers.set("Content-Type", "application/json");
+    }
     if (token) {
       headers.set("Authorization", `Bearer ${token}`);
     }
 
-    return fetch(url, {
+    const response = await fetch(url, {
       ...options,
       headers,
       credentials: "include",
     });
+
+    // Automatic token rotation on 401 Unauthorized
+    if (response.status === 401 && !url.includes("/auth/")) {
+      const refreshRes = await this.refreshToken();
+      if (refreshRes.success && refreshRes.accessToken) {
+        headers.set("Authorization", `Bearer ${refreshRes.accessToken}`);
+        return fetch(url, {
+          ...options,
+          headers,
+          credentials: "include",
+        });
+      }
+    }
+
+    return response;
   }
 
   /**

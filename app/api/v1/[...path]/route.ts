@@ -53,11 +53,25 @@ async function proxyRequest(
       if (
         lower !== "content-encoding" &&
         lower !== "content-length" &&
-        lower !== "transfer-encoding"
+        lower !== "transfer-encoding" &&
+        lower !== "set-cookie"
       ) {
         responseHeaders.set(key, value);
       }
     });
+
+    // Forward Set-Cookie headers accurately to preserve HttpOnly refreshToken rotation
+    if (typeof (response.headers as any).getSetCookie === "function") {
+      const setCookies = (response.headers as any).getSetCookie();
+      setCookies.forEach((cookieStr: string) => {
+        responseHeaders.append("set-cookie", cookieStr);
+      });
+    } else {
+      const singleCookie = response.headers.get("set-cookie");
+      if (singleCookie) {
+        responseHeaders.set("set-cookie", singleCookie);
+      }
+    }
 
     const responseData = await response.arrayBuffer();
 

@@ -16,6 +16,7 @@ import {
   ApiPagination,
   ApiCategory,
 } from "@/services/catalogApi";
+import { CollectionService } from "@/services/collection.service";
 
 export { FALLBACK_PRODUCTS, FALLBACK_COLLECTIONS };
 export type { ProductData, ProductVariantData };
@@ -320,10 +321,41 @@ export class ProductService {
   }
 
   static async getAllCollections() {
+    try {
+      const live = await CollectionService.getCollections();
+      if (live && live.length > 0) {
+        return live.map((c) => ({
+          id: c.id,
+          name: c.name,
+          slug: c.slug,
+          description: c.description || "",
+          image: c.imageUrl || "https://images.unsplash.com/photo-1566174053879-31528523f8ae?w=1200",
+          itemCount: c.productsCount ? `${c.productsCount} Masterpieces` : "Curated Capsule",
+        }));
+      }
+    } catch {
+      // Fallback to static collections
+    }
     return FALLBACK_COLLECTIONS;
   }
 
   static async getCollectionBySlug(slug: string) {
+    try {
+      const live = await CollectionService.getCollectionBySlug(slug);
+      if (live) {
+        return {
+          id: live.id,
+          name: live.name,
+          slug: live.slug,
+          description: live.description || "",
+          image: live.imageUrl || "https://images.unsplash.com/photo-1566174053879-31528523f8ae?w=1200",
+          itemCount: live.productsCount ? `${live.productsCount} Masterpieces` : "Curated Capsule",
+          products: live.products || [],
+        };
+      }
+    } catch {
+      // Fallback to static collections
+    }
     return FALLBACK_COLLECTIONS.find((c) => c.slug === slug) || null;
   }
 }

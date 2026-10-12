@@ -33,7 +33,7 @@ export default async function CollectionsPage() {
           {collections.map((col) => (
             <Link
               key={col.id}
-              href={`/products?collection=${col.slug}`}
+              href={`/collections/${col.slug}`}
               className="group relative h-[520px] rounded-[var(--radius)] overflow-hidden bg-[var(--muted)] border border-[var(--border)] block shadow-lg"
             >
               <img
