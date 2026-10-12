@@ -11,8 +11,14 @@ async function proxyRequest(
   try {
     const { path } = await context.params;
     const subPath = (path || []).join("/");
-    const search = req.nextUrl.search;
-    const targetUrl = `${TARGET_API_URL}/${subPath}${search}`;
+    
+    // Sanitize query params: backend Prisma findMany fails with 500 when limit is forwarded as a string on admin routes
+    const searchParams = new URLSearchParams(req.nextUrl.searchParams);
+    if (subPath.startsWith("admin/")) {
+      searchParams.delete("limit");
+    }
+    const cleanSearch = searchParams.toString() ? `?${searchParams.toString()}` : "";
+    const targetUrl = `${TARGET_API_URL}/${subPath}${cleanSearch}`;
 
     // Filter headers to avoid CORS and host issues with backend
     const forwardHeaders = new Headers();

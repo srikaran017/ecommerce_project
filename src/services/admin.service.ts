@@ -1679,7 +1679,7 @@ export class AdminService {
   ): Promise<ProductsListResponse> {
     const qp = new URLSearchParams();
     if (params?.page) qp.set("page", String(params.page));
-    if (params?.limit) qp.set("limit", String(params.limit));
+    // Intentionally omit limit from query string as backend Prisma take expects integer and crashes on string
     if (params?.search) qp.set("search", params.search);
     if (params?.categoryId) qp.set("categoryId", params.categoryId);
     if (params?.brand) qp.set("brand", params.brand);
@@ -1695,11 +1695,19 @@ export class AdminService {
     if (res.success && res.data) {
       const items = Array.isArray(res.data) ? res.data : Array.isArray(res.data.data) ? res.data.data : null;
       if (items) {
+        const normalized = items.map((p: any) => ({
+          ...p,
+          variants: Array.isArray(p.variants) ? p.variants : [],
+          images: Array.isArray(p.images) ? p.images : [],
+          regularPrice: Number(p.regularPrice ?? 0),
+          salePrice: p.salePrice !== null && p.salePrice !== undefined ? Number(p.salePrice) : null,
+          stockQuantity: Number(p.stockQuantity ?? 0),
+        }));
         return {
           success: true,
           statusCode: res.statusCode || 200,
           message: res.message || "Products fetched successfully",
-          data: items,
+          data: normalized,
           pagination: (res as any).pagination || (res.data as any).pagination || {
             page: Number(params?.page) || 1,
             limit: Number(params?.limit) || 20,
@@ -1743,8 +1751,12 @@ export class AdminService {
   static async getProductById(id: string): Promise<AdminProduct | null> {
     const res = await this.request<any>(`/products/${id}`);
     if (res.success && res.data) {
-      if (res.data.product) return res.data.product;
-      return res.data;
+      const prod = res.data.product || res.data;
+      return {
+        ...prod,
+        variants: Array.isArray(prod.variants) ? prod.variants : [],
+        images: Array.isArray(prod.images) ? prod.images : [],
+      };
     }
 
     const products = this.getLocalProducts();
@@ -3005,7 +3017,7 @@ export class AdminService {
   ): Promise<OrdersListResponse> {
     const qp = new URLSearchParams();
     if (params?.page) qp.set("page", String(params.page));
-    if (params?.limit) qp.set("limit", String(params.limit));
+    // Intentionally omit limit from query string as backend Prisma take expects integer and crashes on string
     if (params?.search) qp.set("search", params.search);
     if (params?.status && params.status !== "ALL") qp.set("status", params.status);
     if (params?.paymentStatus && params.paymentStatus !== "ALL") qp.set("paymentStatus", params.paymentStatus);
@@ -5362,7 +5374,7 @@ export class AdminService {
   ): Promise<CouponsListResponse> {
     const qp = new URLSearchParams();
     if (params?.page) qp.set("page", String(params.page));
-    if (params?.limit) qp.set("limit", String(params.limit));
+    // Intentionally omit limit from query string as backend Prisma take expects integer and crashes on string
     if (params?.search) qp.set("search", params.search);
     if (params?.status && params.status !== "ALL") qp.set("status", params.status);
     if (params?.discountType && params.discountType !== "ALL") qp.set("discountType", params.discountType);
@@ -5750,7 +5762,7 @@ export class AdminService {
   ): Promise<PromotionsListResponse> {
     const qp = new URLSearchParams();
     if (params?.page) qp.set("page", String(params.page));
-    if (params?.limit) qp.set("limit", String(params.limit));
+    // Intentionally omit limit from query string as backend Prisma take expects integer and crashes on string
     if (params?.search) qp.set("search", params.search);
     if (params?.status && params.status !== "ALL") qp.set("status", params.status);
 

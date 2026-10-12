@@ -282,7 +282,7 @@ export default function AdminProductsPage() {
           url,
           altText: viewingProduct.name,
           isThumbnail: drawerIsThumbnail,
-          sortOrder: viewingProduct.images.length,
+          sortOrder: (viewingProduct.images || []).length,
         },
       ]);
       if (res.success && res.data.images) {
@@ -304,7 +304,7 @@ export default function AdminProductsPage() {
   // Delete Image from Existing Product
   const handleDeleteDrawerImage = async (imageId: string) => {
     if (!viewingProduct) return;
-    if (viewingProduct.images.length <= 1) {
+    if ((viewingProduct.images || []).length <= 1) {
       alert("A garment must have at least one product photograph.");
       return;
     }
@@ -762,7 +762,7 @@ export default function AdminProductsPage() {
                       <td className="py-4 px-6">
                         <div className="flex items-center gap-3.5">
                           <img
-                            src={p.thumbnail || p.images[0]?.url || "https://images.unsplash.com/photo-1566174053879-31528523f8ae?w=800"}
+                            src={p.thumbnail || p.images?.[0]?.url || "https://images.unsplash.com/photo-1566174053879-31528523f8ae?w=800"}
                             alt={p.name}
                             className="w-12 h-14 object-cover rounded-xl border border-slate-800 bg-slate-900 shrink-0"
                           />
@@ -858,7 +858,7 @@ export default function AdminProductsPage() {
                         <div className="space-y-1.5">
                           {/* Color Hex Swatches */}
                           <div className="flex items-center gap-1">
-                            {p.variants.slice(0, 4).map((v) => (
+                            {(p.variants || []).slice(0, 4).map((v) => (
                               <div
                                 key={v.id}
                                 title={`${v.colorName || v.color} (${v.size})`}
@@ -866,26 +866,33 @@ export default function AdminProductsPage() {
                                 style={{ backgroundColor: v.colorHex || "#0b1b3d" }}
                               />
                             ))}
-                            {p.variants.length > 4 && (
+                            {(p.variants || []).length > 4 && (
                               <span className="text-[10px] text-slate-500 font-mono">
-                                +{p.variants.length - 4}
+                                +{(p.variants || []).length - 4}
+                              </span>
+                            )}
+                            {(!p.variants || p.variants.length === 0) && (
+                              <span className="text-[10px] text-slate-500 font-mono">
+                                {p.variantsCount ? `${p.variantsCount} variants` : "Standard"}
                               </span>
                             )}
                           </div>
 
                           {/* Sizing Tags */}
-                          <div className="flex items-center gap-1">
-                            {Array.from(new Set(p.variants.map((v) => v.size)))
-                              .slice(0, 4)
-                              .map((sz) => (
-                                <span
-                                  key={sz}
-                                  className="px-1.5 py-0.2 rounded bg-slate-900 border border-slate-800 text-slate-400 text-[9px] font-mono"
-                                >
-                                  {sz}
-                                </span>
-                              ))}
-                          </div>
+                          {(p.variants && p.variants.length > 0) ? (
+                            <div className="flex items-center gap-1">
+                              {Array.from(new Set(p.variants.map((v) => v.size)))
+                                .slice(0, 4)
+                                .map((sz) => (
+                                  <span
+                                    key={sz}
+                                    className="px-1.5 py-0.2 rounded bg-slate-900 border border-slate-800 text-slate-400 text-[9px] font-mono"
+                                  >
+                                    {sz}
+                                  </span>
+                                ))}
+                            </div>
+                          ) : null}
                         </div>
                       </td>
 
@@ -1084,7 +1091,7 @@ export default function AdminProductsPage() {
                 <div className="flex items-center justify-between">
                   <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
                     <Layers className="w-4 h-4 text-amber-400" />
-                    <span>Variant Matrix ({viewingProduct.variants.length} combinations)</span>
+                    <span>Variant Matrix ({(viewingProduct.variants || []).length} combinations)</span>
                   </h3>
                   <span className="font-mono text-emerald-400 font-bold text-xs">
                     Total: {viewingProduct.stockQuantity} units
@@ -1103,7 +1110,7 @@ export default function AdminProductsPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/80 text-slate-300">
-                      {viewingProduct.variants.map((v) => (
+                      {(viewingProduct.variants || []).map((v) => (
                         <tr key={v.id} className="hover:bg-slate-900/40">
                           <td className="py-3 px-4 font-mono font-medium text-[11px] text-amber-400">
                             {v.sku}
@@ -1151,12 +1158,12 @@ export default function AdminProductsPage() {
                 <div className="flex items-center justify-between">
                   <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
                     <ImageIcon className="w-4 h-4 text-amber-400" />
-                    <span>Cloud Image Gallery ({viewingProduct.images.length})</span>
+                    <span>Cloud Image Gallery ({(viewingProduct.images || []).length})</span>
                   </h3>
                 </div>
 
                 <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-                  {viewingProduct.images.map((img, i) => (
+                  {(viewingProduct.images || []).map((img, i) => (
                     <div
                       key={img.id || i}
                       className="group relative rounded-2xl overflow-hidden border border-slate-800 bg-slate-900 aspect-[3/4]"
