@@ -23,6 +23,7 @@ import { storeConfig } from "@/config/store.config";
 import { featureConfig } from "@/config/feature.config";
 import { useCartStore } from "@/stores/cart.store";
 import { useWishlistStore } from "@/stores/wishlist.store";
+import { useAuthStore } from "@/stores/auth.store";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { ProductCard } from "@/components/product/ProductCard";
@@ -58,8 +59,17 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
   );
 
   const [quantity, setQuantity] = useState(1);
+  const { isAuthenticated } = useAuthStore();
   const { isWishlisted: checkWishlist, toggleWishlist: storeToggleWishlist } = useWishlistStore();
   const isWishlisted = checkWishlist(product.id);
+
+  const handleToggleWishlist = async () => {
+    if (!isAuthenticated) {
+      router.push(`/login?redirect=/products/${product.slug}`);
+      return;
+    }
+    await storeToggleWishlist(product.id);
+  };
   const [isSizeChartOpen, setIsSizeChartOpen] = useState(false);
   const [unitSystem, setUnitSystem] = useState<"inches" | "cm">("inches");
   const [activeTab, setActiveTab] = useState<"fabric" | "care" | "shipping">("fabric");
@@ -586,11 +596,11 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
                 {/* Wishlist Button */}
                 {featureConfig.wishlist && (
                   <button
-                    onClick={() => storeToggleWishlist(product.id)}
+                    onClick={handleToggleWishlist}
                     aria-label="Toggle Wishlist"
                     className="p-3.5 rounded-[var(--radius)] border border-[var(--border)] hover:bg-[var(--muted)] text-[var(--foreground)] transition-colors cursor-pointer"
                   >
-                    <Heart className={`w-5 h-5 ${isWishlisted ? "fill-red-600 text-red-600" : ""}`} />
+                    <Heart className={`w-5 h-5 transition-colors ${isWishlisted ? "fill-rose-600 text-rose-600" : ""}`} />
                   </button>
                 )}
               </div>

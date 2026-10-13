@@ -45,6 +45,7 @@ export function FavouritesTab({ products, onShowToast }: FavouritesTabProps) {
       imageUrl,
       quantity: 1,
     });
+    await removeFromWishlist(product.id);
     onShowToast(`"${product.name}" moved to your shopping bag!`);
     openCart();
   };

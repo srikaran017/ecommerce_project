@@ -120,13 +120,14 @@ import {
 import { FALLBACK_PRODUCTS } from "@/data/products.data";
 import { storeConfig } from "@/config/store.config";
 import { useAuthStore } from "@/stores/auth.store";
-import {
-  getDelegatablePermissions as getDelegatablePermsHelper,
+import { getDelegatablePermissions as getDelegatablePermsHelper,
   canCreateRole,
   canManageUser,
   canDeactivateUser,
   hasPermission,
 } from "@/lib/rbac";
+import { WishlistAnalyticsResponse } from "@/types/wishlist.types";
+import { WishlistService } from "@/services/wishlist.service";
 
 const getBaseUrl = () => getApiBaseUrl();
 
@@ -7045,6 +7046,28 @@ export class AdminService {
       statusCode: 200,
       message: "Analytics telemetry cache successfully cleared",
     };
+  }
+
+  /**
+   * 2.6. GET /api/v1/admin/analytics/wishlist
+   * Real-time customer product demand telemetry and top wishlisted garments
+   */
+  static async getWishlistAnalytics(): Promise<WishlistAnalyticsResponse> {
+    const res = await this.request<any>("/analytics/wishlist");
+    if (res.success && res.data) {
+      const data = (res.data as any).data || res.data;
+      if (data && (data.totalWishlistItems !== undefined || data.topWishlistedProducts)) {
+        return {
+          success: true,
+          statusCode: res.statusCode || 200,
+          message: res.message || "Wishlist analytics retrieved successfully",
+          data,
+          meta: (res as any).meta,
+        };
+      }
+    }
+
+    return WishlistService.getAdminWishlistAnalytics();
   }
 
   /**

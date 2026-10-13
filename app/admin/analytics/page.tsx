@@ -23,6 +23,7 @@ import {
   Calendar,
   Flame,
   Zap,
+  Heart,
 } from "lucide-react";
 import { storeConfig } from "@/config/store.config";
 import { AdminService } from "@/services/admin.service";
@@ -201,6 +202,15 @@ export default function AdminAnalyticsPage() {
             />
             <span>Refresh</span>
           </button>
+
+          <Link
+            href="/admin/analytics/wishlist"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-rose-950/40 hover:bg-rose-900/50 border border-rose-800 text-rose-300 font-semibold text-xs rounded-xl transition-colors cursor-pointer"
+            title="Customer Wishlist Intent & Demand Analytics"
+          >
+            <Heart className="w-3.5 h-3.5 text-rose-400 fill-rose-400" />
+            <span>Wishlist Demand</span>
+          </Link>
         </div>
       </div>
 

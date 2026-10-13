@@ -8,6 +8,7 @@ import { storeConfig } from "@/config/store.config";
 import { featureConfig } from "@/config/feature.config";
 import { useCartStore } from "@/stores/cart.store";
 import { useWishlistStore } from "@/stores/wishlist.store";
+import { useAuthStore } from "@/stores/auth.store";
 import { ProductData, ProductVariantData } from "@/data/products.data";
 import { QuickViewModal } from "./QuickViewModal";
 
@@ -91,9 +92,18 @@ export function ProductCard({ product }: ProductCardProps) {
     setIsQuickViewOpen(true);
   };
 
+  const { isAuthenticated } = useAuthStore();
+
   const toggleWishlist = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+
+    if (!isAuthenticated) {
+      const currentPath = typeof window !== "undefined" ? window.location.pathname : "/products";
+      router.push(`/login?redirect=${encodeURIComponent(currentPath)}`);
+      return;
+    }
+
     storeToggleWishlist(product.id);
   };
 
