@@ -23,26 +23,23 @@ export default function AccountOrdersPage() {
     }
 
     async function loadOrders() {
-      if (!user?.email) {
-        setIsLoading(false);
-        return;
-      }
       try {
-        const res = await AdminService.getOrdersList({ search: user.email });
-        if (res.data && res.data.length > 0) {
-          setOrders(res.data);
+        const { OrderService } = await import("@/services/order.service");
+        const res = await OrderService.getCustomerOrders({ limit: 50 });
+        if (res.success && res.data && res.data.length > 0) {
+          setOrders(res.data as any);
         } else {
           const local = AdminService.getLocalOrders();
-          const userOrders = local.filter(
-            (o) => o.customerEmail?.toLowerCase() === user.email.toLowerCase()
-          );
+          const userOrders = user?.email
+            ? local.filter((o) => o.customerEmail?.toLowerCase() === user.email.toLowerCase())
+            : local;
           setOrders(userOrders);
         }
       } catch {
         const local = AdminService.getLocalOrders();
-        const userOrders = local.filter(
-          (o) => o.customerEmail?.toLowerCase() === user.email.toLowerCase()
-        );
+        const userOrders = user?.email
+          ? local.filter((o) => o.customerEmail?.toLowerCase() === user.email.toLowerCase())
+          : local;
         setOrders(userOrders);
       } finally {
         setIsLoading(false);

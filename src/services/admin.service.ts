@@ -3729,6 +3729,284 @@ export class AdminService {
     return { success: true, order: orderRes.data };
   }
 
+  /**
+   * 2.7. PATCH /api/v1/admin/orders/:id/payment (COD Payment Collection)
+   * Section 3.1: Marks Cash on Delivery or wire payments as collected & verified
+   * Permission Required: orders:write
+   */
+  static async recordPaymentCollection(
+    orderId: string,
+    input: {
+      paymentStatus: "PENDING" | "COMPLETED" | "FAILED" | "REFUNDED";
+      transactionId?: string;
+      amount?: number;
+      comment?: string;
+    }
+  ): Promise<{
+    success: boolean;
+    statusCode: number;
+    message: string;
+    data?: {
+      id: string;
+      orderNumber: string;
+      paymentStatus: string;
+    };
+    error?: { code: string };
+  }> {
+    const res = await this.request<{
+      id: string;
+      orderNumber: string;
+      paymentStatus: string;
+    }>(`/orders/${orderId}/payment`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    });
+
+    if (res.success && res.data) {
+      return {
+        success: true,
+        statusCode: 200,
+        message: res.message || `Payment status updated to ${input.paymentStatus}`,
+        data: res.data,
+      };
+    }
+
+    // Local Fallback
+    const orders = this.getLocalOrders();
+    const idx = orders.findIndex((o) => o.id === orderId || o.orderNumber === orderId);
+    if (idx === -1) {
+      return {
+        success: false,
+        statusCode: 404,
+        message: `Order #${orderId} not found`,
+        error: { code: "ORDER_NOT_FOUND" },
+      };
+    }
+
+    const currentOrder = orders[idx];
+    const prevPaymentStatus = currentOrder.paymentStatus;
+    const now = new Date().toISOString();
+
+    currentOrder.paymentStatus = input.paymentStatus;
+    currentOrder.updatedAt = now;
+
+    // Attach or update payments ledger entry
+    currentOrder.payments = currentOrder.payments || [];
+    currentOrder.payments.push({
+      id: `pay_${Date.now()}`,
+      gateway: currentOrder.paymentMethod || "COD",
+      status: input.paymentStatus,
+      transactionId: input.transactionId || `TX-${Date.now()}`,
+      amount: input.amount ?? Number(currentOrder.totalAmount ?? currentOrder.total ?? 0),
+      createdAt: now,
+    });
+
+    // Record audit comment in status history
+    currentOrder.statusHistory = currentOrder.statusHistory || [];
+    currentOrder.statusHistory.push({
+      id: `hist_${Date.now()}`,
+      previousStatus: currentOrder.status,
+      newStatus: currentOrder.status,
+      comment: input.comment || `Payment status updated from ${prevPaymentStatus} to ${input.paymentStatus} (Ref: ${input.transactionId || "N/A"})`,
+      createdAt: now,
+      changedBy: this.getCurrentAdminUser(),
+    });
+
+    setLocalData(STORAGE_KEYS.ORDERS, orders);
+    this.logAudit(
+      "ORDER",
+      currentOrder.orderNumber,
+      `Recorded payment collection (${input.paymentStatus})${input.comment ? `: ${input.comment}` : ""}`
+    );
+
+    return {
+      success: true,
+      statusCode: 200,
+      message: `Order #${currentOrder.orderNumber} payment status updated to ${input.paymentStatus}`,
+      data: {
+        id: currentOrder.id,
+        orderNumber: currentOrder.orderNumber,
+        paymentStatus: currentOrder.paymentStatus,
+      },
+    };
+  }
+
+  /**
+   * 2.8. Manage Order Metafields (Section 3.4)
+   * GET /api/v1/admin/orders/:id/metafields
+   */
+  static async getOrderMetafields(
+    orderId: string
+  ): Promise<{
+    success: boolean;
+    statusCode: number;
+    message: string;
+    data: any[];
+    error?: { code: string };
+  }> {
+    const res = await this.request<any[]>(`/orders/${orderId}/metafields`);
+    if (res.success && res.data) {
+      return {
+        success: true,
+        statusCode: 200,
+        message: "Order metafields retrieved successfully",
+        data: Array.isArray(res.data) ? res.data : [],
+      };
+    }
+
+    const orders = this.getLocalOrders();
+    const order = orders.find((o) => o.id === orderId || o.orderNumber === orderId);
+    const metafields = (order as any)?.metafields || [];
+
+    return {
+      success: true,
+      statusCode: 200,
+      message: "Order metafields retrieved successfully (local)",
+      data: metafields,
+    };
+  }
+
+  /**
+   * POST /api/v1/admin/orders/:id/metafields
+   */
+  static async upsertOrderMetafield(
+    orderId: string,
+    input: {
+      namespace: string;
+      key: string;
+      value: string;
+      valueType?: "STRING" | "BOOLEAN" | "NUMBER" | "JSON";
+      description?: string;
+      isPublic: boolean;
+    }
+  ): Promise<{
+    success: boolean;
+    statusCode: number;
+    message: string;
+    data?: any;
+    error?: { code: string };
+  }> {
+    const res = await this.request<any>(`/orders/${orderId}/metafields`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+
+    if (res.success && res.data) {
+      return {
+        success: true,
+        statusCode: 200,
+        message: "Order metafield saved successfully",
+        data: res.data,
+      };
+    }
+
+    const orders = this.getLocalOrders();
+    const idx = orders.findIndex((o) => o.id === orderId || o.orderNumber === orderId);
+    if (idx === -1) {
+      return {
+        success: false,
+        statusCode: 404,
+        message: `Order #${orderId} not found`,
+        error: { code: "ORDER_NOT_FOUND" },
+      };
+    }
+
+    const currentOrder = orders[idx] as any;
+    currentOrder.metafields = currentOrder.metafields || [];
+    const mfIdx = currentOrder.metafields.findIndex(
+      (m: any) => m.namespace === input.namespace && m.key === input.key
+    );
+
+    const newMf = {
+      id: `mf_${Date.now()}`,
+      ...input,
+      valueType: input.valueType || "STRING",
+      createdAt: new Date().toISOString(),
+    };
+
+    if (mfIdx !== -1) {
+      currentOrder.metafields[mfIdx] = newMf;
+    } else {
+      currentOrder.metafields.push(newMf);
+    }
+
+    setLocalData(STORAGE_KEYS.ORDERS, orders);
+    this.logAudit("ORDER", currentOrder.orderNumber, `Upserted metafield [${input.namespace}.${input.key}]`);
+
+    return {
+      success: true,
+      statusCode: 200,
+      message: "Order metafield saved successfully",
+      data: newMf,
+    };
+  }
+
+  /**
+   * DELETE /api/v1/admin/orders/:id/metafields/:metafieldId
+   */
+  static async deleteOrderMetafield(
+    orderId: string,
+    metafieldId: string
+  ): Promise<{
+    success: boolean;
+    statusCode: number;
+    message: string;
+    error?: { code: string };
+  }> {
+    const res = await this.request<any>(`/orders/${orderId}/metafields/${metafieldId}`, {
+      method: "DELETE",
+    });
+
+    if (res.success) {
+      return {
+        success: true,
+        statusCode: 200,
+        message: "Order metafield deleted successfully",
+      };
+    }
+
+    const orders = this.getLocalOrders();
+    const idx = orders.findIndex((o) => o.id === orderId || o.orderNumber === orderId);
+    if (idx !== -1) {
+      const currentOrder = orders[idx] as any;
+      currentOrder.metafields = (currentOrder.metafields || []).filter(
+        (m: any) => m.id !== metafieldId
+      );
+      setLocalData(STORAGE_KEYS.ORDERS, orders);
+      this.logAudit("ORDER", currentOrder.orderNumber, `Deleted metafield ID #${metafieldId}`);
+    }
+
+    return {
+      success: true,
+      statusCode: 200,
+      message: "Order metafield deleted successfully",
+    };
+  }
+
+  /**
+   * 2.9. GET /api/v1/admin/orders/export/csv
+   */
+  static async exportOrdersCsv(): Promise<string> {
+    const token = AuthService.getAccessToken();
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+
+    try {
+      const res = await fetch(`${getBaseUrl()}/admin/orders/export/csv`, { headers });
+      if (res.ok) {
+        return await res.text();
+      }
+    } catch {}
+
+    // Fallback: Generate CSV client-side from orders
+    const orders = this.getLocalOrders();
+    const headerRow = "Order Number,Date,Customer Name,Email,Phone,Status,Payment Status,Payment Method,Total Amount,Items Count";
+    const rows = orders.map((o) =>
+      `"${o.orderNumber}","${o.createdAt}","${o.customerName}","${o.customerEmail}","${o.customerPhone || ""}","${o.status}","${o.paymentStatus}","${o.paymentMethod}","${o.totalAmount ?? o.total}","${o.items?.length || 0}"`
+    );
+    return [headerRow, ...rows].join("\n");
+  }
+
   // ----------------------------------------------------
   // 5. AUDIT LOGGING HELPER
   // ----------------------------------------------------

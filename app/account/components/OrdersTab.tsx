@@ -60,22 +60,19 @@ export function OrdersTab({ orders, isLoading, onShowToast }: OrdersTabProps) {
   });
 
   const handleReorder = async (ord: AdminOrder) => {
-    if (ord.items && ord.items.length > 0) {
-      for (const item of ord.items as any[]) {
-        await addItem({
-          productId: item.productId || item.id || `reorder_${Date.now()}`,
-          name: item.productName || item.title || "Luxury Garment",
-          price: Number(item.price || item.unitPrice || 2500),
-          size: item.size || "M",
-          colorName: item.color || "Standard",
-          quantity: item.quantity || 1,
-          imageUrl: item.imageUrl || item.image || "https://images.unsplash.com/photo-1594938298603-c8148c4dae35?w=500",
-        });
+    try {
+      const orderNum = ord.orderNumber || ord.id;
+      const { OrderService } = await import("@/services/order.service");
+      const res = await OrderService.reorder(orderNum);
+      if (res.success) {
+        onShowToast(res.message || "Items added back to your shopping bag!");
+        openCart();
+      } else {
+        onShowToast(res.message || "Unable to reorder garments.");
       }
-      onShowToast("Items added back to your shopping bag!");
-      openCart();
-    } else {
+    } catch {
       onShowToast("Re-ordered items have been queued in your bag.");
+      openCart();
     }
   };
 
@@ -299,12 +296,10 @@ export function OrdersTab({ orders, isLoading, onShowToast }: OrdersTabProps) {
 
                     {/* View Details */}
                     <Link
-                      href={`/order-success/${ord.orderNumber || ord.id}?method=${ord.paymentMethod?.toLowerCase() || "cod"}&amount=${ord.totalAmount ?? ord.total ?? 0}&email=${encodeURIComponent(
-                        ord.customerEmail || ""
-                      )}&phone=${encodeURIComponent(ord.customerPhone || "")}`}
+                      href={`/orders/${ord.orderNumber || ord.id}`}
                       className="px-3 py-2 bg-white hover:bg-neutral-100 border border-neutral-200 text-neutral-700 text-xs font-bold uppercase tracking-wider rounded-xl transition-all flex items-center gap-1"
                     >
-                      <span>Receipt</span>
+                      <span>View Details</span>
                       <ExternalLink className="w-3 h-3 text-neutral-400" />
                     </Link>
                   </div>

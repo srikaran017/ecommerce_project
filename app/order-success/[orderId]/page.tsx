@@ -215,15 +215,20 @@ export default function OrderSuccessPage() {
           )}
 
           {/* CTA Buttons */}
-          <div className="pt-6 flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link href="/products">
+          <div className="pt-6 flex flex-col sm:flex-row items-center justify-center gap-3">
+            <Link href={`/orders/${orderId}`}>
               <Button variant="primary" size="md" rightIcon={<ArrowRight className="w-4 h-4" />}>
-                CONTINUE BROWSING
+                TRACK & VIEW ORDER DETAILS
               </Button>
             </Link>
-            <Link href="/account">
+            <Link href={`/orders/${orderId}/confirmation`}>
               <Button variant="outline" size="md">
-                VIEW ORDER IN ACCOUNT
+                VIEW ORDER INVOICE
+              </Button>
+            </Link>
+            <Link href="/products">
+              <Button variant="ghost" size="md">
+                CONTINUE SHOPPING
               </Button>
             </Link>
           </div>

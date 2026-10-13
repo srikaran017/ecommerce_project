@@ -24,6 +24,7 @@ import {
   User,
   ShieldCheck,
   RefreshCw,
+  Banknote,
 } from "lucide-react";
 import { storeConfig } from "@/config/store.config";
 import {
@@ -123,6 +124,25 @@ export default function OrderDetailsPage() {
   // Tax Invoice
   const [isInvoiceOpen, setIsInvoiceOpen] = useState(false);
 
+  // Payment Collection Modal (Section 3.1)
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [paymentStatusInput, setPaymentStatusInput] = useState<"COMPLETED" | "FAILED" | "PENDING">("COMPLETED");
+  const [paymentTransactionId, setPaymentTransactionId] = useState("");
+  const [paymentAmount, setPaymentAmount] = useState<number>(0);
+  const [paymentComment, setPaymentComment] = useState("");
+  const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
+
+  // Metafields Management (Section 3.4)
+  const [metafields, setMetafields] = useState<any[]>([]);
+  const [isAddMetafieldOpen, setIsAddMetafieldOpen] = useState(false);
+  const [mfNamespace, setMfNamespace] = useState("warehouse");
+  const [mfKey, setMfKey] = useState("bin_location");
+  const [mfValue, setMfValue] = useState("");
+  const [mfValueType, setMfValueType] = useState<"STRING" | "BOOLEAN" | "NUMBER" | "JSON">("STRING");
+  const [mfDescription, setMfDescription] = useState("");
+  const [mfIsPublic, setMfIsPublic] = useState(false);
+  const [isSavingMetafield, setIsSavingMetafield] = useState(false);
+
   const loadOrderDetail = async () => {
     setIsLoading(true);
     try {
@@ -133,6 +153,12 @@ export default function OrderDetailsPage() {
         if (res.data.courierPartner) setCourierPartner(res.data.courierPartner);
         if (res.data.trackingNumber) setTrackingNumber(res.data.trackingNumber);
       }
+
+      // Load metafields
+      const mfRes = await AdminService.getOrderMetafields(orderId);
+      if (mfRes.success && Array.isArray(mfRes.data)) {
+        setMetafields(mfRes.data);
+      }
     } catch (err: any) {
       console.error("Failed to load order detail:", err);
       // Fallback
@@ -140,6 +166,7 @@ export default function OrderDetailsPage() {
       if (local) {
         setOrder(local);
         setInternalNotes(local.internalAdminNotes || "");
+        setMetafields((local as any).metafields || []);
       }
     } finally {
       setIsLoading(false);
@@ -254,6 +281,91 @@ export default function OrderDetailsPage() {
       showNotification("error", err.message || "Failed to cancel order.");
     } finally {
       setIsCancelling(false);
+    }
+  };
+
+  const handleRecordPayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!order) return;
+    if (!rbac.canWriteOrders(user?.role)) {
+      showNotification("error", "Permission denied: orders:write permission required.");
+      return;
+    }
+
+    setIsSubmittingPayment(true);
+    try {
+      const res = await AdminService.recordPaymentCollection(order.id, {
+        paymentStatus: paymentStatusInput,
+        transactionId: paymentTransactionId.trim() || undefined,
+        amount: Number(paymentAmount) || Number(order.totalAmount ?? order.total ?? 0),
+        comment: paymentComment.trim() || undefined,
+      });
+
+      if (res.success) {
+        showNotification("success", res.message || "Payment status updated successfully.");
+        setIsPaymentModalOpen(false);
+        loadOrderDetail();
+      } else {
+        showNotification("error", res.message || "Failed to update payment status.");
+      }
+    } catch (err: any) {
+      showNotification("error", err.message || "Failed to update payment status.");
+    } finally {
+      setIsSubmittingPayment(false);
+    }
+  };
+
+  const handleSaveMetafield = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!order || !mfNamespace.trim() || !mfKey.trim()) return;
+    if (!rbac.canWriteOrders(user?.role)) {
+      showNotification("error", "Permission denied: orders:write permission required.");
+      return;
+    }
+
+    setIsSavingMetafield(true);
+    try {
+      const res = await AdminService.upsertOrderMetafield(order.id, {
+        namespace: mfNamespace.trim(),
+        key: mfKey.trim(),
+        value: mfValue.trim(),
+        valueType: mfValueType,
+        description: mfDescription.trim() || undefined,
+        isPublic: mfIsPublic,
+      });
+
+      if (res.success) {
+        showNotification("success", "Metafield saved successfully.");
+        setIsAddMetafieldOpen(false);
+        setMfValue("");
+        setMfDescription("");
+        const refreshed = await AdminService.getOrderMetafields(order.id);
+        if (refreshed.success) setMetafields(refreshed.data);
+      } else {
+        showNotification("error", res.message || "Failed to save metafield.");
+      }
+    } catch (err: any) {
+      showNotification("error", err.message || "Failed to save metafield.");
+    } finally {
+      setIsSavingMetafield(false);
+    }
+  };
+
+  const handleDeleteMetafield = async (metafieldId: string) => {
+    if (!order) return;
+    if (!rbac.canWriteOrders(user?.role)) {
+      showNotification("error", "Permission denied: orders:write permission required.");
+      return;
+    }
+
+    try {
+      const res = await AdminService.deleteOrderMetafield(order.id, metafieldId);
+      if (res.success) {
+        showNotification("success", "Metafield removed.");
+        setMetafields((prev) => prev.filter((m) => m.id !== metafieldId));
+      }
+    } catch (err: any) {
+      showNotification("error", err.message || "Failed to delete metafield.");
     }
   };
 
@@ -694,7 +806,81 @@ export default function OrderDetailsPage() {
                   </div>
                 </div>
               )}
+
+              {/* Record Payment Action if not completed (Section 3.1) */}
+              {order.paymentStatus !== "COMPLETED" && (
+                <button
+                  onClick={() => {
+                    setPaymentAmount(Number(order.totalAmount ?? order.total ?? 0));
+                    setPaymentTransactionId(order.paymentMethod === "COD" ? `COD-CASH-REC-${Date.now().toString().slice(-4)}` : "");
+                    setIsPaymentModalOpen(true);
+                  }}
+                  className="mt-3 w-full px-3 py-2 bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border border-emerald-700/80 rounded-xl font-bold uppercase tracking-wider text-[11px] transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Banknote className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Record Payment Collection (COD)</span>
+                </button>
+              )}
             </div>
+          </div>
+
+          {/* Operational Metafields (Section 3.4) */}
+          <div className="bg-slate-950 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-sm">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-sm font-bold uppercase tracking-wider text-white flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-amber-400" />
+                <span>Operational Metafields ({metafields.length})</span>
+              </h3>
+              <button
+                onClick={() => setIsAddMetafieldOpen(true)}
+                className="text-[10px] bg-slate-900 hover:bg-slate-800 border border-slate-700 text-amber-300 px-2.5 py-1 rounded-lg font-bold uppercase cursor-pointer"
+              >
+                + Add Tag
+              </button>
+            </div>
+
+            {metafields.length > 0 ? (
+              <div className="space-y-2">
+                {metafields.map((mf: any, idx: number) => (
+                  <div
+                    key={mf.id || idx}
+                    className="p-2.5 bg-slate-900 border border-slate-800 rounded-xl flex items-start justify-between gap-2 text-xs"
+                  >
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono text-amber-300 font-bold text-[11px]">
+                          {mf.namespace}.{mf.key}
+                        </span>
+                        <span
+                          className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase ${
+                            mf.isPublic
+                              ? "bg-emerald-950 text-emerald-300 border border-emerald-800"
+                              : "bg-slate-800 text-slate-400 border border-slate-700"
+                          }`}
+                        >
+                          {mf.isPublic ? "Public" : "Private"}
+                        </span>
+                      </div>
+                      <p className="text-white text-xs mt-0.5 font-medium">{mf.value}</p>
+                      {mf.description && (
+                        <p className="text-[10px] text-slate-500 mt-0.5">{mf.description}</p>
+                      )}
+                    </div>
+                    {mf.id && (
+                      <button
+                        onClick={() => handleDeleteMetafield(mf.id)}
+                        className="text-slate-500 hover:text-rose-400 p-1 cursor-pointer"
+                        title="Remove metafield"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-slate-500 italic">No operational metafields assigned.</p>
+            )}
           </div>
 
           {/* Customer Special Instructions */}
@@ -973,6 +1159,211 @@ export default function OrderDetailsPage() {
                 Thank you for choosing {storeConfig.name}. For questions or bespoke alterations, contact {storeConfig.contact.email}.
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Record COD Payment Collection Modal (Section 3.1) */}
+      {isPaymentModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 sm:p-8 max-w-md w-full space-y-6 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-2 text-emerald-400">
+                <Banknote className="w-5 h-5" />
+                <h3 className="text-base font-bold text-white uppercase tracking-wider">
+                  Record Payment Collection
+                </h3>
+              </div>
+              <button
+                onClick={() => setIsPaymentModalOpen(false)}
+                className="text-slate-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleRecordPayment} className="space-y-4 text-xs">
+              <div className="space-y-1.5">
+                <label className="font-semibold text-slate-300">Payment Status *</label>
+                <select
+                  value={paymentStatusInput}
+                  onChange={(e) => setPaymentStatusInput(e.target.value as any)}
+                  className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white focus:border-emerald-400 focus:outline-none"
+                >
+                  <option value="COMPLETED">COMPLETED (Cash Collected in Full)</option>
+                  <option value="FAILED">FAILED (Refused on Doorstep)</option>
+                  <option value="PENDING">PENDING (Awaiting Courier Handover)</option>
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="font-semibold text-slate-300">Transaction ID / Cash Receipt Ref</label>
+                <input
+                  type="text"
+                  placeholder="e.g. COD-CASH-REC-1029 or Bank UTR"
+                  value={paymentTransactionId}
+                  onChange={(e) => setPaymentTransactionId(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white focus:border-emerald-400 focus:outline-none font-mono"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="font-semibold text-slate-300">Collected Amount (₹) *</label>
+                <input
+                  type="number"
+                  required
+                  min={0}
+                  step="any"
+                  value={paymentAmount}
+                  onChange={(e) => setPaymentAmount(Number(e.target.value))}
+                  className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white focus:border-emerald-400 focus:outline-none font-mono font-bold"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="font-semibold text-slate-300">Staff Audit Comment</label>
+                <textarea
+                  rows={2}
+                  placeholder="e.g. Cash collected in full by Delhivery delivery agent"
+                  value={paymentComment}
+                  onChange={(e) => setPaymentComment(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white focus:border-emerald-400 focus:outline-none resize-none"
+                />
+              </div>
+
+              <div className="pt-4 border-t border-slate-800 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsPaymentModalOpen(false)}
+                  className="px-4 py-2 text-slate-400 hover:text-white cursor-pointer font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingPayment}
+                  className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-bold uppercase tracking-wider rounded-xl transition-all shadow-md cursor-pointer"
+                >
+                  {isSubmittingPayment ? "Recording..." : "Record Payment"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Add Order Metafield Modal (Section 3.4) */}
+      {isAddMetafieldOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 sm:p-8 max-w-md w-full space-y-6 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-2 text-amber-400">
+                <Sparkles className="w-5 h-5" />
+                <h3 className="text-base font-bold text-white uppercase tracking-wider">
+                  Add Operational Metafield
+                </h3>
+              </div>
+              <button
+                onClick={() => setIsAddMetafieldOpen(false)}
+                className="text-slate-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveMetafield} className="space-y-4 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="font-semibold text-slate-300">Namespace *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. warehouse, checkout"
+                    value={mfNamespace}
+                    onChange={(e) => setMfNamespace(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white font-mono"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="font-semibold text-slate-300">Key *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. bin_location, gift_wrap"
+                    value={mfKey}
+                    onChange={(e) => setMfKey(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="font-semibold text-slate-300">Value *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. RACK-4-SHELF-B"
+                  value={mfValue}
+                  onChange={(e) => setMfValue(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white font-medium"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="font-semibold text-slate-300">Value Type</label>
+                  <select
+                    value={mfValueType}
+                    onChange={(e) => setMfValueType(e.target.value as any)}
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white"
+                  >
+                    <option value="STRING">STRING</option>
+                    <option value="BOOLEAN">BOOLEAN</option>
+                    <option value="NUMBER">NUMBER</option>
+                    <option value="JSON">JSON</option>
+                  </select>
+                </div>
+                <div className="space-y-1.5 flex flex-col justify-end">
+                  <label className="flex items-center gap-2 p-2 bg-slate-900 border border-slate-700 rounded-xl cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={mfIsPublic}
+                      onChange={(e) => setMfIsPublic(e.target.checked)}
+                      className="accent-amber-400"
+                    />
+                    <span className="text-[11px] font-bold text-white">Public (Customer Visible)</span>
+                  </label>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="font-semibold text-slate-300">Description (Optional)</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Internal picker bin location"
+                  value={mfDescription}
+                  onChange={(e) => setMfDescription(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-white"
+                />
+              </div>
+
+              <div className="pt-4 border-t border-slate-800 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsAddMetafieldOpen(false)}
+                  className="px-4 py-2 text-slate-400 hover:text-white cursor-pointer font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingMetafield || !mfValue.trim()}
+                  className="px-6 py-2.5 bg-amber-400 hover:bg-amber-300 disabled:opacity-40 text-slate-950 font-bold uppercase tracking-wider rounded-xl transition-all shadow-md cursor-pointer"
+                >
+                  {isSavingMetafield ? "Saving..." : "Save Metafield"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
