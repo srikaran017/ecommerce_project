@@ -54,22 +54,32 @@ export class AuthService {
   }
 
   /**
-   * Get cached access token from memory/localStorage
+   * Get cached access token from memory/localStorage and keep auth_access_token cookie synchronized
    */
   static getAccessToken(): string | null {
     if (typeof window === "undefined") return null;
-    return localStorage.getItem(this.tokenKey);
+    const token = localStorage.getItem(this.tokenKey);
+    if (token && typeof document !== "undefined") {
+      document.cookie = `auth_access_token=${token}; path=/; max-age=604800; SameSite=Lax;`;
+    }
+    return token;
   }
 
   /**
-   * Set cached access token
+   * Set cached access token in localStorage and synchronize auth_access_token cookie
    */
   static setAccessToken(token: string | null): void {
     if (typeof window === "undefined") return;
     if (token) {
       localStorage.setItem(this.tokenKey, token);
+      if (typeof document !== "undefined") {
+        document.cookie = `auth_access_token=${token}; path=/; max-age=604800; SameSite=Lax;`;
+      }
     } else {
       localStorage.removeItem(this.tokenKey);
+      if (typeof document !== "undefined") {
+        document.cookie = "auth_access_token=; path=/; max-age=0; SameSite=Lax;";
+      }
     }
   }
 

@@ -151,8 +151,14 @@ export class WishlistService {
 
     const qp = new URLSearchParams();
     qp.set("page", String(page));
-    qp.set("limit", String(limit));
-    if (sort) qp.set("sort", sort);
+    // Note: Remote backend Prisma findMany crashes with 500 if 'limit' is forwarded as string (take: "12").
+    // We omit limit from the query string so backend safely falls back to default take (10).
+    const validSorts = ["newest", "oldest", "price_asc", "price_desc", "name_asc", "name_desc"];
+    if (sort && validSorts.includes(sort)) {
+      qp.set("sort", sort);
+    } else {
+      qp.set("sort", "newest");
+    }
     if (inStock !== "all") qp.set("inStock", inStock);
     if (search) qp.set("search", search);
 
