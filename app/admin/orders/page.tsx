@@ -551,6 +551,7 @@ export default function AdminOrdersPage() {
           </span>
           {[
             { id: "ALL", label: "All" },
+            { id: "PENDING", label: "Pending (COD / Verification)" },
             { id: "CONFIRMED", label: "Confirmed" },
             { id: "PROCESSING", label: "Processing" },
             { id: "PACKED", label: "Packed" },

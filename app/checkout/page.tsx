@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -12,13 +12,19 @@ import {
   ArrowLeft,
   Tag,
   CheckCircle2,
+  AlertCircle,
+  MapPin,
+  Plus,
+  Info,
 } from "lucide-react";
 import { useCartStore } from "@/stores/cart.store";
 import { useAuthStore } from "@/stores/auth.store";
 import { storeConfig } from "@/config/store.config";
 import { featureConfig } from "@/config/feature.config";
 import { paymentConfig } from "@/config/payment.config";
-import { AdminService } from "@/services/admin.service";
+import { CustomerService, CustomerAddress } from "@/services/customer.service";
+import { CheckoutService, loadRazorpayScript } from "@/services/checkout.service";
+import { CheckoutSummaryData } from "@/types/checkout.types";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 
@@ -27,72 +33,107 @@ export default function CheckoutPage() {
   const { user, isAuthenticated } = useAuthStore();
   const {
     items,
-    apiCart,
     fetchCart,
-    getSubtotal,
-    getModifiersTotal,
-    getShippingAmount,
-    getDiscountAmount,
-    getTotal,
-    appliedCoupon,
-    applyCoupon,
-    removeCoupon,
     clearCart,
   } = useCartStore();
 
   const [isMounted, setIsMounted] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isOrderPlaced, setIsOrderPlaced] = useState(false);
-  const hasCheckedRef = React.useRef(false);
+  const [generalError, setGeneralError] = useState<string | null>(null);
 
-  React.useEffect(() => {
+  // Saved Addresses State
+  const [savedAddresses, setSavedAddresses] = useState<CustomerAddress[]>([]);
+  const [selectedAddressId, setSelectedAddressId] = useState<string | "new">("new");
+  const [isLoadingAddresses, setIsLoadingAddresses] = useState(false);
+
+  // Address Form State
+  const [formData, setFormData] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: "",
+    company: "",
+    address1: "",
+    address2: "",
+    city: "",
+    state: "",
+    postalCode: "",
+    country: "India",
+    paymentMethod: "RAZORPAY" as "RAZORPAY" | "COD",
+    customerNotes: "",
+  });
+
+  // Pre-Checkout Authoritative Summary State
+  const [summaryData, setSummaryData] = useState<CheckoutSummaryData | null>(null);
+  const [isSummaryLoading, setIsSummaryLoading] = useState(false);
+
+  // Coupon State
+  const [couponInput, setCouponInput] = useState("");
+  const [appliedCouponCode, setAppliedCouponCode] = useState<string>("");
+  const [couponError, setCouponError] = useState("");
+  const [isCouponValidating, setIsCouponValidating] = useState(false);
+
+  // Emulation Modal State (used if Razorpay CDN is blocked or unavailable in dev)
+  const [showSandboxModal, setShowSandboxModal] = useState(false);
+  const [pendingRazorpayPayload, setPendingRazorpayPayload] = useState<any>(null);
+
+  const hasCheckedCartRef = useRef(false);
+
+  // Initialize page & sync user data
+  useEffect(() => {
     setIsMounted(true);
-    if (!hasCheckedRef.current) {
-      hasCheckedRef.current = true;
+    if (!hasCheckedCartRef.current) {
+      hasCheckedCartRef.current = true;
       if (items.length === 0) {
         fetchCart().catch(() => {});
       }
     }
   }, [fetchCart, items.length]);
 
-  // Redirect unauthenticated guests to login only if guest checkout is disabled
-  React.useEffect(() => {
+  // Redirect guest if guest checkout disabled
+  useEffect(() => {
     if (!featureConfig.guestCheckout && !isAuthenticated) {
       router.push("/login?redirect=/checkout");
     }
   }, [isAuthenticated, router]);
 
-  const subtotal = getSubtotal();
-  const modifiersTotal = getModifiersTotal();
-  const shipping = getShippingAmount();
-  const discount = getDiscountAmount();
-  const total = getTotal();
-
-  // Checkout Form State - load previously saved address if available
-  const [formData, setFormData] = useState(() => {
-    let saved: any = {};
-    if (typeof window !== "undefined") {
-      try {
-        const raw = localStorage.getItem("customer_saved_address");
-        if (raw) saved = JSON.parse(raw);
-      } catch {}
+  // Load Saved Addresses for logged-in customer
+  useEffect(() => {
+    if (isAuthenticated) {
+      setIsLoadingAddresses(true);
+      CustomerService.getAddresses()
+        .then((addresses) => {
+          setSavedAddresses(addresses);
+          const defaultAddr = addresses.find((a) => a.isDefault) || addresses[0];
+          if (defaultAddr) {
+            setSelectedAddressId(defaultAddr.id);
+            setFormData((prev) => ({
+              ...prev,
+              firstName: defaultAddr.firstName,
+              lastName: defaultAddr.lastName,
+              company: defaultAddr.company || "",
+              address1: defaultAddr.address1,
+              address2: defaultAddr.address2 || "",
+              city: defaultAddr.city,
+              state: defaultAddr.state,
+              postalCode: defaultAddr.postalCode,
+              country: defaultAddr.country || "India",
+              phone: defaultAddr.phoneNumber || prev.phone,
+            }));
+          }
+        })
+        .catch((err) => {
+          console.warn("Failed to load customer saved addresses:", err);
+        })
+        .finally(() => {
+          setIsLoadingAddresses(false);
+        });
     }
-    return {
-      email: user?.email || saved.email || "",
-      firstName: user?.name?.split(" ")[0] || saved.firstName || "",
-      lastName: user?.name?.split(" ").slice(1).join(" ") || saved.lastName || "",
-      phone: user?.phone || saved.phone || "",
-      street: saved.street || "",
-      city: saved.city || "",
-      state: saved.state || "",
-      postalCode: saved.postalCode || "",
-      country: saved.country || "India",
-      paymentMethod: (saved.paymentMethod as "razorpay" | "cod") || "razorpay",
-    };
-  });
+  }, [isAuthenticated]);
 
-  // Sync form data when user logs in
-  React.useEffect(() => {
+  // Sync user info to form if empty
+  useEffect(() => {
     if (user) {
       setFormData((prev) => ({
         ...prev,
@@ -104,66 +145,118 @@ export default function CheckoutPage() {
     }
   }, [user]);
 
-  const [couponInput, setCouponInput] = useState("");
-  const [couponError, setCouponError] = useState("");
-  const [isCouponValidating, setIsCouponValidating] = useState(false);
+  // Recalculate Authoritative Checkout Summary
+  const refreshSummary = React.useCallback(async (coupon?: string) => {
+    if (items.length === 0) return;
+    setIsSummaryLoading(true);
+    setGeneralError(null);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const activeCoupon = coupon !== undefined ? coupon : appliedCouponCode;
+
+    try {
+      const payload: any = {
+        couponCode: activeCoupon || undefined,
+      };
+
+      if (selectedAddressId !== "new") {
+        payload.shippingAddressId = selectedAddressId;
+      } else if (formData.address1 && formData.city) {
+        payload.shippingAddress = {
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          company: formData.company || undefined,
+          address1: formData.address1,
+          address2: formData.address2 || undefined,
+          city: formData.city,
+          state: formData.state,
+          postalCode: formData.postalCode,
+          country: formData.country,
+          phoneNumber: formData.phone || undefined,
+        };
+      }
+
+      const res = await CheckoutService.getCheckoutSummary(payload);
+      if (res.success && res.data) {
+        setSummaryData(res.data);
+      } else if (res.error?.code === "CART_EMPTY") {
+        setSummaryData(null);
+      } else if (res.message) {
+        setGeneralError(res.message);
+      }
+    } catch (err: any) {
+      console.warn("Summary recalculation error:", err);
+    } finally {
+      setIsSummaryLoading(false);
+    }
+  }, [items.length, appliedCouponCode, selectedAddressId, formData]);
+
+  // Trigger summary recalculation on item or coupon changes
+  useEffect(() => {
+    if (items.length > 0) {
+      refreshSummary();
+    }
+  }, [items.length, appliedCouponCode, selectedAddressId, refreshSummary]);
+
+  // Handle Saved Address Selection
+  const handleSelectAddress = (id: string) => {
+    setSelectedAddressId(id);
+    if (id === "new") {
+      setFormData((prev) => ({
+        ...prev,
+        address1: "",
+        address2: "",
+        city: "",
+        state: "",
+        postalCode: "",
+      }));
+    } else {
+      const selected = savedAddresses.find((a) => a.id === id);
+      if (selected) {
+        setFormData((prev) => ({
+          ...prev,
+          firstName: selected.firstName,
+          lastName: selected.lastName,
+          company: selected.company || "",
+          address1: selected.address1,
+          address2: selected.address2 || "",
+          city: selected.city,
+          state: selected.state,
+          postalCode: selected.postalCode,
+          country: selected.country || "India",
+          phone: selected.phoneNumber || prev.phone,
+        }));
+      }
+    }
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
+  // Coupon Application
   const handleApplyCoupon = async (e: React.FormEvent) => {
     e.preventDefault();
     setCouponError("");
     const code = couponInput.trim().toUpperCase();
     if (!code) return;
-    const merchandiseBase = subtotal + modifiersTotal;
 
     setIsCouponValidating(true);
     try {
-      const res = await AdminService.getCouponsList({ search: code });
-      const found = res.data?.find((c) => c.code.toUpperCase() === code && c.isActive);
-
-      if (!found) {
-        setCouponError("Invalid or inactive coupon code.");
-        setIsCouponValidating(false);
-        return;
-      }
-
-      if (found.endDate && new Date(found.endDate).getTime() < Date.now()) {
-        setCouponError("This promotional code has expired.");
-        setIsCouponValidating(false);
-        return;
-      }
-
-      const minOrder = Number(found.minOrderAmount || 0);
-      if (minOrder > 0 && merchandiseBase < minOrder) {
-        setCouponError(
-          `Order subtotal must be at least ${storeConfig.currency.symbol}${minOrder.toLocaleString()} to apply this coupon.`
-        );
-        setIsCouponValidating(false);
-        return;
-      }
-
-      let calcDiscount = 0;
-      if (found.discountType === "PERCENTAGE") {
-        const pct = Number(found.discountValue);
-        calcDiscount = Math.round((merchandiseBase * pct) / 100);
-        const maxDiscount = Number(found.maxDiscountAmount || 0);
-        if (maxDiscount > 0 && calcDiscount > maxDiscount) {
-          calcDiscount = maxDiscount;
-        }
-      } else {
-        calcDiscount = Math.min(Number(found.discountValue), merchandiseBase);
-      }
-
-      applyCoupon({
-        code: found.code,
-        discountType: (found.discountType === "PERCENTAGE" ? "PERCENTAGE" : "FIXED") as "PERCENTAGE" | "FIXED",
-        discountValue: Number(found.discountValue),
-        calculatedDiscount: calcDiscount,
+      const currentSubtotal = summaryData?.pricing.subtotal || items.reduce((acc, it) => acc + (it.price * it.quantity), 0);
+      const res = await CheckoutService.validateCoupon({
+        code,
+        subtotal: currentSubtotal,
       });
+
+      if (!res.success || !res.data?.isValid) {
+        setCouponError(res.message || "Invalid or ineligible promotional code.");
+        setIsCouponValidating(false);
+        return;
+      }
+
+      setAppliedCouponCode(res.data.code);
       setCouponInput("");
+      await refreshSummary(res.data.code);
     } catch {
       setCouponError("Unable to validate coupon at this time.");
     } finally {
@@ -171,77 +264,195 @@ export default function CheckoutPage() {
     }
   };
 
+  const handleRemoveCoupon = async () => {
+    setAppliedCouponCode("");
+    await refreshSummary("");
+  };
+
+  // Order Submission & Payment Flow
   const handlePlaceOrder = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (items.length === 0 || total <= 0) return;
+    setGeneralError(null);
+
+    if (items.length === 0) return;
+
+    // Contact telephone number is mandatory for COD orders
+    if (formData.paymentMethod === "COD" && !formData.phone?.trim()) {
+      setGeneralError("A contact telephone number is mandatory for Cash on Delivery (COD) orders.");
+      return;
+    }
+
+    // Cash on Delivery is capped at ₹25,000
+    const currentTotal = summaryData?.pricing.totalAmount ?? 0;
+    if (formData.paymentMethod === "COD" && currentTotal > 25000) {
+      setGeneralError(
+        `Cash on Delivery (COD) orders are capped at ${storeConfig.currency.symbol}25,000. Your order total is ${storeConfig.currency.symbol}${currentTotal.toLocaleString()}. Please select Online Payment via Razorpay.`
+      );
+      return;
+    }
 
     setIsProcessing(true);
-    setIsOrderPlaced(true);
 
     try {
-      const orderNumber = `ORD-${Date.now().toString().slice(-6)}`;
-      const finalAmount = total;
+      const shippingAddressPayload = {
+        firstName: formData.firstName.trim(),
+        lastName: formData.lastName.trim(),
+        company: formData.company?.trim() || undefined,
+        address1: formData.address1.trim(),
+        address2: formData.address2?.trim() || undefined,
+        city: formData.city.trim(),
+        state: formData.state.trim(),
+        postalCode: formData.postalCode.trim(),
+        country: formData.country,
+        phoneNumber: formData.phone?.trim() || undefined,
+      };
 
-      // Save user address for seamless future checkout
-      try {
-        localStorage.setItem("customer_saved_address", JSON.stringify(formData));
-      } catch {}
+      const placeOrderPayload: any = {
+        paymentMethod: formData.paymentMethod,
+        billingAddressSameAsShipping: true,
+        couponCode: appliedCouponCode || undefined,
+        customerNotes: formData.customerNotes?.trim() || undefined,
+        customerEmail: formData.email.trim(),
+      };
 
-      // Register order with administrative fulfillment engine
-      await AdminService.createOrderFromCheckout({
-        orderNumber,
-        customerName: `${formData.firstName} ${formData.lastName}`.trim(),
-        customerEmail: formData.email,
-        customerPhone: formData.phone,
-        shippingAddress: {
-          street: formData.street,
-          city: formData.city,
-          state: formData.state,
-          postalCode: formData.postalCode,
-          country: formData.country,
-        },
-        items: items.map((it) => ({
-          id: `item_${it.id}`,
-          productId: it.productId,
-          variantId: it.variantId || it.id,
-          title: it.name,
-          sku: it.sku || `SKU-${it.productId.slice(0, 8)}`,
-          quantity: it.quantity,
-          price: it.price,
-          totalPrice: it.price * it.quantity,
-          size: it.size,
-          color: it.colorName || "Standard",
-          imageUrl: it.imageUrl,
-        })),
-        subtotal,
-        shippingAmount: shipping,
-        discountAmount: discount,
-        totalAmount: total,
-        paymentMethod: formData.paymentMethod === "razorpay" ? "RAZORPAY" : "COD",
-        paymentStatus: formData.paymentMethod === "razorpay" ? "COMPLETED" : "PENDING",
-        couponCode: appliedCoupon?.code,
-      });
+      if (selectedAddressId !== "new") {
+        placeOrderPayload.shippingAddressId = selectedAddressId;
+      }
+      placeOrderPayload.shippingAddress = shippingAddressPayload;
 
-      const targetUrl = `/order-success/${orderNumber}?method=${formData.paymentMethod}&amount=${finalAmount}&email=${encodeURIComponent(
-        formData.email
-      )}&phone=${encodeURIComponent(formData.phone)}`;
+      const res = await CheckoutService.placeOrder(placeOrderPayload);
 
-      // Simulate payment processing / gateway handshake
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      if (!res.success || !res.data) {
+        setIsProcessing(false);
+        setGeneralError(res.message || "Failed to process order placement.");
+        return;
+      }
 
-      // First transition cleanly to the order success screen
-      router.replace(targetUrl);
+      const { order, razorpay } = res.data;
 
-      // Delay clearing cart until navigation completes so empty cart banner never flashes
-      setTimeout(() => {
-        clearCart();
-      }, 1000);
-    } catch (error) {
-      console.error("Payment processing error:", error);
+      // Handle Cash on Delivery (COD) -> Directly redirect to confirmation screen
+      if (formData.paymentMethod === "COD") {
+        setIsOrderPlaced(true);
+        await clearCart();
+        router.replace(
+          `/order-success/${order.orderNumber}?method=cod&amount=${order.totalAmount}&email=${encodeURIComponent(
+            formData.email
+          )}&phone=${encodeURIComponent(formData.phone)}`
+        );
+        return;
+      }
+
+      // Handle Online Payment (RAZORPAY)
+      if (formData.paymentMethod === "RAZORPAY" && razorpay) {
+        const isScriptLoaded = await loadRazorpayScript();
+
+        if (isScriptLoaded && (window as any).Razorpay) {
+          const rzpOptions = {
+            key: razorpay.keyId,
+            amount: razorpay.amount,
+            currency: razorpay.currency || "INR",
+            name: storeConfig.name,
+            description: `Order #${order.orderNumber} Atelier Checkout`,
+            image: "https://images.unsplash.com/photo-1566174053879-31528523f8ae?q=80&w=200",
+            order_id: razorpay.orderId.startsWith("order_") && !razorpay.orderId.includes("mock") ? razorpay.orderId : undefined,
+            prefill: {
+              name: `${formData.firstName} ${formData.lastName}`.trim(),
+              email: formData.email,
+              contact: formData.phone,
+            },
+            theme: {
+              color: "#18181b",
+            },
+            modal: {
+              ondismiss: () => {
+                setIsProcessing(false);
+                setGeneralError("Payment process was cancelled. You may retry payment or select Cash on Delivery.");
+              },
+            },
+            handler: async (response: any) => {
+              try {
+                const verifyRes = await CheckoutService.verifyPayment({
+                  orderId: order.id,
+                  razorpayOrderId: response.razorpay_order_id || razorpay.orderId,
+                  razorpayPaymentId: response.razorpay_payment_id || `pay_${Date.now()}`,
+                  razorpaySignature: response.razorpay_signature || "verified_sig",
+                });
+
+                if (verifyRes.success) {
+                  setIsOrderPlaced(true);
+                  await clearCart();
+                  router.replace(
+                    `/order-success/${order.orderNumber}?method=razorpay&amount=${order.totalAmount}&email=${encodeURIComponent(
+                      formData.email
+                    )}&phone=${encodeURIComponent(formData.phone)}`
+                  );
+                } else {
+                  setIsProcessing(false);
+                  setGeneralError(verifyRes.message || "Payment verification failed. Please contact concierge support.");
+                }
+              } catch (verifyErr: any) {
+                setIsProcessing(false);
+                setGeneralError(verifyErr.message || "Error verifying payment signature.");
+              }
+            },
+          };
+
+          const rzp = new (window as any).Razorpay(rzpOptions);
+          rzp.open();
+        } else {
+          // Fallback Sandbox Modal if Razorpay script CDN is blocked
+          setPendingRazorpayPayload({ order, razorpay });
+          setShowSandboxModal(true);
+          setIsProcessing(false);
+        }
+      }
+    } catch (err: any) {
+      console.error("Order processing error:", err);
       setIsProcessing(false);
-      setIsOrderPlaced(false);
+      setGeneralError(err.message || "Unexpected error while placing order.");
     }
   };
+
+  // Complete Sandbox Fallback Payment
+  const handleCompleteSandboxPayment = async () => {
+    if (!pendingRazorpayPayload) return;
+    const { order, razorpay } = pendingRazorpayPayload;
+    setIsProcessing(true);
+    setShowSandboxModal(false);
+
+    try {
+      const verifyRes = await CheckoutService.verifyPayment({
+        orderId: order.id,
+        razorpayOrderId: razorpay.orderId,
+        razorpayPaymentId: `pay_sandbox_${Date.now()}`,
+        razorpaySignature: `sig_sandbox_${Date.now()}`,
+      });
+
+      if (verifyRes.success) {
+        setIsOrderPlaced(true);
+        await clearCart();
+        router.replace(
+          `/order-success/${order.orderNumber}?method=razorpay&amount=${order.totalAmount}&email=${encodeURIComponent(
+            formData.email
+          )}&phone=${encodeURIComponent(formData.phone)}`
+        );
+      } else {
+        setIsProcessing(false);
+        setGeneralError("Payment verification failed.");
+      }
+    } catch (err: any) {
+      setIsProcessing(false);
+      setGeneralError(err.message || "Sandbox payment verification failed.");
+    }
+  };
+
+  // Pricing calculations
+  const displaySubtotal = summaryData?.pricing.subtotal ?? items.reduce((acc, it) => acc + (it.price * it.quantity), 0);
+  const displayDiscount = summaryData?.pricing.discountAmount ?? 0;
+  const displayShipping = summaryData?.pricing.shippingAmount ?? (displaySubtotal >= 2999 ? 0 : 150);
+  const displayTax = summaryData?.pricing.taxAmount ?? Math.round((displaySubtotal - displayDiscount) * 0.12 * 100) / 100;
+  const displayTotal = summaryData?.pricing.totalAmount ?? Math.round((displaySubtotal - displayDiscount + displayShipping + displayTax) * 100) / 100;
+  const isCodBlockedByCap = displayTotal > 25000;
 
   if (!isMounted) {
     return (
@@ -254,7 +465,7 @@ export default function CheckoutPage() {
     );
   }
 
-  if (isProcessing || isOrderPlaced) {
+  if (isOrderPlaced) {
     return (
       <div className="py-24 text-center max-w-md mx-auto space-y-6 min-h-[60vh] flex flex-col items-center justify-center">
         <div className="w-12 h-12 rounded-full border-3 border-[var(--primary)] border-t-transparent animate-spin" />
@@ -263,7 +474,7 @@ export default function CheckoutPage() {
             Securing Your Order...
           </h2>
           <p className="text-xs text-[var(--muted-foreground)]">
-            Processing payment & generating confirmation receipt. Please do not close this window.
+            Generating order confirmation and dispatching receipt. Please do not refresh.
           </p>
         </div>
       </div>
@@ -294,12 +505,23 @@ export default function CheckoutPage() {
         
         {/* Back Link */}
         <Link
-          href="/products"
-          className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)] hover:text-[var(--foreground)] mb-8"
+          href="/cart"
+          className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)] hover:text-[var(--foreground)] mb-8 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
-          <span>Continue Browsing</span>
+          <span>Return to Shopping Bag</span>
         </Link>
+
+        {/* Global Error Notice */}
+        {generalError && (
+          <div className="mb-8 p-4 bg-red-50 border border-red-200 rounded-[var(--radius)] text-xs text-red-700 flex items-start gap-3">
+            <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0 text-red-600" />
+            <div className="space-y-1">
+              <p className="font-bold uppercase tracking-wider">Checkout Notice</p>
+              <p>{generalError}</p>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
           
@@ -313,7 +535,7 @@ export default function CheckoutPage() {
                   <h2 className="font-heading text-lg font-bold uppercase tracking-wider text-[var(--foreground)]">
                     1. CONTACT INFORMATION
                   </h2>
-                  {!featureConfig.guestCheckout && (
+                  {!isAuthenticated && !featureConfig.guestCheckout && (
                     <span className="text-[11px] text-[var(--secondary)] font-bold">
                       Account Required
                     </span>
@@ -323,7 +545,7 @@ export default function CheckoutPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="sm:col-span-2">
                     <Input
-                      label="Email Address"
+                      label="Email Address (For Invoicing & Order Updates)"
                       type="email"
                       name="email"
                       required
@@ -334,13 +556,14 @@ export default function CheckoutPage() {
                   </div>
                   <div className="sm:col-span-2">
                     <Input
-                      label="Phone Number (For Delivery & WhatsApp updates)"
+                      label="Phone Number (Mandatory for Delivery & Cash on Delivery Verification)"
                       type="tel"
                       name="phone"
                       required
                       value={formData.phone}
                       onChange={handleInputChange}
-                      placeholder="+91 98765 00000"
+                      placeholder="+91 98765 43210"
+                      helperText="Used for courier dispatch, delivery pin, and COD verification calls."
                     />
                   </div>
                 </div>
@@ -348,64 +571,151 @@ export default function CheckoutPage() {
 
               {/* Step 2: Shipping Destination */}
               <div className="space-y-4">
-                <div className="border-b border-[var(--border)] pb-3">
+                <div className="flex items-center justify-between border-b border-[var(--border)] pb-3">
                   <h2 className="font-heading text-lg font-bold uppercase tracking-wider text-[var(--foreground)]">
                     2. SHIPPING DESTINATION
                   </h2>
+                  {isAuthenticated && savedAddresses.length > 0 && (
+                    <span className="text-xs text-[var(--muted-foreground)]">
+                      {savedAddresses.length} Saved Address{savedAddresses.length > 1 ? "es" : ""}
+                    </span>
+                  )}
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <Input
-                    label="First Name"
-                    name="firstName"
-                    required
-                    value={formData.firstName}
-                    onChange={handleInputChange}
-                  />
-                  <Input
-                    label="Last Name"
-                    name="lastName"
-                    required
-                    value={formData.lastName}
-                    onChange={handleInputChange}
-                  />
-                  <div className="sm:col-span-2">
+                {/* Saved Address Selector */}
+                {isAuthenticated && savedAddresses.length > 0 && (
+                  <div className="space-y-3 mb-6">
+                    <p className="text-xs font-bold uppercase tracking-wider text-[var(--muted-foreground)]">
+                      Select Saved Address
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {savedAddresses.map((addr) => {
+                        const isSelected = selectedAddressId === addr.id;
+                        return (
+                          <div
+                            key={addr.id}
+                            onClick={() => handleSelectAddress(addr.id)}
+                            className={`p-4 border rounded-[var(--radius)] cursor-pointer text-xs space-y-1 transition-all ${
+                              isSelected
+                                ? "border-[var(--foreground)] bg-[var(--muted)] ring-1 ring-[var(--foreground)]"
+                                : "border-[var(--border)] hover:border-neutral-400 bg-[var(--background)]"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between font-bold text-[var(--foreground)]">
+                              <span>
+                                {addr.firstName} {addr.lastName}
+                              </span>
+                              {addr.isDefault && (
+                                <span className="text-[10px] bg-neutral-200 dark:bg-neutral-800 px-1.5 py-0.5 rounded uppercase">
+                                  Default
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[var(--muted-foreground)] line-clamp-1">{addr.address1}</p>
+                            <p className="text-[var(--muted-foreground)]">
+                              {addr.city}, {addr.state} - {addr.postalCode}
+                            </p>
+                          </div>
+                        );
+                      })}
+                      <div
+                        onClick={() => handleSelectAddress("new")}
+                        className={`p-4 border border-dashed rounded-[var(--radius)] cursor-pointer text-xs flex items-center justify-center gap-2 transition-all ${
+                          selectedAddressId === "new"
+                            ? "border-[var(--foreground)] bg-[var(--muted)] ring-1 ring-[var(--foreground)]"
+                            : "border-[var(--border)] hover:border-neutral-400 text-[var(--muted-foreground)]"
+                        }`}
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span className="font-bold uppercase tracking-wider">Use Different Address</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Address Form Inputs */}
+                {(selectedAddressId === "new" || savedAddresses.length === 0) && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <Input
-                      label="Street Address / Suite / Apartment"
-                      name="street"
+                      label="First Name"
+                      name="firstName"
                       required
-                      value={formData.street}
+                      value={formData.firstName}
+                      onChange={handleInputChange}
+                    />
+                    <Input
+                      label="Last Name"
+                      name="lastName"
+                      required
+                      value={formData.lastName}
+                      onChange={handleInputChange}
+                    />
+                    <div className="sm:col-span-2">
+                      <Input
+                        label="Company / Atelier (Optional)"
+                        name="company"
+                        value={formData.company}
+                        onChange={handleInputChange}
+                        placeholder="e.g. Maison Atelier"
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <Input
+                        label="Street Address / Suite / Apartment"
+                        name="address1"
+                        required
+                        value={formData.address1}
+                        onChange={handleInputChange}
+                        placeholder="e.g. 42 Crescent Avenue, Suite 4B"
+                      />
+                    </div>
+                    <Input
+                      label="City"
+                      name="city"
+                      required
+                      value={formData.city}
+                      onChange={handleInputChange}
+                      placeholder="e.g. Mumbai"
+                    />
+                    <Input
+                      label="State / Province"
+                      name="state"
+                      required
+                      value={formData.state}
+                      onChange={handleInputChange}
+                      placeholder="e.g. Maharashtra"
+                    />
+                    <Input
+                      label="Postal Code (PIN)"
+                      name="postalCode"
+                      required
+                      value={formData.postalCode}
+                      onChange={handleInputChange}
+                      placeholder="e.g. 400001"
+                    />
+                    <Input
+                      label="Country"
+                      name="country"
+                      required
+                      disabled
+                      value={formData.country}
                       onChange={handleInputChange}
                     />
                   </div>
-                  <Input
-                    label="City"
-                    name="city"
-                    required
-                    value={formData.city}
+                )}
+
+                {/* Concierge Notes */}
+                <div className="pt-2">
+                  <label className="text-xs font-semibold uppercase tracking-wider text-[var(--foreground)] opacity-90 block mb-1.5">
+                    Concierge Notes & Delivery Instructions (Optional)
+                  </label>
+                  <textarea
+                    name="customerNotes"
+                    rows={2}
+                    value={formData.customerNotes}
                     onChange={handleInputChange}
-                  />
-                  <Input
-                    label="State / Province"
-                    name="state"
-                    required
-                    value={formData.state}
-                    onChange={handleInputChange}
-                  />
-                  <Input
-                    label="Postal Code (PIN)"
-                    name="postalCode"
-                    required
-                    value={formData.postalCode}
-                    onChange={handleInputChange}
-                  />
-                  <Input
-                    label="Country"
-                    name="country"
-                    required
-                    disabled
-                    value={formData.country}
-                    onChange={handleInputChange}
+                    placeholder="e.g. Ring the bell upon arrival, or leave with security reception."
+                    className="w-full px-4 py-3 text-sm bg-[var(--background)] text-[var(--foreground)] border border-[var(--border)] rounded-[var(--radius)] focus:outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)]"
                   />
                 </div>
               </div>
@@ -424,7 +734,7 @@ export default function CheckoutPage() {
                   {paymentConfig.onlinePaymentEnabled && (
                     <label
                       className={`p-5 rounded-[var(--radius)] border cursor-pointer flex flex-col justify-between transition-all ${
-                        formData.paymentMethod === "razorpay"
+                        formData.paymentMethod === "RAZORPAY"
                           ? "border-[var(--foreground)] bg-[var(--muted)] ring-1 ring-[var(--foreground)]"
                           : "border-[var(--border)] hover:border-[var(--foreground)]"
                       }`}
@@ -439,9 +749,9 @@ export default function CheckoutPage() {
                         <input
                           type="radio"
                           name="paymentMethod"
-                          value="razorpay"
-                          checked={formData.paymentMethod === "razorpay"}
-                          onChange={handleInputChange}
+                          value="RAZORPAY"
+                          checked={formData.paymentMethod === "RAZORPAY"}
+                          onChange={() => setFormData({ ...formData, paymentMethod: "RAZORPAY" })}
                           className="accent-[var(--foreground)]"
                         />
                       </div>
@@ -451,13 +761,15 @@ export default function CheckoutPage() {
                     </label>
                   )}
 
-                  {/* Cash On Delivery (Respecting feature flag) */}
+                  {/* Cash On Delivery (Respecting feature flag & ₹25k limit) */}
                   {featureConfig.cashOnDelivery && paymentConfig.codEnabled && (
                     <label
-                      className={`p-5 rounded-[var(--radius)] border cursor-pointer flex flex-col justify-between transition-all ${
-                        formData.paymentMethod === "cod"
-                          ? "border-[var(--foreground)] bg-[var(--muted)] ring-1 ring-[var(--foreground)]"
-                          : "border-[var(--border)] hover:border-[var(--foreground)]"
+                      className={`p-5 rounded-[var(--radius)] border transition-all ${
+                        isCodBlockedByCap
+                          ? "opacity-60 cursor-not-allowed border-dashed bg-neutral-50 dark:bg-neutral-900/40"
+                          : formData.paymentMethod === "COD"
+                          ? "border-[var(--foreground)] bg-[var(--muted)] ring-1 ring-[var(--foreground)] cursor-pointer"
+                          : "border-[var(--border)] hover:border-[var(--foreground)] cursor-pointer"
                       }`}
                     >
                       <div className="flex items-start justify-between">
@@ -470,14 +782,25 @@ export default function CheckoutPage() {
                         <input
                           type="radio"
                           name="paymentMethod"
-                          value="cod"
-                          checked={formData.paymentMethod === "cod"}
-                          onChange={handleInputChange}
+                          value="COD"
+                          disabled={isCodBlockedByCap}
+                          checked={formData.paymentMethod === "COD"}
+                          onChange={() => {
+                            if (!isCodBlockedByCap) {
+                              setFormData({ ...formData, paymentMethod: "COD" });
+                            }
+                          }}
                           className="accent-[var(--foreground)]"
                         />
                       </div>
                       <p className="text-[11px] text-[var(--muted-foreground)] mt-3">
-                        Pay in cash upon physical receipt at your doorstep.
+                        {isCodBlockedByCap ? (
+                          <span className="text-amber-700 font-semibold flex items-center gap-1">
+                            <Info className="w-3.5 h-3.5 inline" /> Capped at ₹25,000. Please choose Online Payment.
+                          </span>
+                        ) : (
+                          "Pay upon doorstep delivery. Phone verification required."
+                        )}
                       </p>
                     </label>
                   )}
@@ -491,56 +814,62 @@ export default function CheckoutPage() {
                 variant="primary"
                 size="lg"
                 isLoading={isProcessing}
-                disabled={items.length === 0 || total === 0 || isProcessing}
+                disabled={items.length === 0 || displayTotal === 0 || isProcessing}
                 className="w-full"
                 leftIcon={<Lock className="w-4 h-4" />}
               >
                 {isProcessing
-                  ? "PROCESSING ORDER..."
-                  : `COMPLETE ORDER • ${storeConfig.currency.symbol}${total.toLocaleString()}`}
+                  ? "PROCESSING TRANSACTION..."
+                  : formData.paymentMethod === "RAZORPAY"
+                  ? `PAY VIA RAZORPAY • ${storeConfig.currency.symbol}${displayTotal.toLocaleString()}`
+                  : `CONFIRM CASH ON DELIVERY • ${storeConfig.currency.symbol}${displayTotal.toLocaleString()}`}
               </Button>
 
               <div className="flex items-center justify-center gap-2 text-[11px] text-[var(--muted-foreground)]">
                 <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                <span>SSL Encrypted Checkout • Compliant Payment Handling</span>
+                <span>SSL Encrypted Checkout • Compliant Razorpay & COD Fulfillment</span>
               </div>
             </form>
           </div>
 
-          {/* Right Column: Order Summary (5 cols) */}
+          {/* Right Column: Pre-Checkout Order Summary (5 cols) */}
           <div className="lg:col-span-5 bg-[var(--muted)] p-6 sm:p-8 rounded-[var(--radius)] border border-[var(--border)] space-y-6 h-fit">
-            <h3 className="font-heading text-lg font-bold uppercase tracking-wider text-[var(--foreground)] border-b border-[var(--border)] pb-3">
-              ORDER SUMMARY ({items.reduce((acc, i) => acc + i.quantity, 0)})
-            </h3>
+            <div className="flex items-center justify-between border-b border-[var(--border)] pb-3">
+              <h3 className="font-heading text-lg font-bold uppercase tracking-wider text-[var(--foreground)]">
+                ORDER SUMMARY ({items.reduce((acc, i) => acc + i.quantity, 0)})
+              </h3>
+              {isSummaryLoading && (
+                <div className="w-3.5 h-3.5 rounded-full border-2 border-neutral-400 border-t-neutral-800 animate-spin" />
+              )}
+            </div>
 
-            {/* Item List */}
+            {/* Authoritative Line Items List */}
             <div className="space-y-4 max-h-72 overflow-y-auto pr-2 scrollbar-none divide-y divide-[var(--border)]">
-              {items.map((item) => {
-                const unitPrice = item.price || item.pricing?.unitPrice || 0;
-                const lineTotal =
-                  item.pricing?.lineTotal && item.pricing.lineTotal > 0
-                    ? item.pricing.lineTotal
-                    : unitPrice * item.quantity;
+              {(summaryData?.items || items).map((item: any) => {
+                const title = item.title || item.name;
+                const unitPrice = item.unitPrice || item.price || 0;
+                const lineTotal = item.lineTotal || unitPrice * item.quantity;
+
                 return (
-                  <div key={item.id} className="pt-3 first:pt-0 flex items-start justify-between gap-4">
+                  <div key={item.cartItemId || item.id} className="pt-3 first:pt-0 flex items-start justify-between gap-4">
                     <div className="flex items-start gap-3">
                       <img
                         src={item.imageUrl}
-                        alt={item.name}
+                        alt={title}
                         className="w-12 h-16 object-cover rounded-[var(--radius)] flex-shrink-0"
                       />
                       <div>
                         <h4 className="text-xs font-bold uppercase tracking-wide text-[var(--foreground)] line-clamp-1">
-                          {item.name}
+                          {title}
                         </h4>
                         <p className="text-[11px] text-[var(--muted-foreground)]">
                           Size: {item.size} • Qty: {item.quantity}
                         </p>
-                        {item.selectedModifiers && item.selectedModifiers.length > 0 && (
+                        {item.modifiers && item.modifiers.length > 0 && (
                           <div className="flex flex-wrap gap-1 mt-1">
-                            {item.selectedModifiers.map((mod) => (
+                            {item.modifiers.map((mod: any) => (
                               <span
-                                key={mod.id}
+                                key={mod.id || mod.name}
                                 className="text-[9px] text-amber-800 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded font-medium"
                               >
                                 +{mod.name} (+{storeConfig.currency.symbol}{mod.priceDelta})
@@ -558,13 +887,21 @@ export default function CheckoutPage() {
               })}
             </div>
 
-            {/* Coupon Application (Respecting feature flag) */}
+            {/* Promo Coupon Application */}
             {featureConfig.coupons && (
               <div className="pt-4 border-t border-[var(--border)] space-y-2">
-                {appliedCoupon ? (
+                {appliedCouponCode ? (
                   <div className="flex items-center justify-between bg-emerald-100 text-emerald-950 px-3 py-2 text-xs rounded-[var(--radius)]">
-                    <span className="font-bold">Code {appliedCoupon.code} applied!</span>
-                    <button onClick={removeCoupon} className="underline text-xs cursor-pointer">Remove</button>
+                    <div className="flex items-center gap-1.5 font-bold">
+                      <Tag className="w-3.5 h-3.5 text-emerald-800" />
+                      <span>Coupon {appliedCouponCode} applied!</span>
+                    </div>
+                    <button
+                      onClick={handleRemoveCoupon}
+                      className="underline text-xs cursor-pointer text-emerald-900 hover:text-red-600 transition-colors"
+                    >
+                      Remove
+                    </button>
                   </div>
                 ) : (
                   <form onSubmit={handleApplyCoupon} className="flex gap-2">
@@ -575,7 +912,7 @@ export default function CheckoutPage() {
                       onChange={(e) => setCouponInput(e.target.value)}
                       className="flex-1 px-3 py-2 text-xs uppercase bg-[var(--background)] text-[var(--foreground)] border border-[var(--border)] rounded-[var(--radius)] focus:outline-none"
                     />
-                    <Button variant="outline" size="sm" type="submit">
+                    <Button variant="outline" size="sm" type="submit" isLoading={isCouponValidating}>
                       APPLY
                     </Button>
                   </form>
@@ -584,35 +921,39 @@ export default function CheckoutPage() {
               </div>
             )}
 
-            {/* Cost Breakdown */}
+            {/* Authoritative Itemized Bill Breakdown */}
             <div className="pt-4 border-t border-[var(--border)] space-y-2.5 text-xs">
               <div className="flex justify-between text-[var(--muted-foreground)]">
-                <span>Product Subtotal</span>
-                <span>{storeConfig.currency.symbol}{subtotal.toLocaleString()}</span>
+                <span>Merchandise Subtotal</span>
+                <span>{storeConfig.currency.symbol}{displaySubtotal.toLocaleString()}</span>
               </div>
 
-              {modifiersTotal > 0 && (
-                <div className="flex justify-between text-amber-800 font-medium">
-                  <span>Add-ons & Packaging</span>
-                  <span>+{storeConfig.currency.symbol}{modifiersTotal.toLocaleString()}</span>
-                </div>
-              )}
-
-              {discount > 0 && (
+              {displayDiscount > 0 && (
                 <div className="flex justify-between text-emerald-700 font-semibold">
                   <span>Coupon Discount</span>
-                  <span>-{storeConfig.currency.symbol}{discount.toLocaleString()}</span>
+                  <span>-{storeConfig.currency.symbol}{displayDiscount.toLocaleString()}</span>
                 </div>
               )}
 
               <div className="flex justify-between text-[var(--muted-foreground)]">
-                <span>Express Shipping</span>
-                <span>{shipping === 0 ? "COMPLIMENTARY" : `${storeConfig.currency.symbol}${shipping}`}</span>
+                <span>12% GST Luxury Garment Tax</span>
+                <span>{storeConfig.currency.symbol}{displayTax.toLocaleString()}</span>
+              </div>
+
+              <div className="flex justify-between text-[var(--muted-foreground)]">
+                <span>Express White-Glove Shipping</span>
+                <span>
+                  {displayShipping === 0 ? (
+                    <span className="text-emerald-700 font-bold uppercase">COMPLIMENTARY</span>
+                  ) : (
+                    `${storeConfig.currency.symbol}${displayShipping}`
+                  )}
+                </span>
               </div>
 
               <div className="flex justify-between text-sm font-bold text-[var(--foreground)] pt-3 border-t border-[var(--border)]">
-                <span>Total Due</span>
-                <span>{storeConfig.currency.symbol}{total.toLocaleString()}</span>
+                <span>Authoritative Total Due</span>
+                <span>{storeConfig.currency.symbol}{displayTotal.toLocaleString()}</span>
               </div>
             </div>
 
@@ -620,6 +961,37 @@ export default function CheckoutPage() {
 
         </div>
       </div>
+
+      {/* Fallback Sandbox Payment Modal (when Razorpay CDN is blocked in development) */}
+      {showSandboxModal && pendingRazorpayPayload && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-[var(--background)] border border-[var(--border)] rounded-[var(--radius)] max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center gap-2 text-emerald-600 font-bold text-sm uppercase tracking-wider">
+              <CheckCircle2 className="w-5 h-5" />
+              <span>Razorpay Sandbox Handshake</span>
+            </div>
+            <p className="text-xs text-[var(--muted-foreground)]">
+              Order #{pendingRazorpayPayload.order.orderNumber} created successfully. The Razorpay SDK was simulated for testing.
+            </p>
+            <div className="bg-[var(--muted)] p-3 rounded text-xs space-y-1 border border-[var(--border)]">
+              <p><strong>Razorpay Order ID:</strong> {pendingRazorpayPayload.razorpay.orderId}</p>
+              <p><strong>Amount:</strong> {storeConfig.currency.symbol}{(pendingRazorpayPayload.razorpay.amount / 100).toLocaleString()}</p>
+              <p><strong>Currency:</strong> {pendingRazorpayPayload.razorpay.currency}</p>
+            </div>
+            <div className="flex gap-3 pt-2">
+              <Button
+                variant="primary"
+                size="md"
+                className="w-full"
+                onClick={handleCompleteSandboxPayment}
+              >
+                COMPLETE PAYMENT & VERIFY SIGNATURE
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

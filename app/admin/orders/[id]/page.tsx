@@ -163,13 +163,19 @@ export default function OrderDetailsPage() {
     }
 
     try {
+      const isCodApproval = order.paymentMethod === "COD" && order.status === "PENDING" && nextStatus === "CONFIRMED";
       const res = await AdminService.advanceOrderStatus(order.id, {
         status: nextStatus,
-        comment: `Direct status advance to ${nextStatus}`,
+        comment: isCodApproval ? "Admin approved pending COD order" : `Direct status advance to ${nextStatus}`,
       });
 
       if (res.success) {
-        showNotification("success", `Status updated to ${nextStatus}`);
+        showNotification(
+          "success",
+          isCodApproval
+            ? "COD Order Approved! Confirmation and approval email dispatched to customer."
+            : `Status updated to ${nextStatus}`
+        );
         loadOrderDetail();
       } else {
         showNotification("error", res.message || "Illegal status transition.");
@@ -230,9 +236,15 @@ export default function OrderDetailsPage() {
 
     setIsCancelling(true);
     try {
+      const isCod = order.paymentMethod === "COD";
       const res = await AdminService.cancelOrder(order.id, cancelReason.trim());
       if (res.success) {
-        showNotification("success", "Order successfully cancelled and inventory restocked.");
+        showNotification(
+          "success",
+          isCod
+            ? "COD Order cancelled. Inventory restocked with RETURN audit ledger and cancellation notification dispatched to customer."
+            : "Order successfully cancelled and inventory restocked with RETURN audit ledger."
+        );
         setIsCancelOpen(false);
         loadOrderDetail();
       } else {
@@ -468,22 +480,29 @@ export default function OrderDetailsPage() {
                 <div className="flex flex-wrap gap-2.5">
                   {allowedTransitions
                     .filter((st) => st !== "CANCELLED")
-                    .map((st) => (
-                      <button
-                        key={st}
-                        onClick={() => {
-                          if (st === "SHIPPED") {
-                            setIsShippingOpen(true);
-                          } else {
-                            handleAdvanceStatus(st);
+                    .map((st) => {
+                      const isCodApproval = order.paymentMethod === "COD" && order.status === "PENDING" && st === "CONFIRMED";
+                      return (
+                        <button
+                          key={st}
+                          onClick={() => {
+                            if (st === "SHIPPED") {
+                              setIsShippingOpen(true);
+                            } else {
+                              handleAdvanceStatus(st);
+                            }
+                          }}
+                          className={
+                            isCodApproval
+                              ? "px-4 py-2 bg-emerald-950 hover:bg-emerald-900 text-emerald-300 border border-emerald-600 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
+                              : "px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white border border-slate-700 hover:border-amber-400 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5"
                           }
-                        }}
-                        className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white border border-slate-700 hover:border-amber-400 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5"
-                      >
-                        <Layers className="w-3.5 h-3.5 text-amber-400" />
-                        <span>Move to {st}</span>
-                      </button>
-                    ))}
+                        >
+                          <Layers className={`w-3.5 h-3.5 ${isCodApproval ? "text-emerald-400" : "text-amber-400"}`} />
+                          <span>{isCodApproval ? "Approve COD Order (Confirm)" : `Move to ${st}`}</span>
+                        </button>
+                      );
+                    })}
 
                   <button
                     onClick={() => setIsShippingOpen(true)}
