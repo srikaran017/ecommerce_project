@@ -16,6 +16,7 @@ import {
   MapPin,
   Plus,
   Info,
+  ArrowRight,
 } from "lucide-react";
 import { useCartStore } from "@/stores/cart.store";
 import { useAuthStore } from "@/stores/auth.store";
@@ -91,12 +92,16 @@ export default function CheckoutPage() {
     }
   }, [fetchCart, items.length]);
 
-  // Redirect guest if guest checkout disabled
+  // Guide unauthenticated users to login since backend checkout requires authentication
   useEffect(() => {
-    if (!featureConfig.guestCheckout && !isAuthenticated) {
-      router.push("/login?redirect=/checkout");
+    if (isMounted && !isAuthenticated) {
+      setGeneralError("Authentication required. Redirecting you to login to complete checkout...");
+      const timer = setTimeout(() => {
+        router.push("/login?redirect=/checkout");
+      }, 1000);
+      return () => clearTimeout(timer);
     }
-  }, [isAuthenticated, router]);
+  }, [isMounted, isAuthenticated, router]);
 
   // Load Saved Addresses for logged-in customer
   useEffect(() => {
@@ -180,6 +185,15 @@ export default function CheckoutPage() {
         setSummaryData(res.data);
       } else if (res.error?.code === "CART_EMPTY") {
         setSummaryData(null);
+      } else if (
+        res.statusCode === 401 ||
+        res.error?.code === "UNAUTHORIZED" ||
+        res.message?.toLowerCase().includes("authentication required")
+      ) {
+        setGeneralError("Authentication required. Redirecting you to login to complete checkout...");
+        setTimeout(() => {
+          router.push("/login?redirect=/checkout");
+        }, 1200);
       } else if (res.message) {
         setGeneralError(res.message);
       }
@@ -324,6 +338,17 @@ export default function CheckoutPage() {
 
       if (!res.success || !res.data) {
         setIsProcessing(false);
+        if (
+          res.statusCode === 401 ||
+          res.error?.code === "UNAUTHORIZED" ||
+          res.message?.toLowerCase().includes("authentication required")
+        ) {
+          setGeneralError("Authentication required. Redirecting you to login to complete checkout...");
+          setTimeout(() => {
+            router.push("/login?redirect=/checkout");
+          }, 1200);
+          return;
+        }
         setGeneralError(res.message || "Failed to process order placement.");
         return;
       }
@@ -481,6 +506,39 @@ export default function CheckoutPage() {
     );
   }
 
+  if (isMounted && !isAuthenticated) {
+    return (
+      <div className="py-24 max-w-xl mx-auto px-4 text-center space-y-6">
+        <div className="w-16 h-16 rounded-full bg-amber-50 text-amber-700 flex items-center justify-center mx-auto border border-amber-200 shadow-sm">
+          <Lock className="w-8 h-8" />
+        </div>
+        <div className="space-y-2">
+          <span className="text-[11px] font-bold uppercase tracking-[0.25em] text-[var(--secondary)]">
+            SECURE ATELIER CHECKOUT
+          </span>
+          <h1 className="font-heading text-3xl font-bold uppercase tracking-tight text-[var(--foreground)]">
+            AUTHENTICATION REQUIRED
+          </h1>
+          <p className="text-xs sm:text-sm text-[var(--muted-foreground)] max-w-md mx-auto leading-relaxed">
+            Please log in or register an account to review your order summary and complete your luxury purchase. Redirecting you to login...
+          </p>
+        </div>
+        <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+          <Link href="/login?redirect=/checkout">
+            <Button variant="primary" size="md" rightIcon={<ArrowRight className="w-4 h-4" />}>
+              LOG IN TO PROCEED
+            </Button>
+          </Link>
+          <Link href="/cart">
+            <Button variant="outline" size="md">
+              RETURN TO SHOPPING BAG
+            </Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   if (items.length === 0) {
     return (
       <div className="py-24 text-center max-w-md mx-auto space-y-6">
@@ -514,12 +572,38 @@ export default function CheckoutPage() {
 
         {/* Global Error Notice */}
         {generalError && (
-          <div className="mb-8 p-4 bg-red-50 border border-red-200 rounded-[var(--radius)] text-xs text-red-700 flex items-start gap-3">
-            <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0 text-red-600" />
-            <div className="space-y-1">
-              <p className="font-bold uppercase tracking-wider">Checkout Notice</p>
-              <p>{generalError}</p>
+          <div
+            className={`mb-8 p-5 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 border shadow-sm ${
+              generalError.toLowerCase().includes("authentication") || generalError.toLowerCase().includes("log in")
+                ? "bg-amber-500/10 border-amber-500/30 text-amber-900"
+                : "bg-red-50 border-red-200 text-red-700"
+            }`}
+          >
+            <div className="flex items-start gap-3.5">
+              <AlertCircle
+                className={`w-5 h-5 mt-0.5 flex-shrink-0 ${
+                  generalError.toLowerCase().includes("authentication") || generalError.toLowerCase().includes("log in")
+                    ? "text-amber-600"
+                    : "text-red-600"
+                }`}
+              />
+              <div className="space-y-1">
+                <p className="font-bold text-xs uppercase tracking-wider">
+                  {generalError.toLowerCase().includes("authentication") || generalError.toLowerCase().includes("log in")
+                    ? "Authentication Required"
+                    : "Checkout Notice"}
+                </p>
+                <p className="text-xs">{generalError}</p>
+              </div>
             </div>
+
+            {(generalError.toLowerCase().includes("authentication") || generalError.toLowerCase().includes("log in")) && (
+              <Link href="/login?redirect=/checkout" className="shrink-0">
+                <Button variant="primary" size="sm" rightIcon={<ArrowRight className="w-3.5 h-3.5" />}>
+                  LOG IN TO PROCEED
+                </Button>
+              </Link>
+            )}
           </div>
         )}
 
