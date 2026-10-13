@@ -92,12 +92,7 @@ export default function CartPage() {
   const total = getTotal();
   const { hasOutOfStock } = getAvailabilityIssues();
 
-  const freeShippingThreshold = storeConfig.shipping.freeShippingThreshold;
-  const progressToFreeShipping = Math.min(
-    100,
-    Math.round((subtotal / freeShippingThreshold) * 100)
-  );
-  const amountNeededForFreeShipping = Math.max(0, freeShippingThreshold - subtotal);
+  const deliveryFee = storeConfig.shipping.flatRate; // Statically 150 rupees
 
   const handleApplyCoupon = (e: React.FormEvent) => {
     e.preventDefault();
@@ -208,34 +203,17 @@ export default function CartPage() {
           </span>
         </div>
 
-        {/* Free Shipping Progress Notification Banner */}
-        <div className="mb-8 p-4 rounded-2xl bg-[var(--muted)]/50 border border-[var(--border)] space-y-2">
-          <div className="flex items-center justify-between text-xs font-semibold">
-            <span className="flex items-center gap-2 text-[var(--foreground)]">
-              <Truck className="w-4 h-4 text-amber-600" />
-              {amountNeededForFreeShipping === 0 ? (
-                <span className="text-emerald-700 font-bold">
-                  Complimentary Express Delivery Unlocked!
-                </span>
-              ) : (
-                <span>
-                  Add{" "}
-                  <strong className="text-[var(--foreground)]">
-                    {storeConfig.currency.symbol}
-                    {amountNeededForFreeShipping.toLocaleString()}
-                  </strong>{" "}
-                  more for Free Shipping
-                </span>
-              )}
+        {/* Express Delivery Notice Banner */}
+        <div className="mb-8 p-4 rounded-2xl bg-[var(--muted)]/50 border border-[var(--border)] flex items-center justify-between text-xs font-semibold">
+          <span className="flex items-center gap-2.5 text-[var(--foreground)]">
+            <Truck className="w-4 h-4 text-amber-600 flex-shrink-0" />
+            <span>
+              Standard Express Courier Delivery: Flat <strong className="text-[var(--foreground)]">{storeConfig.currency.symbol}{deliveryFee}</strong> applied to all customer orders.
             </span>
-            <span className="text-[var(--muted-foreground)]">{progressToFreeShipping}%</span>
-          </div>
-          <div className="w-full bg-[var(--border)] h-2 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-[var(--primary)] transition-all duration-500 rounded-full"
-              style={{ width: `${progressToFreeShipping}%` }}
-            />
-          </div>
+          </span>
+          <span className="text-[11px] font-medium text-[var(--muted-foreground)] hidden sm:inline-block">
+            {storeConfig.shipping.estimatedDeliveryDays}
+          </span>
         </div>
 
         {/* Grid Layout: Bag Items (8 cols) + Order Summary (4 cols) */}
@@ -535,9 +513,9 @@ export default function CartPage() {
                 )}
 
                 <div className="flex justify-between text-[var(--muted-foreground)]">
-                  <span>Estimated Delivery</span>
+                  <span>Standard Delivery Fee</span>
                   <span>
-                    {shipping === 0 ? "COMPLIMENTARY" : `${storeConfig.currency.symbol}${shipping}`}
+                    {storeConfig.currency.symbol}{shipping || deliveryFee}
                   </span>
                 </div>
 
@@ -581,8 +559,7 @@ export default function CartPage() {
 
               {/* Payment Trust Micro-Banner */}
               <div className="pt-2 text-center text-[10px] uppercase tracking-widest text-[var(--muted-foreground)]">
-                Complimentary Worldwide Shipping On Orders Over {storeConfig.currency.symbol}
-                {freeShippingThreshold.toLocaleString()}
+                Express Courier Delivery • Flat {storeConfig.currency.symbol}{deliveryFee} On All Orders
               </div>
 
             </div>

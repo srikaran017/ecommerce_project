@@ -96,10 +96,10 @@ export const storeConfig: StoreConfig = {
   },
   tax: {
     includedInPrice: true,
-    defaultTaxRatePercentage: 12
+    defaultTaxRatePercentage: 0
   },
   shipping: {
-    freeShippingThreshold: 2999,
+    freeShippingThreshold: Infinity, // Flat delivery fee applies to all customers
     flatRate: 150,
     estimatedDeliveryDays: "3 - 5 Business Days"
   }

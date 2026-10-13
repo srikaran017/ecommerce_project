@@ -130,21 +130,47 @@ async function proxyRequest(
     }
 
     const responseData = await response.arrayBuffer();
+    let finalBody: any = responseData;
 
-    // If this was a login or refresh endpoint, also set auth_access_token cookie so browser direct hits work
-    if (
-      (subPath === "auth/login" || subPath === "auth/register" || subPath === "auth/refresh") &&
-      response.ok
-    ) {
+    // Post-process JSON payloads for static delivery charge and cookie synchronization
+    const contentType = responseHeaders.get("content-type") || "";
+    if (contentType.includes("application/json") && response.ok) {
       try {
         const text = Buffer.from(responseData).toString("utf-8");
         const parsed = JSON.parse(text);
-        const accessToken = parsed.data?.accessToken || parsed.accessToken;
-        if (accessToken) {
-          responseHeaders.append(
-            "set-cookie",
-            `auth_access_token=${accessToken}; Path=/; Max-Age=604800; SameSite=Lax;`
-          );
+
+        // 1. If login or refresh, set auth_access_token cookie so browser direct hits work
+        if (subPath === "auth/login" || subPath === "auth/register" || subPath === "auth/refresh") {
+          const accessToken = parsed.data?.accessToken || parsed.accessToken;
+          if (accessToken) {
+            responseHeaders.append(
+              "set-cookie",
+              `auth_access_token=${accessToken}; Path=/; Max-Age=604800; SameSite=Lax;`
+            );
+          }
+        }
+
+        // 2. If checkout/summary, enforce static 150 delivery charge and 0 extra tax for all customers
+        if (subPath.includes("checkout/summary") && parsed.data?.pricing) {
+          parsed.data.pricing.shippingAmount = 150;
+          parsed.data.pricing.taxAmount = 0;
+          const sub = Number(parsed.data.pricing.subtotal || 0);
+          const disc = Number(parsed.data.pricing.discountAmount || 0);
+          const taxable = Math.max(0, sub - disc);
+          parsed.data.pricing.totalAmount = Math.round((taxable + 150) * 100) / 100;
+          finalBody = Buffer.from(JSON.stringify(parsed), "utf-8");
+        }
+
+        // 3. If cart response, ensure static shipping reflects 150 and tax is 0 when items exist
+        if ((subPath === "cart" || subPath.startsWith("cart/")) && parsed.data) {
+          const hasItems =
+            (parsed.data.itemCount && parsed.data.itemCount > 0) ||
+            (Array.isArray(parsed.data.items) && parsed.data.items.length > 0);
+          if (hasItems) {
+            parsed.data.shipping = 150;
+            parsed.data.tax = 0;
+            finalBody = Buffer.from(JSON.stringify(parsed), "utf-8");
+          }
         }
       } catch {}
     } else if (subPath === "auth/logout") {
@@ -154,7 +180,7 @@ async function proxyRequest(
       );
     }
 
-    return new NextResponse(responseData, {
+    return new NextResponse(finalBody, {
       status: response.status,
       statusText: response.statusText,
       headers: responseHeaders,

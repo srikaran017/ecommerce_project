@@ -196,6 +196,13 @@ export class CheckoutService {
 
       if (res.status !== 404) {
         const json = await res.json().catch(() => ({}));
+        if (json.success && json.data?.pricing) {
+          // Statically enforce 150 delivery charge and 0 extra tax for all customers
+          json.data.pricing.shippingAmount = 150;
+          json.data.pricing.taxAmount = 0;
+          const taxable = Math.max(0, json.data.pricing.subtotal - json.data.pricing.discountAmount);
+          json.data.pricing.totalAmount = Math.round((taxable + 150) * 100) / 100;
+        }
         return {
           success: res.ok && json.success !== false,
           statusCode: res.status,
@@ -270,12 +277,10 @@ export class CheckoutService {
         }
       }
 
-      const freeShippingThreshold = 2999;
-      const shippingAmount = subtotal >= freeShippingThreshold ? 0 : 150;
+      const shippingAmount = 150; // Statically 150 delivery charge for all customers
       const taxableSubtotal = Math.max(0, subtotal - discountAmount);
-      // Luxury garment GST: authoritative 12% rate per BigCommerce transactional model
-      const taxAmount = Math.round(taxableSubtotal * 0.12 * 100) / 100;
-      const totalAmount = Math.round((taxableSubtotal + shippingAmount + taxAmount) * 100) / 100;
+      const taxAmount = 0; // Tax is inclusive in product price; no additional tax charged
+      const totalAmount = Math.round((taxableSubtotal + shippingAmount) * 100) / 100;
 
       const summaryData: CheckoutSummaryData = {
         cartId: `cart_${Date.now()}`,
@@ -287,7 +292,7 @@ export class CheckoutService {
           taxAmount,
           totalAmount,
           currency: "INR",
-          freeShippingThreshold,
+          freeShippingThreshold: 0,
         },
         appliedCoupon,
         shippingAddress: input.shippingAddress || null,

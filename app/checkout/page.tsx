@@ -474,9 +474,9 @@ export default function CheckoutPage() {
   // Pricing calculations
   const displaySubtotal = summaryData?.pricing.subtotal ?? items.reduce((acc, it) => acc + (it.price * it.quantity), 0);
   const displayDiscount = summaryData?.pricing.discountAmount ?? 0;
-  const displayShipping = summaryData?.pricing.shippingAmount ?? (displaySubtotal >= 2999 ? 0 : 150);
-  const displayTax = summaryData?.pricing.taxAmount ?? Math.round((displaySubtotal - displayDiscount) * 0.12 * 100) / 100;
-  const displayTotal = summaryData?.pricing.totalAmount ?? Math.round((displaySubtotal - displayDiscount + displayShipping + displayTax) * 100) / 100;
+  const displayShipping = 150; // Statically 150 delivery charge for all customers
+  const displayTax = 0; // Tax is inclusive in product price; no additional tax charged
+  const displayTotal = summaryData?.pricing.totalAmount ?? Math.round((displaySubtotal - displayDiscount + displayShipping) * 100) / 100;
   const isCodBlockedByCap = displayTotal > 25000;
 
   if (!isMounted) {
@@ -1020,18 +1020,14 @@ export default function CheckoutPage() {
               )}
 
               <div className="flex justify-between text-[var(--muted-foreground)]">
-                <span>12% GST Luxury Garment Tax</span>
-                <span>{storeConfig.currency.symbol}{displayTax.toLocaleString()}</span>
+                <span>Taxes & Duties</span>
+                <span className="text-emerald-700 font-semibold uppercase text-[11px]">Included in price</span>
               </div>
 
               <div className="flex justify-between text-[var(--muted-foreground)]">
-                <span>Express White-Glove Shipping</span>
+                <span>Express Courier Delivery</span>
                 <span>
-                  {displayShipping === 0 ? (
-                    <span className="text-emerald-700 font-bold uppercase">COMPLIMENTARY</span>
-                  ) : (
-                    `${storeConfig.currency.symbol}${displayShipping}`
-                  )}
+                  {storeConfig.currency.symbol}{displayShipping}
                 </span>
               </div>
 

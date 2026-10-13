@@ -462,60 +462,24 @@ export const useCartStore = create<CartState>()(
       },
 
       getShippingAmount: () => {
-        const apiCart = get().apiCart;
-        if (
-          apiCart &&
-          apiCart.items &&
-          apiCart.items.length > 0 &&
-          apiCart.shipping !== null &&
-          apiCart.shipping !== undefined
-        ) {
-          return apiCart.shipping;
-        }
+        const items = get().items;
+        if (!items || items.length === 0) return 0;
         const merchandise = get().getSubtotal() + get().getModifiersTotal();
         if (merchandise === 0) return 0;
-        if (merchandise >= storeConfig.shipping.freeShippingThreshold) return 0;
-        return storeConfig.shipping.flatRate;
+        return storeConfig.shipping.flatRate; // Statically ₹150 for all customers
       },
 
       getTaxAmount: () => {
-        const apiCart = get().apiCart;
-        if (
-          apiCart &&
-          apiCart.items &&
-          apiCart.items.length > 0 &&
-          apiCart.tax !== null &&
-          apiCart.tax !== undefined
-        ) {
-          return apiCart.tax;
-        }
-        const taxableAmount = Math.max(
-          0,
-          get().getSubtotal() + get().getModifiersTotal() - get().getDiscountAmount()
-        );
-        if (storeConfig.tax.includedInPrice) return 0;
-        return Math.round(
-          (taxableAmount * storeConfig.tax.defaultTaxRatePercentage) / 100
-        );
+        return 0; // Tax is included in product price; no additional tax charged to customer
       },
 
       getTotal: () => {
-        const apiCart = get().apiCart;
+        const merchandise = get().getSubtotal() + get().getModifiersTotal();
+        if (merchandise === 0) return 0;
         const discount = get().getDiscountAmount();
-        const shipping = get().getShippingAmount();
+        const shipping = get().getShippingAmount(); // Statically 150
         const tax = get().getTaxAmount();
 
-        if (
-          apiCart &&
-          apiCart.items &&
-          apiCart.items.length > 0 &&
-          typeof apiCart.total === "number" &&
-          apiCart.total > 0
-        ) {
-          return Math.max(0, apiCart.total - discount + (shipping || 0) + (tax || 0));
-        }
-
-        const merchandise = get().getSubtotal() + get().getModifiersTotal();
         return Math.max(0, merchandise - discount + (shipping || 0) + (tax || 0));
       },
 
