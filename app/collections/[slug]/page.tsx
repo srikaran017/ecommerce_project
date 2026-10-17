@@ -39,44 +39,55 @@ export default async function CollectionDetailPage({ params }: PageProps) {
 
   return (
     <div className="bg-[var(--background)] min-h-screen pb-24 text-[var(--foreground)]">
-      {/* 1. Capsule Editorial Hero Banner */}
-      <div className="relative min-h-[420px] sm:min-h-[480px] flex items-center justify-center overflow-hidden bg-slate-950 border-b border-[var(--border)]">
+      {/* 1. Capsule Editorial Hero Banner - Luxury Pastel Aesthetic */}
+      <div className="relative min-h-[380px] sm:min-h-[440px] flex items-center justify-center overflow-hidden bg-gradient-to-br from-[#faf5ef] via-[#f7ece2] to-[#fdede0] border-b border-[#ead9c9]">
         {collection.imageUrl ? (
-          <img
-            src={collection.imageUrl}
-            alt={collection.name}
-            className="absolute inset-0 w-full h-full object-cover object-center filter brightness-[0.4] scale-105"
-          />
+          <>
+            <img
+              src={collection.imageUrl}
+              alt={collection.name}
+              className="absolute inset-0 w-full h-full object-cover object-center opacity-20 filter blur-[0.5px] scale-105"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#faf5ef] via-[#faf5ef]/80 to-transparent" />
+          </>
         ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-slate-900 to-amber-950/30" />
+          <div className="absolute inset-0 bg-gradient-to-br from-amber-50/80 via-rose-50/50 to-orange-50/40" />
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-[var(--background)] via-transparent to-black/60" />
+        {/* Subtle decorative ambient pastel glow orbs */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -top-24 -right-24 w-96 h-96 rounded-full bg-amber-200/35 blur-3xl"
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -bottom-24 -left-24 w-88 h-88 rounded-full bg-rose-200/30 blur-3xl"
+        />
 
         <div className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 text-center space-y-4 py-16">
           <Link
             href="/collections"
-            className="inline-flex items-center gap-2 text-xs font-semibold tracking-wider uppercase text-amber-400 hover:text-amber-300 transition-colors mb-2"
+            className="inline-flex items-center gap-2 text-xs font-semibold tracking-wider uppercase text-amber-900 hover:text-amber-950 transition-colors mb-2 bg-white/80 border border-amber-200/60 px-3.5 py-1.5 rounded-full shadow-2xs backdrop-blur-sm"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>All Curated Capsules</span>
           </Link>
 
-          <div className="flex items-center justify-center gap-2 text-[11px] font-bold uppercase tracking-[0.3em] text-amber-400">
-            <Sparkles className="w-3.5 h-3.5" />
+          <div className="flex items-center justify-center gap-2 text-[11px] font-bold uppercase tracking-[0.3em] text-amber-900">
+            <Sparkles className="w-3.5 h-3.5 text-amber-600" />
             <span>Curated Capsule Edition</span>
           </div>
 
-          <h1 className="font-heading text-3xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-white uppercase">
+          <h1 className="font-heading text-3xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-neutral-900 uppercase">
             {collection.name}
           </h1>
 
           {collection.description && (
-            <p className="text-xs sm:text-base text-slate-300 max-w-2xl mx-auto leading-relaxed">
+            <p className="text-xs sm:text-base text-neutral-600 max-w-2xl mx-auto leading-relaxed">
               {collection.description}
             </p>
           )}
 
-          <div className="pt-2 text-xs font-mono text-slate-400">
+          <div className="pt-2 text-xs font-mono text-neutral-500">
             {products.length} {products.length === 1 ? "Curated Piece" : "Curated Pieces"}
           </div>
         </div>

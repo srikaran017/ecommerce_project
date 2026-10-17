@@ -2,7 +2,7 @@ import React from "react";
 import Link from "next/link";
 import { ProductService } from "@/services/product.service";
 import { ProductCard } from "@/components/product/ProductCard";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Sparkles } from "lucide-react";
 import { storeConfig } from "@/config/store.config";
 
 interface CategoryPageProps {
@@ -106,26 +106,69 @@ export default async function CategoryPage({
           </Link>
         </div>
 
-        {/* Category Hero Banner */}
-        <div className="relative rounded-3xl overflow-hidden bg-neutral-900 text-white p-8 sm:p-12 mb-12 shadow-xl">
+        {/* Category Hero Banner - Luxury Pastel Aesthetic */}
+        <div className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-[#faf5ef] via-[#f7ece2] to-[#fdede0] border border-[#ead9c9] p-8 sm:p-12 mb-12 shadow-sm">
+          {/* Subtle decorative ambient pastel glow orbs */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute -top-24 -right-24 w-88 h-88 rounded-full bg-amber-200/35 blur-3xl"
+          />
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute -bottom-24 -left-24 w-80 h-80 rounded-full bg-rose-200/30 blur-3xl"
+          />
+
+          {/* Background ambient texture watermark on mobile */}
           {catDetails?.imageUrl && (
-            <img
-              src={catDetails.imageUrl}
-              alt={catDetails.name}
-              className="absolute inset-0 w-full h-full object-cover opacity-35"
-            />
+            <div className="md:hidden absolute inset-0 overflow-hidden pointer-events-none">
+              <img
+                src={catDetails.imageUrl}
+                alt=""
+                className="w-full h-full object-cover opacity-15 mix-blend-multiply filter blur-[0.5px]"
+              />
+              <div className="absolute inset-0 bg-gradient-to-r from-[#faf5ef]/95 via-[#faf5ef]/85 to-transparent" />
+            </div>
           )}
-          <div className="relative z-10 max-w-2xl space-y-3">
-            <span className="text-[11px] font-bold uppercase tracking-[0.3em] text-amber-400 block">
-              CURATED CATEGORY
-            </span>
-            <h1 className="font-heading text-3xl sm:text-5xl font-bold uppercase tracking-tight">
-              {catDetails?.name || slug.replace(/-/g, " ")}
-            </h1>
-            <p className="text-xs sm:text-sm text-neutral-300 leading-relaxed">
-              {catDetails?.description ||
-                "Explore our handcrafted haute couture and exclusive capsule edits."}
-            </p>
+
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-8">
+            <div className="max-w-2xl space-y-3.5">
+              <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-[0.25em] bg-white/90 text-amber-900 border border-amber-200/80 shadow-2xs backdrop-blur-sm">
+                <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                <span>CURATED CATEGORY</span>
+              </div>
+
+              <h1 className="font-heading text-3xl sm:text-5xl font-bold uppercase tracking-tight text-neutral-900">
+                {catDetails?.name || slug.replace(/-/g, " ")}
+              </h1>
+
+              <p className="text-xs sm:text-sm text-neutral-600 leading-relaxed max-w-xl">
+                {catDetails?.description ||
+                  "Explore our handcrafted haute couture and exclusive capsule edits."}
+              </p>
+
+              <div className="flex items-center gap-3 pt-1 text-xs text-neutral-500 font-medium flex-wrap">
+                <span className="px-3 py-1 rounded-full bg-white/85 border border-amber-200/70 text-amber-900 font-semibold text-[11px] shadow-2xs">
+                  {products.length} {products.length === 1 ? "Curated Silhouette" : "Curated Silhouettes"}
+                </span>
+                {catDetails?.parent && (
+                  <span className="text-neutral-500">
+                    Department: <strong className="text-neutral-800">{catDetails.parent.name}</strong>
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Editorial Category Image Card on Tablet & Desktop */}
+            {catDetails?.imageUrl && (
+              <div className="hidden md:block relative w-48 h-48 lg:w-56 lg:h-56 rounded-2xl overflow-hidden shadow-sm border-2 border-white/90 flex-shrink-0 group">
+                <img
+                  src={catDetails.imageUrl}
+                  alt={catDetails.name}
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/15 via-transparent to-transparent pointer-events-none" />
+              </div>
+            )}
           </div>
         </div>
 
