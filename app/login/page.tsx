@@ -179,13 +179,12 @@ function LoginForm() {
               <label className="font-bold text-neutral-800 uppercase tracking-wider block">
                 Password <span className="text-rose-600">*</span>
               </label>
-              <button
-                type="button"
-                onClick={() => setIsForgotModalOpen(true)}
+              <Link
+                href="/forgot-password"
                 className="text-[11px] font-semibold text-amber-700 hover:underline cursor-pointer"
               >
                 Forgot password?
-              </button>
+              </Link>
             </div>
             <div className="relative">
               <Lock className="w-4 h-4 text-neutral-400 absolute left-3.5 top-3.5" />

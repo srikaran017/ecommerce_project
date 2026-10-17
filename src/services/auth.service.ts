@@ -421,23 +421,79 @@ export class AuthService {
   }
 
   /**
-   * Request Password Reset Link
+   * Request Password Reset Link (Anti-enumeration compliant)
+   * POST /api/v1/auth/forgot-password
    */
-  static async forgotPassword(email: string): Promise<{ success: boolean; message: string }> {
+  static async forgotPassword(email: string): Promise<{ success: boolean; message: string; error?: any }> {
     try {
-      await fetch(`${getBaseUrl()}/auth/forgot-password`, {
+      const res = await fetch(`${getBaseUrl()}/auth/forgot-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({ email: email.toLowerCase().trim() }),
-      }).catch(() => null);
-    } catch {
-      // Graceful fallback
-    }
+      });
 
-    return {
-      success: true,
-      message: `Password reset instructions have been sent to ${email}.`,
-    };
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
+        return {
+          success: true,
+          message: data.message || "If an account exists with that email, a password reset link has been dispatched.",
+        };
+      }
+
+      return {
+        success: res.ok,
+        message: data.message || "If an account exists with that email, a password reset link has been dispatched.",
+        error: data.error,
+      };
+    } catch {
+      // Graceful fallback protecting against enumeration
+      return {
+        success: true,
+        message: "If an account exists with that email, a password reset link has been dispatched.",
+      };
+    }
+  }
+
+  /**
+   * Reset Customer Password using token from email
+   * POST /api/v1/auth/reset-password
+   */
+  static async resetPassword(payload: {
+    email: string;
+    token: string;
+    newPassword: string;
+  }): Promise<{ success: boolean; message: string; error?: any }> {
+    try {
+      const res = await fetch(`${getBaseUrl()}/auth/reset-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          email: payload.email.toLowerCase().trim(),
+          token: payload.token.trim(),
+          newPassword: payload.newPassword,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
+        return {
+          success: true,
+          message: data.message || "Password has been successfully reset. Please log in with your new credentials.",
+        };
+      }
+
+      return {
+        success: false,
+        message: data.message || "Invalid or expired password reset link. Please request a new one.",
+        error: data.error,
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        message: err.message || "Failed to reset password. Please try again.",
+      };
+    }
   }
 }

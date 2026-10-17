@@ -143,6 +143,14 @@ export function Footer() {
                   </a>
                 </li>
               )}
+              <li className="pt-2">
+                <Link
+                  href="/contact"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white font-semibold transition-colors text-xs"
+                >
+                  <span>Contact Concierge Desk →</span>
+                </Link>
+              </li>
             </ul>
           </div>
 
@@ -172,6 +180,7 @@ export function Footer() {
         <div className="border-t border-white/10 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] opacity-70">
           <p>© {new Date().getFullYear()} {storeConfig.name}. All Rights Reserved.</p>
           <div className="flex items-center gap-6">
+            <Link href="/contact" className="hover:underline">Contact Concierge</Link>
             <Link href="/privacy" className="hover:underline">Privacy Policy</Link>
             <Link href="/terms" className="hover:underline">Terms of Service</Link>
             <Link href="/shipping" className="hover:underline">Shipping & Returns</Link>
