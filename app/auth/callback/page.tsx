@@ -4,7 +4,36 @@ import React, { useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuthStore } from "@/stores/auth.store";
 import { useCartStore } from "@/stores/cart.store";
+import { useWishlistStore } from "@/stores/wishlist.store";
 import { AuthService } from "@/services/auth.service";
+
+function parsePayload(raw: string | null): any {
+  if (!raw) return null;
+  // Attempt 1: Base64URL / Base64 decode
+  try {
+    const base64 = raw.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), "=");
+    const binary = atob(padded);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    const jsonStr = new TextDecoder().decode(bytes);
+    return JSON.parse(jsonStr);
+  } catch {}
+
+  // Attempt 2: URL decoded JSON string
+  try {
+    return JSON.parse(decodeURIComponent(raw));
+  } catch {}
+
+  // Attempt 3: Direct JSON string
+  try {
+    return JSON.parse(raw);
+  } catch {}
+
+  return null;
+}
 
 function AuthCallbackContent() {
   const router = useRouter();
@@ -13,44 +42,72 @@ function AuthCallbackContent() {
   const { setUser } = useAuthStore();
 
   useEffect(() => {
-    try {
-      // Helper to read cookie value
-      const getCookie = (name: string) => {
-        const match = document.cookie.match(new RegExp("(^| )" + name + "=([^;]+)"));
-        return match ? decodeURIComponent(match[2]) : null;
-      };
+    let timeoutId: NodeJS.Timeout | null = null;
 
-      const rawPayload = getCookie("oauth_user_payload");
+    const processAuth = (): boolean => {
+      try {
+        // Helper to read cookie value
+        const getCookie = (name: string) => {
+          const match = document.cookie.match(new RegExp("(^|; )" + name + "=([^;]+)"));
+          return match ? match[2] : null;
+        };
 
-      if (rawPayload) {
-        const { user, token } = JSON.parse(rawPayload);
+        // Priority 1: Direct URL search parameter (?session=...)
+        const urlSession = searchParams.get("session") || searchParams.get("payload");
+        const rawPayload = urlSession || getCookie("oauth_user_payload");
 
-        if (user && user.email) {
-          // 1. Set JWT access token for AuthService
-          AuthService.setAccessToken(token);
+        if (rawPayload) {
+          const parsed = parsePayload(rawPayload);
 
-          // 2. Set user session in Zustand persisted auth store
-          setUser(user);
+          if (parsed && parsed.user && parsed.user.email) {
+            // 1. Set JWT access token for AuthService
+            if (parsed.token) {
+              AuthService.setAccessToken(parsed.token);
+            }
 
-          // 3. Seamlessly merge anonymous guest cart with customer account
-          useCartStore.getState().mergeGuestCartOnLogin().catch(() => {});
+            // 2. Set user session in Zustand persisted auth store
+            setUser(parsed.user);
 
-          // 4. Delete the temporary handshake cookie
-          document.cookie = "oauth_user_payload=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+            // 3. Seamlessly merge anonymous guest cart with customer account
+            useCartStore.getState().mergeGuestCartOnLogin().catch(() => {});
 
-          // 5. Navigate to original intended destination
-          router.replace(redirectTarget);
-          return;
+            // 4. Immediately trigger customer wishlist loading
+            useWishlistStore.getState().loadWishlistIds().catch(() => {});
+
+            // 5. Delete the temporary handshake cookie
+            try {
+              document.cookie = "oauth_user_payload=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+            } catch {}
+
+            // 6. Navigate to original intended destination
+            router.replace(redirectTarget);
+            return true;
+          }
         }
-      }
 
-      // If no valid payload, redirect to login
-      router.replace("/login?error=session_sync_failed");
-    } catch (err) {
-      console.error("[OAuth Session Handshake Error]:", err);
-      router.replace("/login?error=session_sync_failed");
-    }
-  }, [router, redirectTarget, setUser]);
+        return false;
+      } catch (err) {
+        console.error("[OAuth Session Handshake Error]:", err);
+        return false;
+      }
+    };
+
+    // Immediate attempt
+    const success = processAuth();
+    if (success) return;
+
+    // Retry once after 250ms in case cookies or router state need an async frame
+    timeoutId = setTimeout(() => {
+      const retrySuccess = processAuth();
+      if (!retrySuccess) {
+        router.replace("/login?error=session_sync_failed");
+      }
+    }, 250);
+
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [router, searchParams, redirectTarget, setUser]);
 
   return (
     <div className="min-h-[70vh] flex flex-col items-center justify-center space-y-4 px-4">

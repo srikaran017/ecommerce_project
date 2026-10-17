@@ -173,20 +173,26 @@ export async function GET(req: NextRequest) {
       tokenData.id_token ||
       `google_session_${Date.now()}_${Buffer.from(profile.email).toString("base64")}`;
 
+    const sessionPayload = { user: userSession, token: sessionToken };
+    const encodedPayload = Buffer.from(JSON.stringify(sessionPayload)).toString("base64url");
+
     // 5. Redirect to client-side callback page to sync Zustand store & localStorage
     const successUrl = new URL("/auth/callback", req.url);
-    successUrl.searchParams.set("redirect", redirectTarget);
+    if (redirectTarget) {
+      successUrl.searchParams.set("redirect", redirectTarget);
+    }
+    successUrl.searchParams.set("session", encodedPayload);
 
     const response = NextResponse.redirect(successUrl);
 
-    // Set temporary session payload in secure cookie for client handshake
+    // Set temporary session payload in secure cookie as redundant backup
     const isProd = process.env.NODE_ENV === "production";
-    response.cookies.set("oauth_user_payload", JSON.stringify({ user: userSession, token: sessionToken }), {
+    response.cookies.set("oauth_user_payload", encodedPayload, {
       httpOnly: false, // Accessible by client bridge page
       secure: isProd,
       sameSite: "lax",
       path: "/",
-      maxAge: 60, // 1 minute temporary handshake window
+      maxAge: 120, // 2 minutes temporary handshake window
     });
 
     // Clean up temporary OAuth cookies
