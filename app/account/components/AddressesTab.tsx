@@ -145,25 +145,25 @@ export function AddressesTab({ onShowToast }: AddressesTabProps) {
   };
 
   return (
-    <div className="bg-white rounded-3xl border border-neutral-200/80 p-6 sm:p-8 shadow-sm space-y-8 animate-fade-in">
+    <div className="bg-white rounded-xl border border-neutral-200/90 p-5 sm:p-6 shadow-xs space-y-6 animate-fade-in">
       {/* Header */}
-      <div className="border-b border-neutral-100 pb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="border-b border-neutral-100 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-base sm:text-lg font-bold uppercase tracking-tight text-neutral-900 flex items-center gap-2">
-            <MapPin className="w-5 h-5 text-amber-700" />
-            <span>Saved Delivery Addresses</span>
+          <h2 className="text-base font-semibold text-neutral-900 flex items-center gap-2">
+            <MapPin className="w-4 h-4 text-neutral-500" />
+            <span>Delivery addresses</span>
           </h2>
           <p className="text-xs text-neutral-500 mt-0.5">
-            Manage your residences, corporate suites, and private addresses for swift white-glove dispatch.
+            Manage your saved delivery destinations and billing addresses.
           </p>
         </div>
 
         <button
           onClick={openAddModal}
-          className="px-4 py-2.5 bg-neutral-900 hover:bg-amber-600 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all shadow-md flex items-center gap-2 self-start sm:self-auto cursor-pointer"
+          className="px-4 py-2 bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-medium rounded-lg transition-colors shadow-xs flex items-center gap-2 self-start sm:self-auto cursor-pointer"
         >
           <Plus className="w-4 h-4" />
-          <span>Add New Address</span>
+          <span>Add address</span>
         </button>
       </div>
 
@@ -171,65 +171,65 @@ export function AddressesTab({ onShowToast }: AddressesTabProps) {
       {isLoading ? (
         <div className="py-16 text-center space-y-2">
           <div className="w-6 h-6 border-2 border-neutral-300 border-t-neutral-900 rounded-full animate-spin mx-auto" />
-          <p className="text-xs text-neutral-400">Retrieving address records...</p>
+          <p className="text-xs text-neutral-400">Loading addresses...</p>
         </div>
       ) : addresses.length === 0 ? (
-        <div className="py-12 text-center space-y-3 bg-neutral-50/60 rounded-2xl border border-neutral-100">
-          <div className="w-12 h-12 rounded-full bg-amber-50 text-amber-700 flex items-center justify-center mx-auto">
-            <MapPin className="w-6 h-6" />
+        <div className="py-12 text-center space-y-3 bg-neutral-50/60 rounded-xl border border-neutral-200">
+          <div className="w-12 h-12 rounded-full bg-neutral-100 text-neutral-500 flex items-center justify-center mx-auto">
+            <MapPin className="w-6 h-6 stroke-[1.5]" />
           </div>
-          <p className="text-xs font-bold uppercase tracking-wider text-neutral-800">
-            No Addresses on Record
+          <p className="text-sm font-semibold text-neutral-800">
+            No saved addresses
           </p>
           <p className="text-xs text-neutral-500 max-w-sm mx-auto">
-            Save your home or executive office address now to expedite your next luxury checkout.
+            Add your residential or office address to speed up checkout.
           </p>
           <button
             onClick={openAddModal}
-            className="inline-flex items-center gap-1.5 px-4 py-2 bg-neutral-900 text-white text-xs font-bold uppercase tracking-wider rounded-xl hover:bg-neutral-800 cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-neutral-900 text-white text-xs font-medium rounded-lg hover:bg-neutral-800 cursor-pointer shadow-xs"
           >
             <Plus className="w-3.5 h-3.5" />
-            <span>Add Delivery Address</span>
+            <span>Add address</span>
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {addresses.map((addr) => (
             <div
               key={addr.id}
-              className={`p-5 rounded-2xl border transition-all relative flex flex-col justify-between gap-4 ${
+              className={`p-5 rounded-xl border transition-all relative flex flex-col justify-between gap-4 ${
                 addr.isDefault
-                  ? "border-amber-400/80 bg-amber-50/20 shadow-sm"
-                  : "border-neutral-200/80 bg-white hover:border-neutral-300"
+                  ? "border-neutral-900 ring-1 ring-neutral-900 bg-white shadow-xs"
+                  : "border-neutral-200/90 bg-white hover:border-neutral-300 shadow-xs"
               }`}
             >
               <div className="space-y-3">
                 {/* Badges */}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-neutral-100 text-neutral-700 flex items-center gap-1">
+                    <span className="text-xs font-medium px-2 py-0.5 rounded bg-neutral-100 text-neutral-700 flex items-center gap-1">
                       {addr.tag === "Home" ? (
-                        <Home className="w-3 h-3" />
+                        <Home className="w-3 h-3 text-neutral-500" />
                       ) : addr.tag === "Work" ? (
-                        <Briefcase className="w-3 h-3" />
+                        <Briefcase className="w-3 h-3 text-neutral-500" />
                       ) : (
-                        <MapPin className="w-3 h-3" />
+                        <MapPin className="w-3 h-3 text-neutral-500" />
                       )}
-                      {addr.tag}
+                      <span>{addr.tag || "Address"}</span>
                     </span>
 
                     {addr.isDefault && (
-                      <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300 flex items-center gap-1">
-                        <Check className="w-3 h-3" />
-                        Default Address
+                      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-800 border border-neutral-300 flex items-center gap-1">
+                        <Check className="w-3 h-3 text-emerald-600" />
+                        <span>Default address</span>
                       </span>
                     )}
                   </div>
                 </div>
 
                 {/* Details */}
-                <div className="text-xs space-y-1 text-neutral-600">
-                  <p className="font-bold text-neutral-900 text-sm">
+                <div className="text-xs sm:text-sm space-y-1 text-neutral-600">
+                  <p className="font-semibold text-neutral-900 text-sm">
                     {addr.firstName} {addr.lastName}
                   </p>
                   <p>{addr.street || addr.addressLine1}</p>
@@ -237,29 +237,30 @@ export function AddressesTab({ onShowToast }: AddressesTabProps) {
                     <p className="text-neutral-500">{addr.apartment || addr.addressLine2}</p>
                   )}
                   <p>
-                    {addr.city}, {addr.state} - <span className="font-mono font-bold text-neutral-800">{addr.postalCode}</span>
+                    {addr.city}, {addr.state} {addr.postalCode}
                   </p>
                   <p>{addr.country}</p>
-                  <p className="pt-2 text-neutral-500 font-mono flex items-center gap-1.5">
-                    <Phone className="w-3 h-3 text-neutral-400" />
-                    <span>{addr.phone || "Phone not specified"}</span>
-                  </p>
+                  {addr.phone && (
+                    <p className="pt-1 text-neutral-600 font-mono text-xs flex items-center gap-1.5">
+                      <Phone className="w-3 h-3 text-neutral-400" />
+                      <span>{addr.phone}</span>
+                    </p>
+                  )}
                 </div>
               </div>
 
               {/* Action buttons */}
-              <div className="pt-3 border-t border-neutral-100 flex items-center justify-between gap-2">
+              <div className="pt-3 border-t border-neutral-100 flex items-center justify-between gap-2 text-xs">
                 {!addr.isDefault ? (
                   <button
                     onClick={() => handleSetDefault(addr.id)}
-                    className="text-[11px] font-bold text-neutral-700 hover:text-amber-800 transition-colors uppercase tracking-wider"
+                    className="text-xs font-medium text-neutral-700 hover:text-neutral-950 underline transition-colors cursor-pointer"
                   >
-                    Set as Default
+                    Set as default
                   </button>
                 ) : (
-                  <span className="text-[11px] text-amber-800 font-semibold flex items-center gap-1">
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    Primary Checkout Target
+                  <span className="text-xs text-neutral-500">
+                    Default checkout address
                   </span>
                 )}
 

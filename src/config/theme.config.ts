@@ -36,9 +36,9 @@ export const PRESET_THEMES: Record<string, ThemeConfig> = {
     borderColor: "#e5e2dc",
     buttonColor: "#1a1a1a",
     buttonTextColor: "#ffffff",
-    headingFont: "'Playfair Display', Georgia, serif",
-    bodyFont: "'Inter', sans-serif",
-    borderRadius: "0px", // Crisp editorial edges
+    headingFont: "var(--font-inter), 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    bodyFont: "var(--font-inter), 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    borderRadius: "0.5rem",
   },
   "minimal-boutique": {
     id: "minimal-boutique",

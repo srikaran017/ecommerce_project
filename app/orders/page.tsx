@@ -11,11 +11,8 @@ import {
   Package,
   Truck,
   Search,
-  Filter,
   ArrowRight,
-  ExternalLink,
   RotateCcw,
-  Sparkles,
   ShoppingBag,
   Calendar,
   CheckCircle2,
@@ -26,6 +23,7 @@ import {
   X,
   CreditCard,
   Banknote,
+  ExternalLink,
 } from "lucide-react";
 
 export default function OrdersPage() {
@@ -108,13 +106,50 @@ export default function OrdersPage() {
     return matchNumber || matchItems;
   });
 
+  const getStatusBadge = (status: string) => {
+    const s = (status || "").toUpperCase();
+    switch (s) {
+      case "DELIVERED":
+        return {
+          label: "Delivered",
+          className: "bg-emerald-50 text-emerald-800 border-emerald-200/80",
+          icon: CheckCircle2,
+        };
+      case "SHIPPED":
+        return {
+          label: "In transit",
+          className: "bg-sky-50 text-sky-800 border-sky-200/80",
+          icon: Truck,
+        };
+      case "CONFIRMED":
+        return {
+          label: "Confirmed",
+          className: "bg-amber-50 text-amber-800 border-amber-200/80",
+          icon: Clock,
+        };
+      case "CANCELLED":
+        return {
+          label: "Cancelled",
+          className: "bg-red-50 text-red-800 border-red-200/80",
+          icon: AlertCircle,
+        };
+      case "PENDING":
+      default:
+        return {
+          label: "Unfulfilled",
+          className: "bg-amber-50 text-amber-800 border-amber-200/80",
+          icon: Clock,
+        };
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-[var(--background)] py-10 sm:py-14">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
+    <div className="min-h-screen bg-[var(--background)] py-8 sm:py-12">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
         
-        {/* Toast Notification */}
+        {/* Floating Toast Notification */}
         {toastMessage && (
-          <div className="fixed top-20 right-4 sm:right-8 z-50 max-w-md bg-neutral-900 text-white px-5 py-3.5 rounded-2xl shadow-xl flex items-center justify-between gap-3 animate-fade-in border border-neutral-700">
+          <div className="fixed top-20 right-4 sm:right-8 z-50 max-w-md bg-neutral-900 text-white px-4 py-3 rounded-xl shadow-lg flex items-center justify-between gap-3 animate-fade-in border border-neutral-700">
             <div className="flex items-center gap-2 text-xs">
               {toastMessage.type === "success" ? (
                 <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -123,70 +158,75 @@ export default function OrdersPage() {
               )}
               <p className="font-medium">{toastMessage.text}</p>
             </div>
-            <button onClick={() => setToastMessage(null)} className="text-neutral-400 hover:text-white p-1">
+            <button onClick={() => setToastMessage(null)} className="text-neutral-400 hover:text-white p-1 cursor-pointer">
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
         )}
 
-        {/* Breadcrumb Navigation */}
-        <nav className="flex items-center gap-1.5 text-xs text-[var(--muted-foreground)] font-medium">
-          <Link href="/" className="hover:text-[var(--foreground)] transition-colors">
+        {/* Clean Breadcrumb Navigation */}
+        <nav className="flex items-center gap-2 text-xs text-neutral-500 font-medium">
+          <Link href="/" className="hover:text-neutral-900 transition-colors">
             Home
           </Link>
-          <span>/</span>
-          <Link href="/account" className="hover:text-[var(--foreground)] transition-colors">
-            Account Center
+          <span className="text-neutral-300">/</span>
+          <Link href="/account" className="hover:text-neutral-900 transition-colors">
+            Account
           </Link>
-          <span>/</span>
-          <span className="text-[var(--foreground)] font-semibold">Orders & Tracking</span>
+          <span className="text-neutral-300">/</span>
+          <span className="text-neutral-900 font-semibold">Orders</span>
         </nav>
 
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[var(--border)] pb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-200/80 pb-5">
           <div>
-            <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-[var(--secondary)]">
-              Maison Atelier Archive
-            </span>
-            <h1 className="font-heading text-2xl sm:text-3xl font-bold uppercase tracking-tight text-[var(--foreground)] mt-1">
-              My Orders & Live Tracking
+            <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-neutral-900">
+              Orders
             </h1>
-            <p className="text-xs text-[var(--muted-foreground)] mt-1">
-              View authoritative purchase records, live courier tracking milestones, and repurchase past garments.
+            <p className="text-xs sm:text-sm text-neutral-500 mt-1">
+              Track shipments, review past receipts, and reorder items.
             </p>
           </div>
 
           <Link
             href="/products"
-            className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--primary)] text-[var(--primary-foreground)] rounded-[var(--radius)] text-xs font-bold uppercase tracking-wider hover:opacity-90 transition-opacity self-start sm:self-auto"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-neutral-900 hover:bg-neutral-800 text-white rounded-lg text-xs font-medium transition-colors self-start sm:self-auto shadow-xs"
           >
-            <ShoppingBag className="w-4 h-4" />
-            <span>Explore Collection</span>
+            <ShoppingBag className="w-3.5 h-3.5" />
+            <span>Continue shopping</span>
           </Link>
         </div>
 
-        {/* Filter Controls & Search */}
-        <div className="bg-[var(--muted)] border border-[var(--border)] rounded-[var(--radius)] p-4 sm:p-5 space-y-4">
+        {/* Shopify Polaris-Style Control Bar: Search & Status Filters */}
+        <div className="bg-white border border-neutral-200/90 rounded-xl p-3 sm:p-4 space-y-3 shadow-xs">
           <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
-            {/* Search Bar */}
+            {/* Search Input */}
             <div className="relative flex-1 max-w-md">
-              <Search className="w-4 h-4 text-[var(--muted-foreground)] absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <Search className="w-4 h-4 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                placeholder="Search by Order # or garment name..."
+                placeholder="Search by order # or product name..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-[var(--background)] border border-[var(--border)] rounded-[var(--radius)] text-xs text-[var(--foreground)] focus:outline-none focus:ring-1 focus:ring-[var(--foreground)]"
+                className="w-full pl-9 pr-3 py-2 bg-neutral-50/70 border border-neutral-200 rounded-lg text-xs text-neutral-900 focus:outline-none focus:bg-white focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 transition-all placeholder:text-neutral-400"
               />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
 
-            {/* Status Filter Tabs */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+            {/* Status Filter Segmented Tabs */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none text-xs">
               {[
-                { id: "ALL", label: "All Orders" },
-                { id: "PENDING", label: "Pending" },
+                { id: "ALL", label: "All" },
+                { id: "PENDING", label: "Unfulfilled" },
                 { id: "CONFIRMED", label: "Confirmed" },
-                { id: "SHIPPED", label: "In Transit" },
+                { id: "SHIPPED", label: "In transit" },
                 { id: "DELIVERED", label: "Delivered" },
                 { id: "CANCELLED", label: "Cancelled" },
               ].map((tab) => (
@@ -196,10 +236,10 @@ export default function OrdersPage() {
                     setStatusFilter(tab.id);
                     setCurrentPage(1);
                   }}
-                  className={`px-3 py-1.5 rounded-[var(--radius)] font-bold text-[11px] uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap cursor-pointer ${
                     statusFilter === tab.id
-                      ? "bg-[var(--foreground)] text-[var(--background)] shadow-sm"
-                      : "bg-[var(--background)] text-[var(--muted-foreground)] hover:text-[var(--foreground)] border border-[var(--border)]"
+                      ? "bg-neutral-900 text-white shadow-xs"
+                      : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200 hover:text-neutral-900"
                   }`}
                 >
                   {tab.label}
@@ -209,188 +249,196 @@ export default function OrdersPage() {
           </div>
         </div>
 
-        {/* Order Cards List */}
+        {/* Orders List */}
         {isLoading ? (
-          <div className="py-20 text-center space-y-3">
-            <div className="w-8 h-8 rounded-full border-2 border-neutral-300 border-t-neutral-900 animate-spin mx-auto" />
-            <p className="text-xs uppercase tracking-wider text-[var(--muted-foreground)]">
-              Retrieving Order Dossier...
+          <div className="py-20 text-center bg-white border border-neutral-200/90 rounded-xl space-y-3">
+            <div className="w-7 h-7 rounded-full border-2 border-neutral-300 border-t-neutral-900 animate-spin mx-auto" />
+            <p className="text-xs text-neutral-500 font-medium">
+              Loading orders...
             </p>
           </div>
         ) : displayedOrders.length === 0 ? (
-          <div className="py-16 text-center bg-[var(--muted)] border border-[var(--border)] rounded-[var(--radius)] space-y-4">
-            <Package className="w-12 h-12 text-[var(--muted-foreground)] mx-auto opacity-50" />
-            <h3 className="font-heading text-lg font-bold uppercase tracking-wider text-[var(--foreground)]">
-              No Orders Located
-            </h3>
-            <p className="text-xs text-[var(--muted-foreground)] max-w-sm mx-auto">
-              {searchQuery || statusFilter !== "ALL"
-                ? "No orders match your filter criteria. Try resetting your search."
-                : "You have not placed any orders yet. Discover our curated eveningwear."}
-            </p>
+          <div className="py-16 text-center bg-white border border-neutral-200/90 rounded-xl p-6 sm:p-8 space-y-4 shadow-xs">
+            <div className="w-12 h-12 rounded-full bg-neutral-100 flex items-center justify-center mx-auto text-neutral-400">
+              <Package className="w-6 h-6 stroke-[1.5]" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-base font-semibold text-neutral-900">
+                {searchQuery || statusFilter !== "ALL" ? "No matching orders found" : "No orders yet"}
+              </h3>
+              <p className="text-xs text-neutral-500 max-w-sm mx-auto">
+                {searchQuery || statusFilter !== "ALL"
+                  ? "Try adjusting your search terms or filter selection to view past orders."
+                  : "When you place an order, it will appear here with live tracking milestones."}
+              </p>
+            </div>
             <Link
               href="/products"
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-[var(--primary)] text-[var(--primary-foreground)] rounded-[var(--radius)] text-xs font-bold uppercase tracking-wider hover:opacity-90"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-neutral-900 hover:bg-neutral-800 text-white rounded-lg text-xs font-medium transition-colors shadow-xs"
             >
-              Browse Luxury Gowns
+              Browse catalog
             </Link>
           </div>
         ) : (
-          <div className="space-y-5">
+          <div className="space-y-4">
             {displayedOrders.map((ord) => {
-              const isPending = ord.status === "PENDING";
-              const isDelivered = ord.status === "DELIVERED";
-              const isCancelled = ord.status === "CANCELLED";
-              const isShipped = ord.status === "SHIPPED";
+              const badge = getStatusBadge(ord.status);
+              const BadgeIcon = badge.icon;
+              const formattedDate = new Date(ord.createdAt).toLocaleDateString("en-IN", {
+                day: "numeric",
+                month: "short",
+                year: "numeric",
+              });
 
               return (
                 <div
                   key={ord.id}
-                  className="bg-[var(--background)] border border-[var(--border)] rounded-[var(--radius)] p-5 sm:p-6 shadow-sm hover:border-neutral-400 dark:hover:border-neutral-700 transition-all space-y-5"
+                  className="bg-white border border-neutral-200/90 rounded-xl overflow-hidden shadow-xs hover:border-neutral-300 transition-all"
                 >
-                  {/* Card Header: Order Number, Date, Status */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[var(--border)] pb-4">
-                    <div className="flex items-center gap-3">
+                  {/* Order Card Header */}
+                  <div className="p-4 sm:p-5 bg-neutral-50/60 border-b border-neutral-200/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-center gap-3">
                       <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono font-bold text-sm text-[var(--foreground)]">
-                            #{ord.orderNumber}
-                          </span>
-                          <span
-                            className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${
-                              isDelivered
-                                ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                                : isCancelled
-                                ? "bg-rose-50 text-rose-800 border-rose-200"
-                                : isShipped
-                                ? "bg-sky-50 text-sky-800 border-sky-200"
-                                : "bg-amber-50 text-amber-800 border-amber-200"
-                            }`}
+                        <div className="flex items-center gap-2.5">
+                          <Link
+                            href={`/orders/${ord.orderNumber}`}
+                            className="text-sm font-semibold text-neutral-900 hover:underline font-mono"
                           >
-                            {ord.status}
+                            #{ord.orderNumber}
+                          </Link>
+                          <span
+                            className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium border ${badge.className}`}
+                          >
+                            <BadgeIcon className="w-3 h-3" />
+                            <span>{badge.label}</span>
                           </span>
                         </div>
-                        <p className="text-[11px] text-[var(--muted-foreground)] mt-0.5">
-                          Placed on {new Date(ord.createdAt).toLocaleDateString("en-IN", {
-                            day: "numeric",
-                            month: "short",
-                            year: "numeric",
-                          })}
+                        <p className="text-xs text-neutral-500 mt-0.5">
+                          Order placed on {formattedDate}
                         </p>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-3 self-end sm:self-auto">
-                      <div className="text-right">
-                        <span className="text-xs text-[var(--muted-foreground)] block">Total Amount</span>
-                        <span className="text-sm font-bold text-[var(--foreground)] font-mono">
+                    <div className="flex items-center gap-3 self-start sm:self-auto">
+                      <div className="text-left sm:text-right">
+                        <span className="text-[11px] text-neutral-500 block">Total</span>
+                        <span className="text-sm font-bold text-neutral-900 font-mono">
                           {storeConfig.currency.symbol}{ord.totalAmount.toLocaleString()}
                         </span>
                       </div>
-                      <span className="text-[10px] uppercase tracking-wider px-2 py-1 bg-[var(--muted)] border border-[var(--border)] rounded font-semibold text-[var(--muted-foreground)]">
-                        {ord.paymentMethod === "COD" ? "Cash On Delivery" : "Online"}
+                      <span className="text-[11px] px-2 py-0.5 bg-neutral-100 border border-neutral-200 text-neutral-600 rounded-md font-medium">
+                        {ord.paymentMethod === "COD" ? "Cash on Delivery" : "Paid"}
                       </span>
                     </div>
                   </div>
 
-                  {/* Garment Preview Row */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="flex items-center gap-3 overflow-x-auto py-1">
-                      {ord.items.slice(0, 3).map((item, idx) => (
-                        <div key={idx} className="flex items-center gap-2.5 shrink-0 bg-[var(--muted)] p-2 rounded-[var(--radius)] border border-[var(--border)]">
-                          {item.imageUrl ? (
-                            <img
-                              src={item.imageUrl}
-                              alt={item.title}
-                              className="w-12 h-14 object-cover rounded-[var(--radius)] shrink-0"
-                            />
-                          ) : (
-                            <div className="w-12 h-14 bg-neutral-200 dark:bg-neutral-800 rounded flex items-center justify-center">
-                              <Package className="w-4 h-4 text-neutral-500" />
+                  {/* Order Items Preview */}
+                  <div className="p-4 sm:p-5 space-y-3">
+                    <div className="divide-y divide-neutral-100">
+                      {ord.items.map((item, idx) => (
+                        <div key={idx} className="py-2.5 first:pt-0 last:pb-0 flex items-center justify-between gap-4">
+                          <div className="flex items-center gap-3 min-w-0">
+                            {item.imageUrl ? (
+                              <img
+                                src={item.imageUrl}
+                                alt={item.title}
+                                className="w-12 h-14 object-cover rounded-lg border border-neutral-200/80 bg-neutral-50 shrink-0"
+                              />
+                            ) : (
+                              <div className="w-12 h-14 bg-neutral-100 rounded-lg border border-neutral-200 flex items-center justify-center shrink-0">
+                                <Package className="w-4 h-4 text-neutral-400" />
+                              </div>
+                            )}
+                            <div className="min-w-0">
+                              <h4 className="text-xs font-medium text-neutral-900 truncate">
+                                {item.title}
+                              </h4>
+                              <p className="text-xs text-neutral-500 mt-0.5">
+                                {item.size ? `Size: ${item.size} • ` : ""}Qty: {item.quantity}
+                              </p>
                             </div>
-                          )}
-                          <div className="max-w-[140px]">
-                            <h4 className="text-[11px] font-bold text-[var(--foreground)] truncate">
-                              {item.title}
-                            </h4>
-                            <p className="text-[10px] text-[var(--muted-foreground)]">
-                              {item.size ? `Size ${item.size} • ` : ""}Qty {item.quantity}
-                            </p>
                           </div>
+
+                          <span className="text-xs font-semibold text-neutral-800 font-mono shrink-0">
+                            {storeConfig.currency.symbol}{item.price.toLocaleString()}
+                          </span>
                         </div>
                       ))}
-                      {ord.items.length > 3 && (
-                        <span className="text-[11px] font-bold text-[var(--muted-foreground)] bg-[var(--muted)] px-3 py-4 rounded-[var(--radius)] border border-[var(--border)] shrink-0">
-                          +{ord.items.length - 3} more
-                        </span>
-                      )}
                     </div>
 
-                    {/* Action Buttons */}
-                    <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                    {/* In-Transit Courier Notification Banner */}
+                    {ord.courierPartner && ord.trackingNumber && (
+                      <div className="mt-2 p-3 bg-sky-50/70 border border-sky-200/70 rounded-lg flex items-center justify-between text-xs text-sky-900">
+                        <div className="flex items-center gap-2">
+                          <Truck className="w-4 h-4 text-sky-600 shrink-0" />
+                          <span>
+                            Carrier: <strong>{ord.courierPartner}</strong> • Tracking #{ord.trackingNumber}
+                          </span>
+                        </div>
+                        {ord.estimatedDelivery && (
+                          <span className="text-[11px] text-sky-700">
+                            Est. {new Date(ord.estimatedDelivery).toLocaleDateString()}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Order Card Actions Footer */}
+                  <div className="p-3 sm:px-5 bg-neutral-50/40 border-t border-neutral-100 flex flex-wrap items-center justify-between gap-2.5">
+                    <span className="text-xs text-neutral-500">
+                      Recipient: <strong className="text-neutral-800">{ord.shippingAddress ? `${ord.shippingAddress.firstName} ${ord.shippingAddress.lastName}`.trim() : (user?.name || "Customer")}</strong>
+                    </span>
+
+                    <div className="flex items-center gap-2">
                       <button
                         onClick={() => handleReorder(ord)}
                         disabled={reorderingId === ord.orderNumber}
-                        className="inline-flex items-center gap-1.5 px-3 py-2 bg-[var(--muted)] hover:bg-neutral-200 dark:hover:bg-neutral-800 text-[var(--foreground)] border border-[var(--border)] rounded-[var(--radius)] text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer disabled:opacity-50"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-neutral-50 text-neutral-700 border border-neutral-300 rounded-lg text-xs font-medium transition-colors cursor-pointer disabled:opacity-50 shadow-2xs"
                       >
                         <RotateCcw className={`w-3.5 h-3.5 ${reorderingId === ord.orderNumber ? "animate-spin" : ""}`} />
-                        <span>Buy Again</span>
+                        <span>Buy again</span>
                       </button>
 
                       <Link
                         href={`/orders/${ord.orderNumber}`}
-                        className="inline-flex items-center gap-1.5 px-4 py-2 bg-[var(--foreground)] text-[var(--background)] hover:opacity-90 rounded-[var(--radius)] text-xs font-bold uppercase tracking-wider transition-opacity shadow-sm"
+                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-neutral-900 hover:bg-neutral-800 text-white rounded-lg text-xs font-medium transition-colors shadow-xs"
                       >
-                        <span>View Details</span>
-                        <ArrowRight className="w-3.5 h-3.5" />
+                        <span>View details</span>
+                        <ChevronRight className="w-3.5 h-3.5" />
                       </Link>
                     </div>
                   </div>
-
-                  {/* Courier Tracking Quick Bar if In Transit */}
-                  {ord.courierPartner && ord.trackingNumber && (
-                    <div className="p-3 bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 rounded-[var(--radius)] flex items-center justify-between text-xs text-sky-900 dark:text-sky-300">
-                      <div className="flex items-center gap-2 font-medium">
-                        <Truck className="w-4 h-4 text-sky-600 dark:text-sky-400 shrink-0" />
-                        <span>Dispatched via <strong>{ord.courierPartner}</strong> (AWB: <span className="font-mono">{ord.trackingNumber}</span>)</span>
-                      </div>
-                      {ord.estimatedDelivery && (
-                        <span className="text-[11px] text-sky-800 dark:text-sky-400">
-                          Est: {new Date(ord.estimatedDelivery).toLocaleDateString()}
-                        </span>
-                      )}
-                    </div>
-                  )}
                 </div>
               );
             })}
           </div>
         )}
 
-        {/* Pagination Bar */}
+        {/* Pagination */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between border-t border-[var(--border)] pt-5 text-xs text-[var(--muted-foreground)]">
-            <span>
-              Showing Page {currentPage} of {totalPages} ({totalOrders} Total Orders)
+          <div className="flex items-center justify-between pt-4 border-t border-neutral-200">
+            <button
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage <= 1}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-neutral-300 rounded-lg text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer bg-white"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+              <span>Previous</span>
+            </button>
+
+            <span className="text-xs text-neutral-600">
+              Page <strong>{currentPage}</strong> of <strong>{totalPages}</strong>
             </span>
-            <div className="flex items-center gap-2">
-              <button
-                disabled={currentPage <= 1}
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                className="px-3 py-1.5 border border-[var(--border)] rounded-[var(--radius)] hover:bg-[var(--muted)] disabled:opacity-40 cursor-pointer flex items-center gap-1"
-              >
-                <ChevronLeft className="w-3.5 h-3.5" />
-                <span>Prev</span>
-              </button>
-              <button
-                disabled={currentPage >= totalPages}
-                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                className="px-3 py-1.5 border border-[var(--border)] rounded-[var(--radius)] hover:bg-[var(--muted)] disabled:opacity-40 cursor-pointer flex items-center gap-1"
-              >
-                <span>Next</span>
-                <ChevronRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
+
+            <button
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage >= totalPages}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-neutral-300 rounded-lg text-xs font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer bg-white"
+            >
+              <span>Next</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
           </div>
         )}
 

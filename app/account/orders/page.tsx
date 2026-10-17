@@ -7,7 +7,7 @@ import { useAuthStore } from "@/stores/auth.store";
 import { AdminService } from "@/services/admin.service";
 import { AdminOrder } from "@/types/admin.types";
 import { OrdersTab } from "../components/OrdersTab";
-import { ArrowLeft, Package, CheckCircle2, X } from "lucide-react";
+import { ArrowLeft, CheckCircle2, X } from "lucide-react";
 
 export default function AccountOrdersPage() {
   const router = useRouter();
@@ -57,50 +57,53 @@ export default function AccountOrdersPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#fafafa] py-10 sm:py-14">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
+    <div className="min-h-screen bg-[var(--background)] py-8 sm:py-12">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
         
         {/* Toast */}
         {toastMessage && (
-          <div className="fixed top-20 right-4 sm:right-8 z-50 max-w-md bg-neutral-900 text-white px-5 py-3.5 rounded-2xl shadow-xl flex items-center justify-between gap-3 animate-fade-in">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-              <p className="text-xs font-medium">{toastMessage}</p>
+          <div className="fixed top-20 right-4 sm:right-8 z-50 max-w-md bg-neutral-900 text-white px-4 py-3 rounded-xl shadow-lg flex items-center justify-between gap-3 animate-fade-in border border-neutral-700">
+            <div className="flex items-center gap-2 text-xs">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <p className="font-medium">{toastMessage}</p>
             </div>
-            <button onClick={() => setToastMessage(null)} className="text-neutral-400 hover:text-white p-1">
+            <button onClick={() => setToastMessage(null)} className="text-neutral-400 hover:text-white p-1 cursor-pointer">
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
         )}
 
-        {/* Breadcrumb Navigation */}
-        <nav className="flex items-center gap-1.5 text-xs text-neutral-500 font-medium">
+        {/* Clean Breadcrumb Navigation */}
+        <nav className="flex items-center gap-2 text-xs text-neutral-500 font-medium">
           <Link href="/" className="hover:text-neutral-900 transition-colors">
             Home
           </Link>
-          <span>/</span>
+          <span className="text-neutral-300">/</span>
           <Link href="/account" className="hover:text-neutral-900 transition-colors">
-            Account Center
+            Account
           </Link>
-          <span>/</span>
+          <span className="text-neutral-300">/</span>
           <span className="text-neutral-900 font-semibold">Orders</span>
         </nav>
 
         {/* Header & Back Link */}
-        <div className="space-y-2">
+        <div className="space-y-2 border-b border-neutral-200/80 pb-5">
           <Link
             href="/account"
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#2b97ba] hover:underline"
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-neutral-600 hover:text-neutral-900 transition-colors"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Back to Account Center</span>
+            <span>Back to account</span>
           </Link>
-          <h1 className="text-2xl sm:text-3xl font-bold text-neutral-900 tracking-tight font-sans">
-            Orders
-          </h1>
-          <p className="text-xs text-neutral-500">
-            Track, return, cancel, or replace items.
-          </p>
+
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-neutral-900">
+              Orders
+            </h1>
+            <p className="text-xs sm:text-sm text-neutral-500 mt-1">
+              Track shipments, review past receipts, and reorder items.
+            </p>
+          </div>
         </div>
 
         {/* Orders Tab Component */}
