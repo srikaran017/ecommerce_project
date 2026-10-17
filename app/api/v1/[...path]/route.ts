@@ -13,10 +13,15 @@ async function proxyRequest(
     const subPath = (path || []).join("/");
     
     // Sanitize query params:
-    // 1. Backend Prisma findMany fails with 500 when limit is forwarded as a string on admin routes or wishlist
+    // 1. Backend Prisma findMany fails with 500 when limit is forwarded as a string on admin routes, wishlist, or customer orders
     // 2. Sanitize sort parameter if invalid or has attached text (e.g. sort=newestis)
     const searchParams = new URLSearchParams(req.nextUrl.searchParams);
-    if (subPath.startsWith("admin/") || subPath.includes("wishlist")) {
+    if (
+      subPath.startsWith("admin/") ||
+      subPath.includes("wishlist") ||
+      subPath === "orders" ||
+      subPath.startsWith("orders/")
+    ) {
       searchParams.delete("limit");
     }
     if (subPath.includes("wishlist")) {
