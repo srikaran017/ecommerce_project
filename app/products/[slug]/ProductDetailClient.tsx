@@ -58,10 +58,16 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
     }
   );
 
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   const [quantity, setQuantity] = useState(1);
   const { isAuthenticated } = useAuthStore();
   const { isWishlisted: checkWishlist, toggleWishlist: storeToggleWishlist } = useWishlistStore();
-  const isWishlisted = checkWishlist(product.id);
+  const isWishlisted = isMounted ? checkWishlist(product.id) : false;
 
   const handleToggleWishlist = async () => {
     if (!isAuthenticated) {
@@ -75,7 +81,7 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
   const [activeTab, setActiveTab] = useState<"fabric" | "care" | "shipping">("fabric");
   const [addedAnimation, setAddedAnimation] = useState(false);
 
-  // Reviews state - dynamically loaded and persisted per product
+  // Reviews state - initialized with deterministic server data to avoid hydration mismatch
   const [reviews, setReviews] = useState<
     Array<{
       id: string;
@@ -85,24 +91,28 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
       title: string;
       comment: string;
     }>
-  >(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const saved = localStorage.getItem(`reviews_${product.id}`);
-        if (saved) return JSON.parse(saved);
-      } catch {}
-    }
-    return [
-      {
-        id: `rev_init_1`,
-        author: "Verified Client",
-        rating: Math.round((product as any).rating || 5),
-        date: "Recently verified",
-        title: `Exquisite tailoring on ${product.name}`,
-        comment: `The atelier craftsmanship and silhouette of this ${product.name} are exceptional. Fits true to size with magnificent finish and fabric drape.`,
-      },
-    ];
-  });
+  >([
+    {
+      id: `rev_init_1`,
+      author: "Verified Client",
+      rating: Math.round((product as any).rating || 5),
+      date: "Recently verified",
+      title: `Exquisite tailoring on ${product.name}`,
+      comment: `The atelier craftsmanship and silhouette of this ${product.name} are exceptional. Fits true to size with magnificent finish and fabric drape.`,
+    },
+  ]);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(`reviews_${product.id}`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setReviews(parsed);
+        }
+      }
+    } catch {}
+  }, [product.id]);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [newRating, setNewRating] = useState(5);
   const [newTitle, setNewTitle] = useState("");

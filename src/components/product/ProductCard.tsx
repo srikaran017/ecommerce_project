@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Heart, ShoppingBag, Eye, Check, SlidersHorizontal, Sparkles } from "lucide-react";
@@ -18,6 +18,12 @@ export interface ProductCardProps {
 
 export function ProductCard({ product }: ProductCardProps) {
   const router = useRouter();
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   const primaryImg =
     product.images[0]?.url ||
     product.thumbnail ||
@@ -37,7 +43,7 @@ export function ProductCard({ product }: ProductCardProps) {
 
   const [selectedVariant, setSelectedVariant] = useState<ProductVariantData>(defaultVariant);
   const { isWishlisted: checkWishlist, toggleWishlist: storeToggleWishlist } = useWishlistStore();
-  const isWishlisted = checkWishlist(product.id);
+  const isWishlisted = isMounted ? checkWishlist(product.id) : false;
   const [isQuickViewOpen, setIsQuickViewOpen] = useState(false);
   const [added, setAdded] = useState(false);
   const addItem = useCartStore((state) => state.addItem);
