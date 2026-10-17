@@ -18,10 +18,13 @@ import { featureConfig } from "@/config/feature.config";
 import { useCartStore } from "@/stores/cart.store";
 import { useWishlistStore } from "@/stores/wishlist.store";
 import { useUIStore } from "@/stores/ui.store";
+import { useAuthStore } from "@/stores/auth.store";
 
 export function Navbar() {
+  const { isAuthenticated } = useAuthStore();
   const itemCount = useCartStore((state) => state.getItemCount());
-  const wishlistCount = useWishlistStore((state) => state.wishlistIds.length);
+  const rawWishlistCount = useWishlistStore((state) => state.wishlistIds.length);
+  const wishlistCount = isAuthenticated ? rawWishlistCount : 0;
   const loadWishlistIds = useWishlistStore((state) => state.loadWishlistIds);
   const { isMobileMenuOpen, toggleMobileMenu, closeMobileMenu, toggleSearch } = useUIStore();
   const [isScrolled, setIsScrolled] = useState(false);
@@ -31,13 +34,17 @@ export function Navbar() {
 
   useEffect(() => {
     setIsMounted(true);
-    loadWishlistIds();
+    if (isAuthenticated) {
+      loadWishlistIds();
+    } else {
+      useWishlistStore.setState({ wishlistIds: [] });
+    }
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 20);
     };
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
-  }, [loadWishlistIds]);
+  }, [isAuthenticated, loadWishlistIds]);
 
   const handleMouseEnter = () => {
     if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
@@ -240,7 +247,7 @@ export function Navbar() {
                 className="p-1.5 text-[var(--foreground)] hover:opacity-75 transition-opacity relative hidden sm:block"
               >
                 <Heart className="w-5 h-5" />
-                {isMounted && wishlistCount > 0 && (
+                {isMounted && isAuthenticated && wishlistCount > 0 && (
                   <span className="bg-rose-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center border border-[var(--background)] animate-in zoom-in-50 absolute -top-0.5 -right-0.5">
                     {wishlistCount}
                   </span>

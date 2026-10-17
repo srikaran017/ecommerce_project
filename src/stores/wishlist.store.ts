@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { WishlistService } from "@/services/wishlist.service";
+import { AuthService } from "@/services/auth.service";
 
 interface WishlistStore {
   wishlistIds: string[];
@@ -21,6 +22,12 @@ export const useWishlistStore = create<WishlistStore>()(
 
       // Call once when user logs in or app boots (GET /api/v1/wishlist/ids)
       loadWishlistIds: async () => {
+        // If user is not authenticated, wishlist is empty
+        if (!AuthService.getAccessToken()) {
+          set({ wishlistIds: [], loading: false });
+          return;
+        }
+
         try {
           set({ loading: true });
           const res = await WishlistService.getWishlistIds();

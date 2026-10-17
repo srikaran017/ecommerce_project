@@ -10,6 +10,7 @@ import {
   SocialLoginCredentials,
 } from "@/services/auth.service";
 import { useCartStore } from "@/stores/cart.store";
+import { useWishlistStore } from "@/stores/wishlist.store";
 
 export interface AuthState {
   user: AuthUser | null;
@@ -49,6 +50,7 @@ export const useAuthStore = create<AuthState>()(
             });
             // Automatically merge guest cart with customer cart upon login
             useCartStore.getState().mergeGuestCartOnLogin().catch(() => {});
+            useWishlistStore.getState().loadWishlistIds().catch(() => {});
             return true;
           } else {
             set({
@@ -88,6 +90,7 @@ export const useAuthStore = create<AuthState>()(
             });
             // Automatically merge guest cart with customer cart upon registration
             useCartStore.getState().mergeGuestCartOnLogin().catch(() => {});
+            useWishlistStore.getState().loadWishlistIds().catch(() => {});
             return true;
           } else {
             set({
@@ -118,6 +121,7 @@ export const useAuthStore = create<AuthState>()(
             });
             // Automatically merge guest cart with customer cart upon social login
             useCartStore.getState().mergeGuestCartOnLogin().catch(() => {});
+            useWishlistStore.getState().loadWishlistIds().catch(() => {});
             return true;
           } else {
             set({
@@ -146,6 +150,13 @@ export const useAuthStore = create<AuthState>()(
             isLoading: false,
             error: null,
           });
+          useWishlistStore.setState({ wishlistIds: [] });
+          if (typeof window !== "undefined") {
+            try {
+              localStorage.removeItem("wardrobe_wishlist_ids_v2");
+              localStorage.removeItem("wardrobe_wishlist_v1");
+            } catch {}
+          }
         }
       },
 
@@ -157,6 +168,7 @@ export const useAuthStore = create<AuthState>()(
             if (get().isAuthenticated) {
               set({ user: null, isAuthenticated: false });
             }
+            useWishlistStore.setState({ wishlistIds: [] });
             return;
           }
 

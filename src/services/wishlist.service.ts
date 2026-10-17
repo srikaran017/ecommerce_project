@@ -18,6 +18,8 @@ const LOCAL_WISHLIST_KEY = "wardrobe_wishlist_ids_v2";
 
 function getLocalWishlistIds(): string[] {
   if (typeof window === "undefined") return [];
+  // Unauthenticated guests have no active wishlist items
+  if (!AuthService.getAccessToken()) return [];
   try {
     const raw = localStorage.getItem(LOCAL_WISHLIST_KEY);
     if (raw) return JSON.parse(raw);
@@ -47,6 +49,16 @@ export class WishlistService {
    */
   static async getWishlistIds(): Promise<WishlistIdsResponse> {
     const baseUrl = getApiBaseUrl();
+
+    // If not authenticated, unauthenticated users have an empty wishlist
+    if (!AuthService.getAccessToken()) {
+      return {
+        success: true,
+        statusCode: 200,
+        message: "No wishlisted items for unauthenticated user",
+        data: [],
+      };
+    }
 
     try {
       const res = await AuthService.fetchWithAuth(`${baseUrl}/wishlist/ids`, {
