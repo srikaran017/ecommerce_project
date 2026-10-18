@@ -80,6 +80,12 @@ export default function AdminCollectionsPage() {
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Cloudinary Integration: Image Upload Mutual Exclusivity State
+  const [imageMode, setImageMode] = useState<"upload" | "url">("upload");
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const collectionFileInputRef = React.useRef<HTMLInputElement>(null);
+
   // Notification Toast
   const [alert, setAlert] = useState<{
     type: "success" | "error" | "info";
@@ -143,6 +149,8 @@ export default function AdminCollectionsPage() {
   // --------------------------------------------------------------------------
   // CREATE & EDIT MODAL
   // --------------------------------------------------------------------------
+  // CREATE & EDIT MODAL
+  // --------------------------------------------------------------------------
   const openCreateModal = () => {
     setEditingCollection(null);
     setForm({
@@ -156,6 +164,10 @@ export default function AdminCollectionsPage() {
       productIds: [],
     });
     setFormErrors({});
+    setImageMode("upload");
+    setImageFile(null);
+    setImagePreview(null);
+    if (collectionFileInputRef.current) collectionFileInputRef.current.value = "";
     setIsCreateModalOpen(true);
   };
 
@@ -172,6 +184,15 @@ export default function AdminCollectionsPage() {
       productIds: col.productIds || [],
     });
     setFormErrors({});
+    if (col.imageUrl) {
+      setImageMode("url");
+      setImagePreview(col.imageUrl);
+    } else {
+      setImageMode("upload");
+      setImagePreview(null);
+    }
+    setImageFile(null);
+    if (collectionFileInputRef.current) collectionFileInputRef.current.value = "";
     setIsCreateModalOpen(true);
   };
 
@@ -184,25 +205,27 @@ export default function AdminCollectionsPage() {
 
     setIsSubmitting(true);
     try {
-      if (editingCollection) {
-        const res = await AdminService.updateCollection(editingCollection.id, {
-          name: form.name.trim(),
-          slug: form.slug.trim() || undefined,
-          description: form.description.trim() || undefined,
-          imageUrl: form.imageUrl.trim() || null,
-          isFeatured: form.isFeatured,
-          sortOrder: Number(form.sortOrder),
-          isActive: form.isActive,
-        });
+      let res;
+      if (imageMode === "upload" && imageFile) {
+        // MODE A: File Upload (multipart/form-data) -> Never send imageUrl
+        const formData = new FormData();
+        formData.append("name", form.name.trim());
+        if (form.slug.trim()) formData.append("slug", form.slug.trim());
+        if (form.description.trim()) formData.append("description", form.description.trim());
+        formData.append("isFeatured", String(form.isFeatured));
+        formData.append("sortOrder", String(Number(form.sortOrder)));
+        formData.append("isActive", String(form.isActive));
+        if (form.productIds.length > 0) formData.append("productIds", JSON.stringify(form.productIds));
+        formData.append("image", imageFile); // Cloudinary folder: dresses/collections
 
-        if (!res.success) {
-          showAlert("error", "Update Failed", res.message || "Could not update collection.");
-          return;
+        if (editingCollection) {
+          res = await AdminService.updateCollection(editingCollection.id, formData);
+        } else {
+          res = await AdminService.createCollection(formData);
         }
-
-        showAlert("success", "Collection Updated", `"${form.name}" updated successfully.`);
       } else {
-        const res = await AdminService.createCollection({
+        // MODE B: Direct Image URL (application/json) -> Never send image file
+        const payload = {
           name: form.name.trim(),
           slug: form.slug.trim() || undefined,
           description: form.description.trim() || undefined,
@@ -211,15 +234,25 @@ export default function AdminCollectionsPage() {
           sortOrder: Number(form.sortOrder),
           isActive: form.isActive,
           productIds: form.productIds,
-        });
+        };
 
-        if (!res.success) {
-          showAlert("error", "Creation Failed", res.message || "Could not create collection.");
-          return;
+        if (editingCollection) {
+          res = await AdminService.updateCollection(editingCollection.id, payload);
+        } else {
+          res = await AdminService.createCollection(payload);
         }
-
-        showAlert("success", "Collection Created", `"${form.name}" has been launched.`);
       }
+
+      if (!res.success) {
+        showAlert("error", editingCollection ? "Update Failed" : "Creation Failed", res.message || "Operation failed.");
+        return;
+      }
+
+      showAlert(
+        "success",
+        editingCollection ? "Collection Updated" : "Collection Created",
+        `"${form.name}" has been ${editingCollection ? "updated" : "launched"} successfully.`
+      );
 
       setIsCreateModalOpen(false);
       await loadData(true);
@@ -834,17 +867,130 @@ export default function AdminCollectionsPage() {
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
-                  Cover / Banner Image URL
-                </label>
-                <input
-                  type="url"
-                  value={form.imageUrl}
-                  onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
-                  placeholder="https://images.unsplash.com/... (or Cloudinary URL)"
-                  className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none focus:border-amber-400"
-                />
+              {/* Collection Cover Image (Cloudinary Integration: Mutual Exclusivity Policy) */}
+              <div className="space-y-3 p-4 bg-slate-950/60 rounded-2xl border border-slate-800">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-300">
+                    Collection Hero Cover
+                  </label>
+                  {/* Mode Switcher */}
+                  <div className="flex items-center bg-slate-900 p-0.5 rounded-lg border border-slate-800 text-[10px]">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setImageMode("upload");
+                        setForm({ ...form, imageUrl: "" });
+                      }}
+                      className={`px-2.5 py-1 rounded-md font-semibold transition-all cursor-pointer ${
+                        imageMode === "upload"
+                          ? "bg-amber-400 text-slate-950 shadow"
+                          : "text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      📁 Upload File
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setImageMode("url");
+                        setImageFile(null);
+                        setImagePreview(null);
+                        if (collectionFileInputRef.current) collectionFileInputRef.current.value = "";
+                      }}
+                      className={`px-2.5 py-1 rounded-md font-semibold transition-all cursor-pointer ${
+                        imageMode === "url"
+                          ? "bg-amber-400 text-slate-950 shadow"
+                          : "text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      🔗 Image URL
+                    </button>
+                  </div>
+                </div>
+
+                {imageMode === "upload" ? (
+                  <div key="collection-upload-mode" className="flex items-center gap-3">
+                    <input
+                      key="collection-file-input"
+                      type="file"
+                      ref={collectionFileInputRef}
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          if (file.size > 10 * 1024 * 1024) {
+                            showAlert("error", "File Too Large", "Collection image must be under 10MB.");
+                            return;
+                          }
+                          setImageFile(file);
+                          setImagePreview(URL.createObjectURL(file));
+                          setForm({ ...form, imageUrl: "" }); // Enforce mutual exclusivity
+                        }
+                      }}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => collectionFileInputRef.current?.click()}
+                      className="flex-1 py-3 px-4 bg-slate-900 border border-dashed border-slate-700 hover:border-amber-400 rounded-xl text-slate-300 flex items-center justify-center gap-2 cursor-pointer text-xs transition-colors"
+                    >
+                      <ImageIcon className="w-4 h-4 text-amber-400" />
+                      <span>{imageFile ? imageFile.name : "Choose Cover File (PNG, JPG, WEBP - Max 10MB)"}</span>
+                    </button>
+
+                    {imagePreview && (
+                      <div className="relative group">
+                        <img
+                          src={imagePreview}
+                          alt="Collection Preview"
+                          className="w-12 h-12 object-cover rounded-xl border border-slate-700 bg-slate-900"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setImageFile(null);
+                            setImagePreview(null);
+                            if (collectionFileInputRef.current) collectionFileInputRef.current.value = "";
+                          }}
+                          className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-rose-600 text-white rounded-full flex items-center justify-center text-[10px] cursor-pointer shadow"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div key="collection-url-mode" className="space-y-2">
+                    <input
+                      key="collection-url-input"
+                      type="url"
+                      value={form.imageUrl || ""}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setForm({ ...form, imageUrl: val });
+                        setImagePreview(val || null);
+                      }}
+                      placeholder="https://images.unsplash.com/... or Cloudinary HTTPS URL"
+                      className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none focus:border-amber-400"
+                    />
+                    {form.imageUrl && (
+                      <div className="flex items-center gap-2 text-[11px] text-slate-400">
+                        <img
+                          src={form.imageUrl}
+                          alt="Preview"
+                          className="w-8 h-8 object-cover rounded-lg border border-slate-700 bg-slate-900"
+                          onError={(e) => {
+                            (e.target as HTMLElement).style.display = "none";
+                          }}
+                        />
+                        <span className="truncate">{form.imageUrl}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+                <span className="text-[10px] text-slate-500 font-mono block">
+                  Cloudinary Folder: <code className="text-amber-400/80">dresses/collections</code> (Mutual exclusivity enforced)
+                </span>
               </div>
 
               <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-800">

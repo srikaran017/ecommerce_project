@@ -30,6 +30,9 @@ import {
   UserX,
   KeyRound,
   ExternalLink,
+  Upload,
+  Camera,
+  Link as LinkIcon,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/auth.store";
 import { AdminService } from "@/services/admin.service";
@@ -85,6 +88,10 @@ export default function AdminUsersPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [createErrors, setCreateErrors] = useState<Record<string, string>>({});
   const [isSubmittingCreate, setIsSubmittingCreate] = useState(false);
+  const [createAvatarMode, setCreateAvatarMode] = useState<"upload" | "url">("upload");
+  const [createAvatarFile, setCreateAvatarFile] = useState<File | null>(null);
+  const [createAvatarUrl, setCreateAvatarUrl] = useState("");
+  const [createAvatarPreview, setCreateAvatarPreview] = useState<string | null>(null);
 
   // Form State: Edit User
   const [editForm, setEditForm] = useState({
@@ -95,6 +102,10 @@ export default function AdminUsersPage() {
   });
   const [editErrors, setEditErrors] = useState<Record<string, string>>({});
   const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
+  const [editAvatarMode, setEditAvatarMode] = useState<"upload" | "url">("upload");
+  const [editAvatarFile, setEditAvatarFile] = useState<File | null>(null);
+  const [editAvatarUrl, setEditAvatarUrl] = useState("");
+  const [editAvatarPreview, setEditAvatarPreview] = useState<string | null>(null);
 
   // Alert / Feedback Toast
   const [alertMessage, setAlertMessage] = useState<{
@@ -217,6 +228,10 @@ export default function AdminUsersPage() {
       role: targetRole,
       permissions: initialPerms,
     });
+    setCreateAvatarMode("upload");
+    setCreateAvatarFile(null);
+    setCreateAvatarUrl("");
+    setCreateAvatarPreview(null);
     setCreateErrors({});
     setIsCreateModalOpen(true);
   };
@@ -244,14 +259,32 @@ export default function AdminUsersPage() {
 
     setIsSubmittingCreate(true);
     try {
-      const res = await AdminService.createUser({
-        name: createForm.name,
-        email: createForm.email,
-        password: createForm.password,
-        role: createForm.role,
-        phone: createForm.phone || undefined,
-        permissions: createForm.role !== "CUSTOMER" ? createForm.permissions : [],
-      });
+      let res;
+      if (createAvatarMode === "upload" && createAvatarFile) {
+        // Mode A: File Upload (multipart/form-data)
+        const fd = new FormData();
+        fd.append("name", createForm.name);
+        fd.append("email", createForm.email);
+        fd.append("password", createForm.password);
+        fd.append("role", createForm.role);
+        if (createForm.phone) fd.append("phone", createForm.phone);
+        if (createForm.role !== "CUSTOMER") {
+          fd.append("permissions", JSON.stringify(createForm.permissions));
+        }
+        fd.append("avatar", createAvatarFile);
+        res = await AdminService.createUser(fd);
+      } else {
+        // Mode B: JSON with avatarUrl
+        res = await AdminService.createUser({
+          name: createForm.name,
+          email: createForm.email,
+          password: createForm.password,
+          role: createForm.role,
+          phone: createForm.phone || undefined,
+          permissions: createForm.role !== "CUSTOMER" ? createForm.permissions : [],
+          avatarUrl: createAvatarUrl.trim() || undefined,
+        });
+      }
 
       if (!res.success) {
         if (res.error === "USER_ALREADY_EXISTS") {
@@ -293,6 +326,10 @@ export default function AdminUsersPage() {
       permissions: targetUser.permissions || [],
       isActive: targetUser.isActive,
     });
+    setEditAvatarMode(targetUser.avatarUrl ? "url" : "upload");
+    setEditAvatarFile(null);
+    setEditAvatarUrl(targetUser.avatarUrl || "");
+    setEditAvatarPreview(targetUser.avatarUrl || null);
     setEditErrors({});
   };
 
@@ -307,12 +344,28 @@ export default function AdminUsersPage() {
 
     setIsSubmittingEdit(true);
     try {
-      const res = await AdminService.updateUser(selectedUserForEdit.id, {
-        name: editForm.name,
-        phone: editForm.phone || undefined,
-        permissions: selectedUserForEdit.role !== "CUSTOMER" ? editForm.permissions : [],
-        isActive: editForm.isActive,
-      });
+      let res;
+      if (editAvatarMode === "upload" && editAvatarFile) {
+        // Mode A: File Upload (multipart/form-data)
+        const fd = new FormData();
+        fd.append("name", editForm.name);
+        if (editForm.phone) fd.append("phone", editForm.phone);
+        if (selectedUserForEdit.role !== "CUSTOMER") {
+          fd.append("permissions", JSON.stringify(editForm.permissions));
+        }
+        fd.append("isActive", String(editForm.isActive));
+        fd.append("avatar", editAvatarFile);
+        res = await AdminService.updateUser(selectedUserForEdit.id, fd);
+      } else {
+        // Mode B: JSON with avatarUrl
+        res = await AdminService.updateUser(selectedUserForEdit.id, {
+          name: editForm.name,
+          phone: editForm.phone || undefined,
+          permissions: selectedUserForEdit.role !== "CUSTOMER" ? editForm.permissions : [],
+          isActive: editForm.isActive,
+          avatarUrl: editAvatarUrl.trim() || undefined,
+        });
+      }
 
       if (!res.success) {
         showAlert("error", "Update Failed", res.message || "Failed to update user.");
@@ -655,19 +708,27 @@ export default function AdminUsersPage() {
                       {/* User & Contact */}
                       <td className="py-4 px-6">
                         <div className="flex items-center gap-3">
-                          <div
-                            className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm uppercase flex-shrink-0 ${
-                              u.role === "SUPER_ADMIN"
-                                ? "bg-violet-500/20 text-violet-300 border border-violet-500/30"
-                                : u.role === "STORE_ADMIN"
-                                ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
-                                : u.role === "STAFF"
-                                ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
-                                : "bg-slate-800 text-slate-300 border border-slate-700"
-                            }`}
-                          >
-                            {u.name.charAt(0)}
-                          </div>
+                          {u.avatarUrl ? (
+                            <img
+                              src={u.avatarUrl}
+                              alt={u.name}
+                              className="w-10 h-10 rounded-xl object-cover border border-slate-700 flex-shrink-0"
+                            />
+                          ) : (
+                            <div
+                              className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm uppercase flex-shrink-0 ${
+                                u.role === "SUPER_ADMIN"
+                                  ? "bg-violet-500/20 text-violet-300 border border-violet-500/30"
+                                  : u.role === "STORE_ADMIN"
+                                  ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                                  : u.role === "STAFF"
+                                  ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                                  : "bg-slate-800 text-slate-300 border border-slate-700"
+                              }`}
+                            >
+                              {u.name.charAt(0)}
+                            </div>
+                          )}
                           <div className="min-w-0">
                             <div className="flex items-center gap-2">
                               <span className="font-bold text-white truncate">{u.name}</span>
@@ -970,6 +1031,113 @@ export default function AdminUsersPage() {
                 </div>
               </div>
 
+              {/* Avatar Section (Mutual Exclusivity: File Upload OR Direct URL) */}
+              <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-300 block">
+                      User Avatar Photo
+                    </label>
+                    <span className="text-[11px] text-slate-500">
+                      Upload directly to Cloudinary or supply an HTTPS URL (One-only policy)
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5 p-1 bg-slate-900 border border-slate-800 rounded-xl">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCreateAvatarMode("upload");
+                        setCreateAvatarUrl("");
+                      }}
+                      className={`px-2.5 py-1 text-[11px] font-bold uppercase rounded-lg transition-colors flex items-center gap-1.5 ${
+                        createAvatarMode === "upload"
+                          ? "bg-amber-400 text-slate-950 shadow-sm"
+                          : "text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      <Upload className="w-3 h-3" />
+                      <span>Upload</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCreateAvatarMode("url");
+                        setCreateAvatarFile(null);
+                        setCreateAvatarPreview(null);
+                      }}
+                      className={`px-2.5 py-1 text-[11px] font-bold uppercase rounded-lg transition-colors flex items-center gap-1.5 ${
+                        createAvatarMode === "url"
+                          ? "bg-amber-400 text-slate-950 shadow-sm"
+                          : "text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      <LinkIcon className="w-3 h-3" />
+                      <span>URL</span>
+                    </button>
+                  </div>
+                </div>
+
+                {createAvatarMode === "upload" ? (
+                  <div key="user-create-upload-mode" className="flex items-center gap-4">
+                    {createAvatarPreview ? (
+                      <div className="relative group shrink-0">
+                        <img
+                          src={createAvatarPreview}
+                          alt="Avatar preview"
+                          className="w-12 h-12 rounded-xl object-cover border border-amber-400/50"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCreateAvatarFile(null);
+                            setCreateAvatarPreview(null);
+                          }}
+                          className="absolute -top-1.5 -right-1.5 bg-rose-500 text-white rounded-full p-0.5"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="w-12 h-12 rounded-xl bg-slate-900 border border-dashed border-slate-700 flex items-center justify-center text-slate-500 shrink-0">
+                        <Camera className="w-5 h-5" />
+                      </div>
+                    )}
+                    <label className="flex-1 cursor-pointer">
+                      <span className="block text-xs font-semibold text-slate-300 hover:text-amber-400 transition-colors">
+                        Choose photo file (Max 10MB)
+                      </span>
+                      <span className="block text-[11px] text-slate-500">
+                        Supports .jpg, .jpeg, .png, .webp
+                      </span>
+                      <input
+                        key="user-create-file-input"
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp,image/gif"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            setCreateAvatarFile(file);
+                            setCreateAvatarPreview(URL.createObjectURL(file));
+                          }
+                        }}
+                      />
+                    </label>
+                  </div>
+                ) : (
+                  <div key="user-create-url-mode">
+                    <input
+                      key="user-create-url-input"
+                      type="url"
+                      placeholder="https://images.unsplash.com/photo-..."
+                      value={createAvatarUrl || ""}
+                      onChange={(e) => setCreateAvatarUrl(e.target.value)}
+                      className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none focus:border-amber-400"
+                    />
+                  </div>
+                )}
+              </div>
+
               {/* Dynamic Permission Checkboxes (Section 3 of spec) */}
               {createForm.role !== "CUSTOMER" && (
                 <div className="space-y-3 pt-2 border-t border-slate-800">
@@ -1155,6 +1323,113 @@ export default function AdminUsersPage() {
                 </div>
               </div>
 
+              {/* Avatar Section (Mutual Exclusivity: File Upload OR Direct URL) */}
+              <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-300 block">
+                      User Avatar Photo
+                    </label>
+                    <span className="text-[11px] text-slate-500">
+                      Upload directly to Cloudinary or supply an HTTPS URL
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5 p-1 bg-slate-900 border border-slate-800 rounded-xl">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditAvatarMode("upload");
+                        setEditAvatarUrl("");
+                      }}
+                      className={`px-2.5 py-1 text-[11px] font-bold uppercase rounded-lg transition-colors flex items-center gap-1.5 ${
+                        editAvatarMode === "upload"
+                          ? "bg-amber-400 text-slate-950 shadow-sm"
+                          : "text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      <Upload className="w-3 h-3" />
+                      <span>Upload</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditAvatarMode("url");
+                        setEditAvatarFile(null);
+                        setEditAvatarPreview(null);
+                      }}
+                      className={`px-2.5 py-1 text-[11px] font-bold uppercase rounded-lg transition-colors flex items-center gap-1.5 ${
+                        editAvatarMode === "url"
+                          ? "bg-amber-400 text-slate-950 shadow-sm"
+                          : "text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      <LinkIcon className="w-3 h-3" />
+                      <span>URL</span>
+                    </button>
+                  </div>
+                </div>
+
+                {editAvatarMode === "upload" ? (
+                  <div key="user-edit-upload-mode" className="flex items-center gap-4">
+                    {editAvatarPreview ? (
+                      <div className="relative group shrink-0">
+                        <img
+                          src={editAvatarPreview}
+                          alt="Avatar preview"
+                          className="w-12 h-12 rounded-xl object-cover border border-amber-400/50"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditAvatarFile(null);
+                            setEditAvatarPreview(null);
+                          }}
+                          className="absolute -top-1.5 -right-1.5 bg-rose-500 text-white rounded-full p-0.5"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="w-12 h-12 rounded-xl bg-slate-900 border border-dashed border-slate-700 flex items-center justify-center text-slate-500 shrink-0">
+                        <Camera className="w-5 h-5" />
+                      </div>
+                    )}
+                    <label className="flex-1 cursor-pointer">
+                      <span className="block text-xs font-semibold text-slate-300 hover:text-amber-400 transition-colors">
+                        Choose photo file (Max 10MB)
+                      </span>
+                      <span className="block text-[11px] text-slate-500">
+                        Supports .jpg, .jpeg, .png, .webp
+                      </span>
+                      <input
+                        key="user-edit-file-input"
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp,image/gif"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            setEditAvatarFile(file);
+                            setEditAvatarPreview(URL.createObjectURL(file));
+                          }
+                        }}
+                      />
+                    </label>
+                  </div>
+                ) : (
+                  <div key="user-edit-url-mode">
+                    <input
+                      key="user-edit-url-input"
+                      type="url"
+                      placeholder="https://images.unsplash.com/photo-..."
+                      value={editAvatarUrl || ""}
+                      onChange={(e) => setEditAvatarUrl(e.target.value)}
+                      className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none focus:border-amber-400"
+                    />
+                  </div>
+                )}
+              </div>
+
               {/* Status Switch */}
               <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-between">
                 <div>
@@ -1311,9 +1586,17 @@ export default function AdminUsersPage() {
           <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-lg w-full p-6 sm:p-8 space-y-6 shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-800 pb-4">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center font-bold text-lg">
-                  {selectedUserForView.name.charAt(0)}
-                </div>
+                {selectedUserForView.avatarUrl ? (
+                  <img
+                    src={selectedUserForView.avatarUrl}
+                    alt={selectedUserForView.name}
+                    className="w-12 h-12 rounded-2xl object-cover border border-amber-500/30 shrink-0"
+                  />
+                ) : (
+                  <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center font-bold text-lg shrink-0">
+                    {selectedUserForView.name.charAt(0)}
+                  </div>
+                )}
                 <div>
                   <h3 className="text-base font-bold text-white">{selectedUserForView.name}</h3>
                   <div className="text-xs text-slate-400">{selectedUserForView.email}</div>

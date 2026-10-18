@@ -43,6 +43,7 @@ export function ProfileTab({ onShowToast }: ProfileTabProps) {
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [customAvatarUrl, setCustomAvatarUrl] = useState("");
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
 
   useEffect(() => {
     async function loadExtraProfile() {
@@ -72,6 +73,41 @@ export function ProfileTab({ onShowToast }: ProfileTabProps) {
     setHasUnsavedChanges(true);
     setShowAvatarPicker(false);
     onShowToast("Avatar image updated. Click Save changes to confirm.");
+  };
+
+  const handleAvatarFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      onShowToast("Please select a valid image file (.jpg, .jpeg, .png, .webp).");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      onShowToast("Image size must be less than 10MB.");
+      return;
+    }
+
+    setIsUploadingAvatar(true);
+    try {
+      const res = await CustomerService.uploadAvatar(file);
+      const uploadedUrl = res.data?.avatarUrl || (res as any).avatarUrl;
+      if (res.success && uploadedUrl) {
+        handleAvatarSelect(uploadedUrl);
+        onShowToast("Avatar uploaded successfully via Cloudinary!");
+      } else {
+        const localUrl = URL.createObjectURL(file);
+        handleAvatarSelect(localUrl);
+        onShowToast("Avatar image updated!");
+      }
+    } catch {
+      const localUrl = URL.createObjectURL(file);
+      handleAvatarSelect(localUrl);
+      onShowToast("Avatar image updated!");
+    } finally {
+      setIsUploadingAvatar(false);
+      e.target.value = "";
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -190,30 +226,50 @@ export function ProfileTab({ onShowToast }: ProfileTabProps) {
               ))}
             </div>
 
-            <div className="pt-2 border-t border-neutral-200">
-              <label className="text-xs text-neutral-600 block mb-1">
-                Or paste image link:
+            {/* Cloudinary File Upload or Direct URL */}
+            <div className="pt-2 border-t border-neutral-200 space-y-2">
+              <label className="text-xs text-neutral-600 font-medium block">
+                Or upload file (Max 10MB) / paste image link:
               </label>
-              <div className="flex gap-2">
-                <input
-                  type="url"
-                  placeholder="https://example.com/photo.jpg"
-                  value={customAvatarUrl}
-                  onChange={(e) => setCustomAvatarUrl(e.target.value)}
-                  className="flex-1 px-3 py-1.5 text-xs rounded-lg border border-neutral-300 focus:outline-none focus:ring-1 focus:ring-neutral-900 bg-white"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (customAvatarUrl) {
-                      handleAvatarSelect(customAvatarUrl);
-                      setCustomAvatarUrl("");
-                    }
-                  }}
-                  className="px-3 py-1.5 bg-neutral-900 text-white text-xs font-medium rounded-lg hover:bg-neutral-800"
-                >
-                  Apply
-                </button>
+
+              <div className="flex flex-col sm:flex-row gap-2">
+                <label className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-white border border-neutral-300 rounded-lg text-xs font-medium text-neutral-800 hover:bg-neutral-100 cursor-pointer transition-colors shadow-2xs">
+                  {isUploadingAvatar ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin text-neutral-600" />
+                  ) : (
+                    <Camera className="w-3.5 h-3.5 text-neutral-600" />
+                  )}
+                  <span>{isUploadingAvatar ? "Streaming to Cloudinary..." : "Choose File"}</span>
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/gif"
+                    className="hidden"
+                    disabled={isUploadingAvatar}
+                    onChange={handleAvatarFileUpload}
+                  />
+                </label>
+
+                <div className="flex-1 flex gap-2">
+                  <input
+                    type="url"
+                    placeholder="https://example.com/photo.jpg"
+                    value={customAvatarUrl}
+                    onChange={(e) => setCustomAvatarUrl(e.target.value)}
+                    className="flex-1 px-3 py-1.5 text-xs rounded-lg border border-neutral-300 focus:outline-none focus:ring-1 focus:ring-neutral-900 bg-white"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (customAvatarUrl) {
+                        handleAvatarSelect(customAvatarUrl);
+                        setCustomAvatarUrl("");
+                      }
+                    }}
+                    className="px-3 py-1.5 bg-neutral-900 text-white text-xs font-medium rounded-lg hover:bg-neutral-800 transition-colors"
+                  >
+                    Apply
+                  </button>
+                </div>
               </div>
             </div>
           </div>

@@ -83,11 +83,17 @@ export default function AdminProductsPage() {
   const [formSizes, setFormSizes] = useState("S, M, L, XL");
   const [formColors, setFormColors] = useState("Midnight Navy, Emerald Green, Rose Pink");
   const [formStockPerVariant, setFormStockPerVariant] = useState("5");
+  // Add Product Form State
+  const [formImageMode, setFormImageMode] = useState<"upload" | "url">("upload");
+  const [formImageFile, setFormImageFile] = useState<File | null>(null);
   const [formImageUrl, setFormImageUrl] = useState("");
   const [formImagePreview, setFormImagePreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Additional Image Upload for Viewing Product Drawer
+  const [drawerImageMode, setDrawerImageMode] = useState<"upload" | "url">("upload");
+  const [drawerImageFile, setDrawerImageFile] = useState<File | null>(null);
+  const [drawerImagePreview, setDrawerImagePreview] = useState<string | null>(null);
   const [drawerImageUrl, setDrawerImageUrl] = useState("");
   const [drawerIsThumbnail, setDrawerIsThumbnail] = useState(false);
   const drawerFileInputRef = useRef<HTMLInputElement>(null);
@@ -248,51 +254,74 @@ export default function AdminProductsPage() {
     }
   };
 
-  // Image Upload via Cloud-Ready Pipeline (FileReader / Cloudinary ready)
+  // Image Upload Handler (Mutual Exclusivity: selecting file clears URL)
   const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>, target: "create" | "drawer") => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        alert("Image file size should be less than 5MB");
+      if (file.size > 10 * 1024 * 1024) {
+        alert("Image file size should be less than 10MB (Cloudinary limits).");
         return;
       }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const result = reader.result as string;
-        if (target === "create") {
-          setFormImagePreview(result);
-          setFormImageUrl(result);
-        } else if (target === "drawer" && viewingProduct) {
-          handleUploadDrawerImage(result);
-        }
-      };
-      reader.readAsDataURL(file);
+      const previewUrl = URL.createObjectURL(file);
+      if (target === "create") {
+        setFormImageFile(file);
+        setFormImagePreview(previewUrl);
+        setFormImageUrl(""); // Clear URL input to prevent conflict
+      } else if (target === "drawer") {
+        setDrawerImageFile(file);
+        setDrawerImagePreview(previewUrl);
+        setDrawerImageUrl(""); // Clear URL input to prevent conflict
+      }
     }
   };
 
-  // Upload Additional Image to Existing Product
-  const handleUploadDrawerImage = async (imgUrlToUpload?: string) => {
-    if (!viewingProduct) return;
-    const url = imgUrlToUpload || drawerImageUrl.trim();
-    if (!url) return;
+  // Upload Additional Gallery Image (Mutual Exclusivity: FormData file OR JSON URL)
+  const handleUploadDrawerImage = async () => {
+    if (!viewingProduct || !viewingProduct.id || viewingProduct.id === "undefined") {
+      setFeedback({ type: "warning", message: "Cannot upload image: Product reference is missing or invalid." });
+      return;
+    }
 
     try {
-      const res = await AdminService.uploadProductImages(viewingProduct.id, [
-        {
+      let res;
+      if (drawerImageMode === "upload") {
+        if (!drawerImageFile) {
+          setFeedback({ type: "warning", message: "Please select an image file to upload." });
+          return;
+        }
+        // Mode A: File Upload (multipart/form-data)
+        const formData = new FormData();
+        formData.append("images", drawerImageFile);
+        formData.append("altText", viewingProduct.name);
+        formData.append("isThumbnail", String(drawerIsThumbnail));
+        formData.append("sortOrder", String((viewingProduct.images || []).length));
+        res = await AdminService.uploadProductImages(viewingProduct.id, formData);
+      } else {
+        const url = drawerImageUrl.trim();
+        if (!url) {
+          setFeedback({ type: "warning", message: "Please provide a valid image URL." });
+          return;
+        }
+        // Mode B: Direct Image URL (JSON)
+        res = await AdminService.uploadProductImages(viewingProduct.id, {
           url,
           altText: viewingProduct.name,
           isThumbnail: drawerIsThumbnail,
           sortOrder: (viewingProduct.images || []).length,
-        },
-      ]);
-      if (res.success && res.data.images) {
+        });
+      }
+
+      if (res && res.success) {
         const updated = await AdminService.getProductById(viewingProduct.id);
         if (updated) {
           setViewingProduct(updated);
           loadProducts();
         }
+        setDrawerImageFile(null);
+        setDrawerImagePreview(null);
         setDrawerImageUrl("");
         setDrawerIsThumbnail(false);
+        if (drawerFileInputRef.current) drawerFileInputRef.current.value = "";
         setFeedback({ type: "success", message: "Gallery image uploaded successfully." });
         setTimeout(() => setFeedback(null), 3000);
       }
@@ -326,7 +355,7 @@ export default function AdminProductsPage() {
     }
   };
 
-  // Atomic Product Creation with Multi-Variant Matrix
+  // Atomic Product Creation with Multi-Variant Matrix & Mutually Exclusive Image Pipe
   const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formName.trim() || !formRegularPrice) return;
@@ -387,59 +416,90 @@ export default function AdminProductsPage() {
       }))
     );
 
+    const variantsToUse =
+      generatedVariants.length > 0
+        ? generatedVariants
+        : [
+            {
+              size: "Free Size",
+              color: "Midnight Navy",
+              colorName: "Midnight Navy",
+              colorHex: "#0b1b3d",
+              regularPrice: regularP,
+              salePrice: saleP,
+              costPrice: costP,
+              stockQuantity: stockUnits,
+              sku: `${formName.slice(0, 3).toUpperCase()}-OS-${Date.now().toString().slice(-3)}`,
+              lowStockThreshold: 5,
+              isActive: true,
+            },
+          ];
+
     const selectedCatObj = categories.find((c) => c.id === formCategory);
 
-    const input: CreateProductInput = {
-      name: formName.trim(),
-      brand: formBrand.trim() || "Maison De Élégance",
-      description: formDescription.trim() || `${formName.trim()} crafted with exquisite pure fabric and signature couture tailoring.`,
-      shortDescription: `Handcrafted ${selectedCatObj?.name || "garment"} silhouette.`,
-      categoryId: formCategory,
-      categorySlug: selectedCatObj?.slug,
-      categoryName: selectedCatObj?.name,
-      regularPrice: regularP,
-      salePrice: saleP,
-      costPrice: costP,
-      offerPrice: offerP,
-      isActive: true,
-      isFeatured: false,
-      tags: [selectedCatObj?.name || "Garment", "Luxury", "Handcrafted"],
-      gender: "WOMEN",
-      images: [
-        {
-          url:
-            formImageUrl.trim() ||
-            formImagePreview ||
-            "https://images.unsplash.com/photo-1566174053879-31528523f8ae?w=800",
-          altText: formName.trim(),
-          isThumbnail: true,
-          isPrimary: true,
-          sortOrder: 0,
-        },
-      ],
-      variants:
-        generatedVariants.length > 0
-          ? generatedVariants
-          : [
-              {
-                size: "Free Size",
-                color: "Midnight Navy",
-                colorName: "Midnight Navy",
-                colorHex: "#0b1b3d",
-                regularPrice: regularP,
-                salePrice: saleP,
-                costPrice: costP,
-                stockQuantity: stockUnits,
-                sku: `${formName.slice(0, 3).toUpperCase()}-OS-${Date.now().toString().slice(-3)}`,
-                lowStockThreshold: 5,
-                isActive: true,
-              },
-            ],
-    };
-
     try {
-      const res = await AdminService.createProduct(input);
-      if (res.success) {
+      let res;
+      if (formImageMode === "upload" && formImageFile) {
+        // MODE A: File Upload (multipart/form-data) -> Never send images URL array
+        const formData = new FormData();
+        formData.append("name", formName.trim());
+        formData.append("brand", formBrand.trim() || "Maison De Élégance");
+        formData.append(
+          "description",
+          formDescription.trim() || `${formName.trim()} crafted with exquisite pure fabric and signature couture tailoring.`
+        );
+        formData.append("shortDescription", `Handcrafted ${selectedCatObj?.name || "garment"} silhouette.`);
+        formData.append("categoryId", formCategory);
+        if (selectedCatObj?.slug) formData.append("categorySlug", selectedCatObj.slug);
+        if (selectedCatObj?.name) formData.append("categoryName", selectedCatObj.name);
+        formData.append("regularPrice", String(regularP));
+        if (saleP !== null) formData.append("salePrice", String(saleP));
+        if (costP !== null) formData.append("costPrice", String(costP));
+        if (offerP !== null) formData.append("offerPrice", String(offerP));
+        formData.append("isActive", "true");
+        formData.append("isFeatured", "false");
+        formData.append("gender", "WOMEN");
+        formData.append("variants", JSON.stringify(variantsToUse));
+        formData.append("images", formImageFile); // Direct file attachment for Cloudinary streaming
+
+        res = await AdminService.createProduct(formData);
+      } else {
+        // MODE B: Direct Image URL Array (application/json) -> Never send image file
+        const finalUrl =
+          formImageUrl.trim() || "https://images.unsplash.com/photo-1566174053879-31528523f8ae?w=800";
+        const input: CreateProductInput = {
+          name: formName.trim(),
+          brand: formBrand.trim() || "Maison De Élégance",
+          description:
+            formDescription.trim() || `${formName.trim()} crafted with exquisite pure fabric and signature couture tailoring.`,
+          shortDescription: `Handcrafted ${selectedCatObj?.name || "garment"} silhouette.`,
+          categoryId: formCategory,
+          categorySlug: selectedCatObj?.slug,
+          categoryName: selectedCatObj?.name,
+          regularPrice: regularP,
+          salePrice: saleP,
+          costPrice: costP,
+          offerPrice: offerP,
+          isActive: true,
+          isFeatured: false,
+          tags: [selectedCatObj?.name || "Garment", "Luxury", "Handcrafted"],
+          gender: "WOMEN",
+          images: [
+            {
+              url: finalUrl,
+              altText: formName.trim(),
+              isThumbnail: true,
+              isPrimary: true,
+              sortOrder: 0,
+            },
+          ],
+          variants: variantsToUse,
+        };
+
+        res = await AdminService.createProduct(input);
+      }
+
+      if (res && res.success) {
         setIsAddModalOpen(false);
         // Reset form
         setFormName("");
@@ -448,9 +508,11 @@ export default function AdminProductsPage() {
         setFormCostPrice("");
         setFormOfferPrice("");
         setFormDescription("");
-        setFormImageUrl("");
+        setFormImageFile(null);
         setFormImagePreview(null);
-        setFeedback({ type: "success", message: `Garment "${input.name}" published with variants!` });
+        setFormImageUrl("");
+        if (fileInputRef.current) fileInputRef.current.value = "";
+        setFeedback({ type: "success", message: `Garment "${formName.trim()}" published with variants!` });
         loadProducts();
         setTimeout(() => setFeedback(null), 3500);
       }
@@ -1187,45 +1249,119 @@ export default function AdminProductsPage() {
                   ))}
                 </div>
 
-                {/* Upload Additional Image Field */}
+                {/* Upload Additional Image Field (Cloudinary Integration: Mutual Exclusivity Policy) */}
                 {rbac.canWriteProducts(user?.role) && (
-                  <div className="p-3 bg-slate-900/50 rounded-2xl border border-slate-800 space-y-2 text-xs">
-                    <span className="text-slate-400 font-semibold block text-[11px]">
-                      Add Gallery Image (Cloud Stream / Device)
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="file"
-                        ref={drawerFileInputRef}
-                        accept="image/*"
-                        onChange={(e) => handleImageFileChange(e, "drawer")}
-                        className="hidden"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => drawerFileInputRef.current?.click()}
-                        className="px-3 py-2 bg-slate-900 border border-slate-700 hover:border-amber-400 rounded-xl text-slate-300 flex items-center gap-1.5 cursor-pointer text-xs"
-                      >
+                  <div className="p-4 bg-slate-900/60 rounded-2xl border border-slate-800 space-y-3 text-xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-300 font-bold uppercase tracking-wider text-[11px] flex items-center gap-1.5">
                         <Upload className="w-3.5 h-3.5 text-amber-400" />
-                        <span>Upload File</span>
-                      </button>
+                        <span>Add Gallery Image</span>
+                      </span>
+                      {/* Mode Toggle Switcher */}
+                      <div className="flex items-center bg-slate-950 p-0.5 rounded-lg border border-slate-800 text-[10px]">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDrawerImageMode("upload");
+                            setDrawerImageUrl("");
+                          }}
+                          className={`px-2.5 py-1 rounded-md font-semibold transition-all cursor-pointer ${
+                            drawerImageMode === "upload"
+                              ? "bg-amber-400 text-slate-950 shadow"
+                              : "text-slate-400 hover:text-white"
+                          }`}
+                        >
+                          📁 File Upload
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDrawerImageMode("url");
+                            setDrawerImageFile(null);
+                            setDrawerImagePreview(null);
+                            if (drawerFileInputRef.current) drawerFileInputRef.current.value = "";
+                          }}
+                          className={`px-2.5 py-1 rounded-md font-semibold transition-all cursor-pointer ${
+                            drawerImageMode === "url"
+                              ? "bg-amber-400 text-slate-950 shadow"
+                              : "text-slate-400 hover:text-white"
+                          }`}
+                        >
+                          🔗 Image URL
+                        </button>
+                      </div>
+                    </div>
 
-                      <input
-                        type="url"
-                        placeholder="Or paste image URL..."
-                        value={drawerImageUrl}
-                        onChange={(e) => setDrawerImageUrl(e.target.value)}
-                        className="flex-1 px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white text-xs"
-                      />
+                    {drawerImageMode === "upload" ? (
+                      <div key="drawer-upload-mode" className="flex items-center gap-2.5">
+                        <input
+                          key="drawer-file-input"
+                          type="file"
+                          ref={drawerFileInputRef}
+                          accept="image/*"
+                          onChange={(e) => handleImageFileChange(e, "drawer")}
+                          className="hidden"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => drawerFileInputRef.current?.click()}
+                          className="flex-1 px-3 py-2 bg-slate-950 border border-dashed border-slate-700 hover:border-amber-400 rounded-xl text-slate-300 flex items-center justify-center gap-2 cursor-pointer text-xs transition-colors"
+                        >
+                          <Upload className="w-3.5 h-3.5 text-amber-400" />
+                          <span>{drawerImageFile ? drawerImageFile.name : "Select Image File (Max 10MB)"}</span>
+                        </button>
 
-                      <button
-                        type="button"
-                        onClick={() => handleUploadDrawerImage()}
-                        disabled={!drawerImageUrl.trim()}
-                        className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl disabled:opacity-40 cursor-pointer text-xs"
-                      >
-                        Add
-                      </button>
+                        {drawerImagePreview && (
+                          <img
+                            src={drawerImagePreview}
+                            alt="Preview"
+                            className="w-9 h-9 object-cover rounded-lg border border-slate-700 bg-slate-950 flex-shrink-0"
+                          />
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => handleUploadDrawerImage()}
+                          disabled={!drawerImageFile}
+                          className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl disabled:opacity-40 cursor-pointer text-xs"
+                        >
+                          Upload
+                        </button>
+                      </div>
+                    ) : (
+                      <div key="drawer-url-mode" className="flex items-center gap-2">
+                        <input
+                          key="drawer-url-input"
+                          type="url"
+                          placeholder="https://images.unsplash.com/... or Cloudinary URL"
+                          value={drawerImageUrl || ""}
+                          onChange={(e) => setDrawerImageUrl(e.target.value)}
+                          className="flex-1 px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white text-xs focus:border-amber-400 focus:outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleUploadDrawerImage()}
+                          disabled={!drawerImageUrl.trim()}
+                          className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl disabled:opacity-40 cursor-pointer text-xs"
+                        >
+                          Attach
+                        </button>
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between pt-1">
+                      <label className="flex items-center gap-2 text-[11px] text-slate-400 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={drawerIsThumbnail}
+                          onChange={(e) => setDrawerIsThumbnail(e.target.checked)}
+                          className="rounded border-slate-700 bg-slate-950 text-amber-500 focus:ring-0"
+                        />
+                        <span>Set as primary thumbnail for this garment</span>
+                      </label>
+                      <span className="text-[10px] text-slate-500 font-mono">
+                        Mutual Exclusivity: File OR URL
+                      </span>
                     </div>
                   </div>
                 )}
@@ -1499,45 +1635,118 @@ export default function AdminProductsPage() {
                 </div>
               </div>
 
-              {/* Cloud-Only Image Pipeline */}
-              <div className="space-y-2">
-                <label className="font-semibold text-slate-300">Product Photography (Cloud / Device Stream)</label>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    accept="image/*"
-                    onChange={(e) => handleImageFileChange(e, "create")}
-                    className="hidden"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="flex-1 py-3 px-4 bg-slate-900 border border-slate-800 border-dashed hover:border-amber-400 rounded-xl text-slate-400 hover:text-white flex items-center justify-center gap-2 cursor-pointer transition-colors"
-                  >
-                    <Upload className="w-4 h-4 text-amber-400" />
-                    <span>Upload from Phone / Laptop</span>
-                  </button>
-
-                  {formImagePreview && (
-                    <img
-                      src={formImagePreview}
-                      alt="Preview"
-                      className="w-12 h-14 object-cover rounded-xl border border-slate-700 bg-slate-900"
-                    />
-                  )}
+              {/* Cloudinary Integration: Mutually Exclusive Image Input (File Upload OR Image URL) */}
+              <div className="space-y-3 p-4 bg-slate-900/60 rounded-2xl border border-slate-800">
+                <div className="flex items-center justify-between">
+                  <label className="font-semibold text-slate-300 text-xs">
+                    Garment Photography (Cloudinary Streaming / URL)
+                  </label>
+                  {/* Mode Switcher */}
+                  <div className="flex items-center bg-slate-950 p-0.5 rounded-lg border border-slate-800 text-[10px]">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormImageMode("upload");
+                        setFormImageUrl("");
+                      }}
+                      className={`px-3 py-1 rounded-md font-semibold transition-all cursor-pointer ${
+                        formImageMode === "upload"
+                          ? "bg-amber-400 text-slate-950 shadow"
+                          : "text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      📁 File Upload
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormImageMode("url");
+                        setFormImageFile(null);
+                        setFormImagePreview(null);
+                        if (fileInputRef.current) fileInputRef.current.value = "";
+                      }}
+                      className={`px-3 py-1 rounded-md font-semibold transition-all cursor-pointer ${
+                        formImageMode === "url"
+                          ? "bg-amber-400 text-slate-950 shadow"
+                          : "text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      🔗 Image URL
+                    </button>
+                  </div>
                 </div>
 
-                <input
-                  type="url"
-                  placeholder="Or paste high-resolution photo URL..."
-                  value={formImageUrl}
-                  onChange={(e) => {
-                    setFormImageUrl(e.target.value);
-                    setFormImagePreview(e.target.value || null);
-                  }}
-                  className="w-full px-3.5 py-2 bg-slate-900 border border-slate-800 rounded-xl text-slate-300 text-xs"
-                />
+                {formImageMode === "upload" ? (
+                  <div key="product-form-upload-mode" className="flex items-center gap-3">
+                    <input
+                      key="product-form-file-input"
+                      type="file"
+                      ref={fileInputRef}
+                      accept="image/*"
+                      onChange={(e) => handleImageFileChange(e, "create")}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="flex-1 py-3 px-4 bg-slate-950 border border-slate-800 border-dashed hover:border-amber-400 rounded-xl text-slate-300 hover:text-white flex items-center justify-center gap-2 cursor-pointer transition-colors"
+                    >
+                      <Upload className="w-4 h-4 text-amber-400" />
+                      <span>{formImageFile ? formImageFile.name : "Select Image from Laptop / Device (Max 10MB)"}</span>
+                    </button>
+
+                    {formImagePreview && (
+                      <div className="relative group">
+                        <img
+                          src={formImagePreview}
+                          alt="Preview"
+                          className="w-12 h-14 object-cover rounded-xl border border-slate-700 bg-slate-900"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFormImageFile(null);
+                            setFormImagePreview(null);
+                            if (fileInputRef.current) fileInputRef.current.value = "";
+                          }}
+                          className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-rose-600 text-white rounded-full flex items-center justify-center text-[10px] cursor-pointer shadow"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div key="product-form-url-mode" className="space-y-2">
+                    <input
+                      key="product-form-url-input"
+                      type="url"
+                      placeholder="https://images.unsplash.com/... or Cloudinary HTTPS URL"
+                      value={formImageUrl || ""}
+                      onChange={(e) => {
+                        setFormImageUrl(e.target.value);
+                        setFormImagePreview(e.target.value || null);
+                      }}
+                      className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 text-xs focus:border-amber-400 focus:outline-none"
+                    />
+                    {formImageUrl && (
+                      <div className="flex items-center gap-2 text-[11px] text-slate-400">
+                        <img
+                          src={formImageUrl}
+                          alt="URL preview"
+                          className="w-10 h-10 object-cover rounded-lg border border-slate-700 bg-slate-900"
+                          onError={(e) => {
+                            (e.target as HTMLElement).style.display = "none";
+                          }}
+                        />
+                        <span className="truncate">{formImageUrl}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+                <p className="text-[10px] text-slate-500 font-mono">
+                  Enforces strict mutual exclusivity: upload binary file OR provide direct URL, never both.
+                </p>
               </div>
 
               {/* Submit Buttons */}

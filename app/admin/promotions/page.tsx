@@ -98,6 +98,12 @@ export default function AdminPromotionsPage() {
   const [formBgImage, setFormBgImage] = useState(
     SAMPLE_PRESET_IMAGES[0].url
   );
+  // Cloudinary Integration: Mutual Exclusivity State
+  const [promoImageMode, setPromoImageMode] = useState<"upload" | "url">("url");
+  const [promoImageFile, setPromoImageFile] = useState<File | null>(null);
+  const [promoImagePreview, setPromoImagePreview] = useState<string | null>(null);
+  const promoFileInputRef = React.useRef<HTMLInputElement>(null);
+
   const [formCtaText, setFormCtaText] = useState("SHOP THE SALE");
   const [formCtaLink, setFormCtaLink] = useState("/products?collection=festive-couture");
   const [formSortOrder, setFormSortOrder] = useState("1");
@@ -157,6 +163,7 @@ export default function AdminPromotionsPage() {
   }, [promotions]);
 
   // Open Create Modal
+  // Open Create Modal
   const openCreateModal = () => {
     setFormTitle("");
     setFormSubtitle("");
@@ -168,6 +175,10 @@ export default function AdminPromotionsPage() {
       new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
     );
     setFormBgImage(SAMPLE_PRESET_IMAGES[0].url);
+    setPromoImageMode("url");
+    setPromoImageFile(null);
+    setPromoImagePreview(SAMPLE_PRESET_IMAGES[0].url);
+    if (promoFileInputRef.current) promoFileInputRef.current.value = "";
     setFormCtaText("SHOP THE SALE");
     setFormCtaLink("/products?collection=festive-couture");
     setFormSortOrder(String(promotions.length + 1));
@@ -186,13 +197,17 @@ export default function AdminPromotionsPage() {
     setFormStartDate(promo.startDate.split("T")[0]);
     setFormEndDate(promo.endDate.split("T")[0]);
     setFormBgImage(promo.backgroundImage);
+    setPromoImageMode("url");
+    setPromoImageFile(null);
+    setPromoImagePreview(promo.backgroundImage);
+    if (promoFileInputRef.current) promoFileInputRef.current.value = "";
     setFormCtaText(promo.ctaText || "SHOP THE SALE");
     setFormCtaLink(promo.ctaLink || "/products");
     setFormSortOrder(String(promo.sortOrder || 1));
     setFormIsActive(promo.isActive);
   };
 
-  // Submit Create Campaign
+  // Submit Create Campaign (Cloudinary Integration: Mutual Exclusivity)
   const handleCreateCampaign = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canManage) {
@@ -207,22 +222,44 @@ export default function AdminPromotionsPage() {
 
     setIsSubmitting(true);
     try {
-      const payload: CreatePromotionInput = {
-        title: formTitle.trim().toUpperCase(),
-        subtitle: formSubtitle.trim() || undefined,
-        badge: formBadge.trim().toUpperCase(),
-        discountPercentage: Number(formDiscount) || undefined,
-        couponCode: formCouponCode.trim().toUpperCase() || undefined,
-        startDate: new Date(formStartDate).toISOString(),
-        endDate: new Date(`${formEndDate}T23:59:59.000Z`).toISOString(),
-        backgroundImage: formBgImage.trim(),
-        ctaText: formCtaText.trim() || "SHOP THE SALE",
-        ctaLink: formCtaLink.trim() || "/products",
-        sortOrder: Number(formSortOrder) || 1,
-        isActive: formIsActive,
-      };
+      let res;
+      if (promoImageMode === "upload" && promoImageFile) {
+        // MODE A: File Upload (multipart/form-data) -> Never send backgroundImage URL string
+        const formData = new FormData();
+        formData.append("title", formTitle.trim().toUpperCase());
+        if (formSubtitle.trim()) formData.append("subtitle", formSubtitle.trim());
+        formData.append("badge", formBadge.trim().toUpperCase());
+        if (formDiscount) formData.append("discountPercentage", formDiscount);
+        if (formCouponCode.trim()) formData.append("couponCode", formCouponCode.trim().toUpperCase());
+        formData.append("startDate", new Date(formStartDate).toISOString());
+        formData.append("endDate", new Date(`${formEndDate}T23:59:59.000Z`).toISOString());
+        formData.append("ctaText", formCtaText.trim() || "SHOP THE SALE");
+        formData.append("ctaLink", formCtaLink.trim() || "/products");
+        formData.append("sortOrder", String(Number(formSortOrder) || 1));
+        formData.append("isActive", String(formIsActive));
+        formData.append("backgroundImage", promoImageFile); // Direct file stream to dresses/promotions
 
-      const res = await AdminService.createPromotion(payload);
+        res = await AdminService.createPromotion(formData);
+      } else {
+        // MODE B: Direct Image URL (application/json) -> Never send image file
+        const payload: CreatePromotionInput = {
+          title: formTitle.trim().toUpperCase(),
+          subtitle: formSubtitle.trim() || undefined,
+          badge: formBadge.trim().toUpperCase(),
+          discountPercentage: Number(formDiscount) || undefined,
+          couponCode: formCouponCode.trim().toUpperCase() || undefined,
+          startDate: new Date(formStartDate).toISOString(),
+          endDate: new Date(`${formEndDate}T23:59:59.000Z`).toISOString(),
+          backgroundImage: formBgImage.trim(),
+          ctaText: formCtaText.trim() || "SHOP THE SALE",
+          ctaLink: formCtaLink.trim() || "/products",
+          sortOrder: Number(formSortOrder) || 1,
+          isActive: formIsActive,
+        };
+
+        res = await AdminService.createPromotion(payload);
+      }
+
       if (res.success && res.data) {
         showNotification("success", res.message || `Campaign '${formTitle.toUpperCase()}' scheduled`);
         setIsCreateModalOpen(false);
@@ -238,7 +275,7 @@ export default function AdminPromotionsPage() {
     }
   };
 
-  // Submit Update Campaign
+  // Submit Update Campaign (Cloudinary Integration: Mutual Exclusivity)
   const handleUpdateCampaign = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingPromotion) return;
@@ -250,22 +287,44 @@ export default function AdminPromotionsPage() {
 
     setIsSubmitting(true);
     try {
-      const payload: UpdatePromotionInput = {
-        title: formTitle.trim().toUpperCase(),
-        subtitle: formSubtitle.trim() || undefined,
-        badge: formBadge.trim().toUpperCase(),
-        discountPercentage: Number(formDiscount) || undefined,
-        couponCode: formCouponCode.trim().toUpperCase() || undefined,
-        startDate: new Date(formStartDate).toISOString(),
-        endDate: new Date(`${formEndDate}T23:59:59.000Z`).toISOString(),
-        backgroundImage: formBgImage.trim(),
-        ctaText: formCtaText.trim() || "SHOP THE SALE",
-        ctaLink: formCtaLink.trim() || "/products",
-        sortOrder: Number(formSortOrder) || 1,
-        isActive: formIsActive,
-      };
+      let res;
+      if (promoImageMode === "upload" && promoImageFile) {
+        // MODE A: File Upload (multipart/form-data) -> Never send backgroundImage URL string
+        const formData = new FormData();
+        formData.append("title", formTitle.trim().toUpperCase());
+        if (formSubtitle.trim()) formData.append("subtitle", formSubtitle.trim());
+        formData.append("badge", formBadge.trim().toUpperCase());
+        if (formDiscount) formData.append("discountPercentage", formDiscount);
+        if (formCouponCode.trim()) formData.append("couponCode", formCouponCode.trim().toUpperCase());
+        formData.append("startDate", new Date(formStartDate).toISOString());
+        formData.append("endDate", new Date(`${formEndDate}T23:59:59.000Z`).toISOString());
+        formData.append("ctaText", formCtaText.trim() || "SHOP THE SALE");
+        formData.append("ctaLink", formCtaLink.trim() || "/products");
+        formData.append("sortOrder", String(Number(formSortOrder) || 1));
+        formData.append("isActive", String(formIsActive));
+        formData.append("backgroundImage", promoImageFile); // Direct file stream to dresses/promotions
 
-      const res = await AdminService.updatePromotion(editingPromotion.id, payload);
+        res = await AdminService.updatePromotion(editingPromotion.id, formData);
+      } else {
+        // MODE B: Direct Image URL (application/json) -> Never send image file
+        const payload: UpdatePromotionInput = {
+          title: formTitle.trim().toUpperCase(),
+          subtitle: formSubtitle.trim() || undefined,
+          badge: formBadge.trim().toUpperCase(),
+          discountPercentage: Number(formDiscount) || undefined,
+          couponCode: formCouponCode.trim().toUpperCase() || undefined,
+          startDate: new Date(formStartDate).toISOString(),
+          endDate: new Date(`${formEndDate}T23:59:59.000Z`).toISOString(),
+          backgroundImage: formBgImage.trim(),
+          ctaText: formCtaText.trim() || "SHOP THE SALE",
+          ctaLink: formCtaLink.trim() || "/products",
+          sortOrder: Number(formSortOrder) || 1,
+          isActive: formIsActive,
+        };
+
+        res = await AdminService.updatePromotion(editingPromotion.id, payload);
+      }
+
       if (res.success && res.data) {
         showNotification("success", res.message || `Campaign '${formTitle.toUpperCase()}' updated`);
         setEditingPromotion(null);
@@ -926,41 +985,142 @@ export default function AdminPromotionsPage() {
                 </div>
               </div>
 
-              {/* Background Image URL / Presets */}
-              <div className="space-y-2">
-                <label className="font-bold uppercase text-slate-300 block">
-                  Hero Background Image (URL or Cloudinary Asset)
-                </label>
-                <input
-                  type="url"
-                  required
-                  placeholder="https://res.cloudinary.com/... or https://images.unsplash.com/..."
-                  value={formBgImage}
-                  onChange={(e) => setFormBgImage(e.target.value)}
-                  className="w-full px-3.5 py-2 bg-slate-900 text-white font-mono text-[11px] border border-slate-700 rounded-lg focus:border-amber-400 focus:outline-none"
-                />
-
-                <div className="space-y-1">
-                  <span className="text-[10px] text-slate-400 font-semibold">
-                    Quick Luxury Presets:
-                  </span>
-                  <div className="grid grid-cols-2 gap-2">
-                    {SAMPLE_PRESET_IMAGES.map((preset, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => setFormBgImage(preset.url)}
-                        className={`text-left p-2 rounded-lg border text-[10px] truncate transition-all cursor-pointer ${
-                          formBgImage === preset.url
-                            ? "border-amber-400 bg-amber-500/10 text-amber-300 font-bold"
-                            : "border-slate-800 bg-slate-900 text-slate-400 hover:text-white"
-                        }`}
-                      >
-                        {preset.name}
-                      </button>
-                    ))}
+              {/* Background Image (Cloudinary Integration: Mutual Exclusivity Policy) */}
+              <div className="space-y-3 p-4 bg-slate-900/60 rounded-xl border border-slate-800">
+                <div className="flex items-center justify-between">
+                  <label className="font-bold uppercase text-slate-300 text-xs">
+                    Hero Campaign Banner
+                  </label>
+                  {/* Mode Switcher */}
+                  <div className="flex items-center bg-slate-950 p-0.5 rounded-lg border border-slate-800 text-[10px]">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPromoImageMode("upload");
+                        setFormBgImage("");
+                      }}
+                      className={`px-2.5 py-1 rounded-md font-semibold transition-all cursor-pointer ${
+                        promoImageMode === "upload"
+                          ? "bg-amber-400 text-slate-950 shadow"
+                          : "text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      📁 Upload Banner
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPromoImageMode("url");
+                        setPromoImageFile(null);
+                        setPromoImagePreview(SAMPLE_PRESET_IMAGES[0].url);
+                        setFormBgImage(SAMPLE_PRESET_IMAGES[0].url);
+                        if (promoFileInputRef.current) promoFileInputRef.current.value = "";
+                      }}
+                      className={`px-2.5 py-1 rounded-md font-semibold transition-all cursor-pointer ${
+                        promoImageMode === "url"
+                          ? "bg-amber-400 text-slate-950 shadow"
+                          : "text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      🔗 Banner URL
+                    </button>
                   </div>
                 </div>
+
+                {promoImageMode === "upload" ? (
+                  <div key="promo-upload-mode" className="space-y-2">
+                    <input
+                      key="promo-file-input"
+                      type="file"
+                      ref={promoFileInputRef}
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          if (file.size > 10 * 1024 * 1024) {
+                            showNotification("error", "Campaign banner must be under 10MB.");
+                            return;
+                          }
+                          setPromoImageFile(file);
+                          setPromoImagePreview(URL.createObjectURL(file));
+                          setFormBgImage(""); // Enforce mutual exclusivity
+                        }
+                      }}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => promoFileInputRef.current?.click()}
+                      className="w-full py-3 px-4 bg-slate-950 border border-dashed border-slate-700 hover:border-amber-400 rounded-xl text-slate-300 flex items-center justify-center gap-2 cursor-pointer text-xs transition-colors"
+                    >
+                      <Sparkles className="w-4 h-4 text-amber-400" />
+                      <span>{promoImageFile ? promoImageFile.name : "Select Banner File (PNG, JPG, WEBP - Max 10MB)"}</span>
+                    </button>
+
+                    {promoImagePreview && (
+                      <div className="relative group rounded-xl overflow-hidden border border-slate-700 aspect-[21/9]">
+                        <img
+                          src={promoImagePreview}
+                          alt="Banner Preview"
+                          className="w-full h-full object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPromoImageFile(null);
+                            setPromoImagePreview(null);
+                            if (promoFileInputRef.current) promoFileInputRef.current.value = "";
+                          }}
+                          className="absolute top-2 right-2 w-6 h-6 bg-rose-600 text-white rounded-full flex items-center justify-center text-xs cursor-pointer shadow"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div key="promo-url-mode" className="space-y-2">
+                    <input
+                      key="promo-url-input"
+                      type="url"
+                      placeholder="https://res.cloudinary.com/... or https://images.unsplash.com/..."
+                      value={formBgImage || ""}
+                      onChange={(e) => {
+                        setFormBgImage(e.target.value);
+                        setPromoImagePreview(e.target.value);
+                      }}
+                      className="w-full px-3.5 py-2 bg-slate-900 text-white font-mono text-[11px] border border-slate-700 rounded-lg focus:border-amber-400 focus:outline-none"
+                    />
+
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-slate-400 font-semibold">
+                        Quick Luxury Presets:
+                      </span>
+                      <div className="grid grid-cols-2 gap-2">
+                        {SAMPLE_PRESET_IMAGES.map((preset, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => {
+                              setFormBgImage(preset.url);
+                              setPromoImagePreview(preset.url);
+                            }}
+                            className={`text-left p-2 rounded-lg border text-[10px] truncate transition-all cursor-pointer ${
+                              formBgImage === preset.url
+                                ? "border-amber-400 bg-amber-500/10 text-amber-300 font-bold"
+                                : "border-slate-800 bg-slate-900 text-slate-400 hover:text-white"
+                            }`}
+                          >
+                            {preset.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <span className="text-[10px] text-slate-500 font-mono block">
+                  Cloudinary Folder: <code className="text-amber-400/80">dresses/promotions</code> (Mutual exclusivity enforced)
+                </span>
               </div>
 
               {/* Active Toggle */}

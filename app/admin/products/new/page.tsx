@@ -11,6 +11,9 @@ import {
   Upload,
   Layers,
   AlertTriangle,
+  X,
+  Plus,
+  Trash2,
 } from "lucide-react";
 import { storeConfig } from "@/config/store.config";
 import { AdminService } from "@/services/admin.service";
@@ -40,10 +43,12 @@ export default function NewProductPage() {
   const [sizes, setSizes] = useState("S, M, L, XL");
   const [colors, setColors] = useState("Midnight Navy, Emerald Green, Rose Pink");
   const [stockPerVariant, setStockPerVariant] = useState("5");
-  const [imageUrl, setImageUrl] = useState(
-    "https://images.unsplash.com/photo-1566174053879-31528523f8ae?w=800"
-  );
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+
+  // Cloudinary Image Pipeline: Strict Mutual Exclusivity (Mode A: Upload vs Mode B: URL)
+  const [imageMode, setImageMode] = useState<"upload" | "url">("upload");
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [filePreviews, setFilePreviews] = useState<string[]>([]);
+  const [imageUrl, setImageUrl] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -57,21 +62,41 @@ export default function NewProductPage() {
       .catch((err) => console.warn("Error loading categories:", err));
   }, []);
 
-  const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        alert("Image file size should be less than 5MB");
-        return;
-      }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const result = reader.result as string;
-        setImagePreview(result);
-        setImageUrl(result);
-      };
-      reader.readAsDataURL(file);
+  // Mode A: File Upload Handler (Up to 10 files, max 10MB each)
+  const handleFilesSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+
+    if (selectedFiles.length + files.length > 10) {
+      alert("A product can have a maximum of 10 gallery images.");
+      return;
     }
+
+    const validFiles: File[] = [];
+    const validPreviews: string[] = [];
+
+    for (const f of files) {
+      if (f.size > 10 * 1024 * 1024) {
+        alert(`File "${f.name}" exceeds the 10MB limit.`);
+        continue;
+      }
+      validFiles.push(f);
+      validPreviews.push(URL.createObjectURL(f));
+    }
+
+    setSelectedFiles((prev) => [...prev, ...validFiles]);
+    setFilePreviews((prev) => [...prev, ...validPreviews]);
+
+    // Enforce exclusivity: Clear URL input
+    setImageUrl("");
+  };
+
+  const removeFileAtIndex = (index: number) => {
+    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
+    setFilePreviews((prev) => {
+      URL.revokeObjectURL(prev[index]);
+      return prev.filter((_, i) => i !== index);
+    });
   };
 
   const getColorHex = (cName: string) => {
@@ -133,55 +158,100 @@ export default function NewProductPage() {
       }))
     );
 
-    const selectedCat = categories.find((c) => c.id === categoryId);
+    // Validation based on Mutual Exclusivity Mode
+    if (imageMode === "upload" && selectedFiles.length === 0) {
+      setErrorMessage("Please select at least 1 image file to upload (or switch to 'Direct URL' mode).");
+      setIsSubmitting(false);
+      return;
+    }
 
-    const input: CreateProductInput = {
-      name: name.trim(),
-      brand: brand.trim() || "Maison De Élégance",
-      description: description.trim(),
-      shortDescription: `Handcrafted ${selectedCat?.name || "garment"} silhouette.`,
-      categoryId,
-      categorySlug: selectedCat?.slug,
-      categoryName: selectedCat?.name,
-      regularPrice: regP,
-      salePrice: sP,
-      costPrice: cP,
-      offerPrice: oP,
-      isActive: true,
-      isFeatured: false,
-      tags: [selectedCat?.name || "Garment", "Luxury", "Handcrafted"],
-      gender: "WOMEN",
-      images: [
-        {
-          url: imageUrl.trim() || imagePreview || "https://images.unsplash.com/photo-1566174053879-31528523f8ae?w=800",
-          altText: name.trim(),
-          isThumbnail: true,
-          isPrimary: true,
-          sortOrder: 0,
-        },
-      ],
-      variants:
-        generatedVariants.length > 0
-          ? generatedVariants
-          : [
-              {
-                size: "Free Size",
-                color: "Midnight Navy",
-                colorName: "Midnight Navy",
-                colorHex: "#0b1b3d",
-                regularPrice: regP,
-                salePrice: sP,
-                costPrice: cP,
-                stockQuantity: stockUnits,
-                sku: `${name.slice(0, 3).toUpperCase()}-OS-${Date.now().toString().slice(-3)}`,
-                lowStockThreshold: 5,
-                isActive: true,
-              },
-            ],
-    };
+    if (imageMode === "url" && !imageUrl.trim()) {
+      setErrorMessage("Please enter a valid HTTPS image URL (or switch to 'File Upload' mode).");
+      setIsSubmitting(false);
+      return;
+    }
+
+    const selectedCat = categories.find((c) => c.id === categoryId);
+    const variantsPayload =
+      generatedVariants.length > 0
+        ? generatedVariants
+        : [
+            {
+              size: "Free Size",
+              color: "Midnight Navy",
+              colorName: "Midnight Navy",
+              colorHex: "#0b1b3d",
+              regularPrice: regP,
+              salePrice: sP,
+              costPrice: cP,
+              stockQuantity: stockUnits,
+              sku: `${name.slice(0, 3).toUpperCase()}-OS-${Date.now().toString().slice(-3)}`,
+              lowStockThreshold: 5,
+              isActive: true,
+            },
+          ];
 
     try {
-      const res = await AdminService.createProduct(input);
+      let res: { success: boolean; product?: any; message?: string; error?: any };
+
+      if (imageMode === "upload") {
+        // MODE A — File Upload (Cloudinary stream)
+        // Strict Mutual Exclusivity: Send multipart/form-data with binary files. DO NOT send images as URL array!
+        const formData = new FormData();
+        formData.append("name", name.trim());
+        formData.append("brand", brand.trim() || "Maison De Élégance");
+        formData.append("description", description.trim());
+        formData.append("shortDescription", `Handcrafted ${selectedCat?.name || "garment"} silhouette.`);
+        formData.append("categoryId", categoryId);
+        if (selectedCat?.slug) formData.append("categorySlug", selectedCat.slug);
+        if (selectedCat?.name) formData.append("categoryName", selectedCat.name);
+        formData.append("regularPrice", String(regP));
+        if (sP !== null) formData.append("salePrice", String(sP));
+        if (cP !== null) formData.append("costPrice", String(cP));
+        if (oP !== null) formData.append("offerPrice", String(oP));
+        formData.append("stockQuantity", String(stockUnits * Math.max(1, variantsPayload.length)));
+        formData.append("variants", JSON.stringify(variantsPayload));
+
+        // Attach up to 10 binary image files under field 'images'
+        selectedFiles.forEach((file) => {
+          formData.append("images", file);
+        });
+
+        res = await AdminService.createProduct(formData);
+      } else {
+        // MODE B — Direct Image URL (application/json)
+        // Strict Mutual Exclusivity: Pass HTTPS image URL in JSON array. DO NOT send files!
+        const input: CreateProductInput = {
+          name: name.trim(),
+          brand: brand.trim() || "Maison De Élégance",
+          description: description.trim(),
+          shortDescription: `Handcrafted ${selectedCat?.name || "garment"} silhouette.`,
+          categoryId,
+          categorySlug: selectedCat?.slug,
+          categoryName: selectedCat?.name,
+          regularPrice: regP,
+          salePrice: sP,
+          costPrice: cP,
+          offerPrice: oP,
+          isActive: true,
+          isFeatured: false,
+          tags: [selectedCat?.name || "Garment", "Luxury", "Handcrafted"],
+          gender: "WOMEN",
+          images: [
+            {
+              url: imageUrl.trim(),
+              altText: name.trim(),
+              isThumbnail: true,
+              isPrimary: true,
+              sortOrder: 0,
+            },
+          ],
+          variants: variantsPayload,
+        };
+
+        res = await AdminService.createProduct(input);
+      }
+
       if (res.success) {
         setIsSubmitting(false);
         setSuccess(true);
@@ -190,7 +260,11 @@ export default function NewProductPage() {
         }, 1200);
       } else {
         setIsSubmitting(false);
-        setErrorMessage(res.message || "Failed to create product");
+        if (res.error?.code === "IMAGE_INPUT_CONFLICT" || res.error === "IMAGE_INPUT_CONFLICT") {
+          setErrorMessage("Conflicting Image Input: Please supply either file uploads OR an image URL, never both simultaneously.");
+        } else {
+          setErrorMessage(res.message || "Failed to create product");
+        }
       }
     } catch (err: any) {
       setIsSubmitting(false);
@@ -387,45 +461,170 @@ export default function NewProductPage() {
           </div>
         </div>
 
-        {/* Cloud-Only Image Pipeline */}
-        <div className="space-y-2">
-          <label className="font-bold text-slate-200 block">Product Photography</label>
-          <div className="flex items-center gap-3">
-            <input
-              type="file"
-              ref={fileInputRef}
-              accept="image/*"
-              onChange={handleImageFileChange}
-              className="hidden"
-            />
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="flex-1 py-3 px-4 bg-slate-900 border border-slate-800 border-dashed hover:border-amber-400 rounded-xl text-slate-400 hover:text-white flex items-center justify-center gap-2 cursor-pointer transition-colors"
-            >
-              <Upload className="w-4 h-4 text-amber-400" />
-              <span>Upload from Device</span>
-            </button>
+        {/* Cloudinary Integration: Mutual Exclusivity Image Pipeline (Mode A: Upload vs Mode B: URL) */}
+        <div className="p-4 sm:p-5 bg-slate-900/60 border border-slate-800 rounded-2xl space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+            <div>
+              <label className="font-bold text-slate-200 block text-xs uppercase tracking-wider">
+                Product Photography & Gallery
+              </label>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Cloudinary Storage Engine: Choose either direct file upload or HTTPS image URL.
+              </p>
+            </div>
 
-            {imagePreview && (
-              <img
-                src={imagePreview}
-                alt="Preview"
-                className="w-12 h-14 object-cover rounded-xl border border-slate-700 bg-slate-900"
-              />
-            )}
+            {/* Mode Switcher Buttons */}
+            <div className="inline-flex p-1 bg-slate-950 border border-slate-800 rounded-xl text-xs font-semibold self-start sm:self-auto">
+              <button
+                type="button"
+                onClick={() => {
+                  setImageMode("upload");
+                  setImageUrl("");
+                }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                  imageMode === "upload"
+                    ? "bg-amber-500 text-slate-950 shadow-xs font-bold"
+                    : "text-slate-400 hover:text-white"
+                }`}
+              >
+                <Upload className="w-3.5 h-3.5" />
+                <span>📁 Upload Image File</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setImageMode("url");
+                  setSelectedFiles([]);
+                  setFilePreviews([]);
+                }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                  imageMode === "url"
+                    ? "bg-amber-500 text-slate-950 shadow-xs font-bold"
+                    : "text-slate-400 hover:text-white"
+                }`}
+              >
+                <ImageIcon className="w-3.5 h-3.5" />
+                <span>🔗 Direct Image URL</span>
+              </button>
+            </div>
           </div>
 
-          <input
-            type="url"
-            value={imageUrl}
-            onChange={(e) => {
-              setImageUrl(e.target.value);
-              setImagePreview(e.target.value || null);
-            }}
-            placeholder="Or paste high-resolution photo URL..."
-            className="w-full px-4 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-white text-xs"
-          />
+          {/* MODE A: Direct File Upload to Cloudinary */}
+          {imageMode === "upload" && (
+            <div key="new-product-upload-mode" className="space-y-3">
+              <input
+                key="new-product-file-input"
+                type="file"
+                ref={fileInputRef}
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                multiple
+                onChange={handleFilesSelected}
+                className="hidden"
+              />
+
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className="p-6 border-2 border-dashed border-slate-800 hover:border-amber-400/80 rounded-2xl bg-slate-950/50 hover:bg-slate-950 text-center cursor-pointer transition-all space-y-2 group"
+              >
+                <div className="w-10 h-10 rounded-full bg-amber-400/10 text-amber-400 flex items-center justify-center mx-auto group-hover:scale-110 transition-transform">
+                  <Upload className="w-5 h-5" />
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-slate-200 block group-hover:text-amber-400 transition-colors">
+                    Click to select product photos (Up to 10 images)
+                  </span>
+                  <span className="text-[11px] text-slate-500 block mt-0.5">
+                    Supports JPG, PNG, WEBP, GIF (Max 10MB per file) • Streams directly to Cloudinary
+                  </span>
+                </div>
+              </div>
+
+              {/* Previews Grid */}
+              {filePreviews.length > 0 && (
+                <div className="space-y-1.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Selected Photos ({selectedFiles.length}/10)
+                  </span>
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+                    {filePreviews.map((previewUrl, idx) => (
+                      <div
+                        key={idx}
+                        className="relative group rounded-xl overflow-hidden border border-slate-700 bg-slate-950 aspect-3/4 flex items-center justify-center"
+                      >
+                        <img
+                          src={previewUrl}
+                          alt={`Uploaded preview ${idx + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                        {idx === 0 && (
+                          <span className="absolute bottom-1.5 left-1.5 bg-amber-500 text-slate-950 text-[9px] font-bold px-1.5 py-0.5 rounded shadow">
+                            PRIMARY
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeFileAtIndex(idx);
+                          }}
+                          className="absolute top-1.5 right-1.5 p-1 bg-rose-600/90 text-white rounded-md opacity-0 group-hover:opacity-100 transition-opacity hover:bg-rose-700 cursor-pointer shadow"
+                          title="Remove photo"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* MODE B: Direct Image URL */}
+          {imageMode === "url" && (
+            <div key="new-product-url-mode" className="space-y-3">
+              <div>
+                <label className="font-semibold text-slate-300 block text-xs mb-1">
+                  HTTPS Image URL
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    key="new-product-url-input"
+                    type="url"
+                    value={imageUrl || ""}
+                    onChange={(e) => setImageUrl(e.target.value)}
+                    placeholder="https://images.unsplash.com/... or https://res.cloudinary.com/..."
+                    className="flex-1 px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-white text-xs focus:border-amber-400 focus:outline-none font-mono"
+                  />
+                </div>
+                <span className="text-[10px] text-slate-500 block mt-1">
+                  Must be an accessible, secure HTTPS image URL.
+                </span>
+              </div>
+
+              {/* URL Preview */}
+              {imageUrl.trim() && (
+                <div className="flex items-center gap-3 p-3 bg-slate-950 border border-slate-800 rounded-xl">
+                  <img
+                    src={imageUrl.trim()}
+                    alt="Preview"
+                    className="w-14 h-16 object-cover rounded-lg border border-slate-700 bg-slate-900 flex-shrink-0"
+                    onError={(e) => {
+                      (e.target as HTMLElement).style.display = "none";
+                    }}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <span className="text-[11px] font-bold text-slate-200 block truncate">
+                      Live URL Preview
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-mono block truncate">
+                      {imageUrl}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Buttons */}

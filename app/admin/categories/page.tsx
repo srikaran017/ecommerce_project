@@ -76,6 +76,12 @@ export default function AdminCategoriesPage() {
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Image Upload Mutual Exclusivity State (Cloudinary Integration)
+  const [imageMode, setImageMode] = useState<"upload" | "url">("upload");
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const categoryFileInputRef = React.useRef<HTMLInputElement>(null);
+
   // Alerts & Notifications
   const [alert, setAlert] = useState<{
     type: "success" | "error" | "info";
@@ -149,6 +155,9 @@ export default function AdminCategoriesPage() {
   // --------------------------------------------------------------------------
   // CREATE & EDIT MODAL HANDLERS
   // --------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
+  // CREATE & EDIT MODAL HANDLERS
+  // --------------------------------------------------------------------------
   const openCreateModal = (presetParentId: string | null = null) => {
     setEditingCategory(null);
     setForm({
@@ -162,6 +171,10 @@ export default function AdminCategoriesPage() {
       isActive: true,
     });
     setFormErrors({});
+    setImageMode("upload");
+    setImageFile(null);
+    setImagePreview(null);
+    if (categoryFileInputRef.current) categoryFileInputRef.current.value = "";
     setIsCreateModalOpen(true);
   };
 
@@ -178,6 +191,15 @@ export default function AdminCategoriesPage() {
       isActive: Boolean(cat.isActive),
     });
     setFormErrors({});
+    if (cat.imageUrl) {
+      setImageMode("url");
+      setImagePreview(cat.imageUrl);
+    } else {
+      setImageMode("upload");
+      setImagePreview(null);
+    }
+    setImageFile(null);
+    if (categoryFileInputRef.current) categoryFileInputRef.current.value = "";
     setIsCreateModalOpen(true);
   };
 
@@ -196,36 +218,27 @@ export default function AdminCategoriesPage() {
 
     setIsSubmitting(true);
     try {
-      if (editingCategory) {
-        // Update category
-        const res = await AdminService.updateCategory(editingCategory.id, {
-          name: form.name.trim(),
-          slug: form.slug.trim() || undefined,
-          description: form.description.trim() || undefined,
-          imageUrl: form.imageUrl.trim() || null,
-          parentId: form.parentId || null,
-          sortOrder: Number(form.sortOrder),
-          isFeatured: form.isFeatured,
-          isActive: form.isActive,
-        });
+      let res;
+      if (imageMode === "upload" && imageFile) {
+        // MODE A: File Upload (multipart/form-data) -> Never send imageUrl
+        const formData = new FormData();
+        formData.append("name", form.name.trim());
+        if (form.slug.trim()) formData.append("slug", form.slug.trim());
+        if (form.description.trim()) formData.append("description", form.description.trim());
+        if (form.parentId) formData.append("parentId", form.parentId);
+        formData.append("sortOrder", String(Number(form.sortOrder)));
+        formData.append("isFeatured", String(form.isFeatured));
+        formData.append("isActive", String(form.isActive));
+        formData.append("image", imageFile); // Binary file upload under 'image' (Cloudinary folder: dresses/categories)
 
-        if (!res.success) {
-          if (res.error === "CIRCULAR_HIERARCHY_SELF") {
-            setFormErrors({ parentId: "You cannot select a category as its own parent." });
-          } else if (res.error === "CIRCULAR_HIERARCHY_DESCENDANT") {
-            setFormErrors({ parentId: "You cannot select a subcategory or descendant as a parent." });
-          } else if (res.error === "DUPLICATE_CATEGORY_NAME") {
-            setFormErrors({ name: "Another category under the same parent already has this name." });
-          } else {
-            showAlert("error", "Update Failed", res.message || "Could not update category.");
-          }
-          return;
+        if (editingCategory) {
+          res = await AdminService.updateCategory(editingCategory.id, formData);
+        } else {
+          res = await AdminService.createCategory(formData);
         }
-
-        showAlert("success", "Category Updated", `"${form.name}" has been updated successfully.`);
       } else {
-        // Create category
-        const res = await AdminService.createCategory({
+        // MODE B: Direct Image URL (application/json) -> Never send image file
+        const payload = {
           name: form.name.trim(),
           slug: form.slug.trim() || undefined,
           description: form.description.trim() || undefined,
@@ -234,19 +247,33 @@ export default function AdminCategoriesPage() {
           sortOrder: Number(form.sortOrder),
           isFeatured: form.isFeatured,
           isActive: form.isActive,
-        });
+        };
 
-        if (!res.success) {
-          if (res.error === "DUPLICATE_CATEGORY_NAME") {
-            setFormErrors({ name: "Another category under the same parent already has this name." });
-          } else {
-            showAlert("error", "Creation Failed", res.message || "Could not create category.");
-          }
-          return;
+        if (editingCategory) {
+          res = await AdminService.updateCategory(editingCategory.id, payload);
+        } else {
+          res = await AdminService.createCategory(payload);
         }
-
-        showAlert("success", "Category Created", `"${form.name}" was added to taxonomy.`);
       }
+
+      if (!res.success) {
+        if (res.error === "CIRCULAR_HIERARCHY_SELF") {
+          setFormErrors({ parentId: "You cannot select a category as its own parent." });
+        } else if (res.error === "CIRCULAR_HIERARCHY_DESCENDANT") {
+          setFormErrors({ parentId: "You cannot select a subcategory or descendant as a parent." });
+        } else if (res.error === "DUPLICATE_CATEGORY_NAME") {
+          setFormErrors({ name: "Another category under the same parent already has this name." });
+        } else {
+          showAlert("error", editingCategory ? "Update Failed" : "Creation Failed", res.message || "Operation failed.");
+        }
+        return;
+      }
+
+      showAlert(
+        "success",
+        editingCategory ? "Category Updated" : "Category Created",
+        `"${form.name}" was ${editingCategory ? "updated" : "added to taxonomy"} successfully.`
+      );
 
       setIsCreateModalOpen(false);
       await loadData(true);
@@ -846,18 +873,130 @@ export default function AdminCategoriesPage() {
                 />
               </div>
 
-              {/* Cover Image URL */}
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
-                  Cover Image URL
-                </label>
-                <input
-                  type="url"
-                  value={form.imageUrl}
-                  onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
-                  placeholder="https://images.unsplash.com/... or Cloudinary URL"
-                  className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none focus:border-amber-400"
-                />
+              {/* Category Cover Image (Cloudinary Integration: Mutual Exclusivity Policy) */}
+              <div className="space-y-3 p-4 bg-slate-950/60 rounded-2xl border border-slate-800">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-300">
+                    Category Visual Cover
+                  </label>
+                  {/* Mode Switcher */}
+                  <div className="flex items-center bg-slate-900 p-0.5 rounded-lg border border-slate-800 text-[10px]">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setImageMode("upload");
+                        setForm({ ...form, imageUrl: "" });
+                      }}
+                      className={`px-2.5 py-1 rounded-md font-semibold transition-all cursor-pointer ${
+                        imageMode === "upload"
+                          ? "bg-amber-400 text-slate-950 shadow"
+                          : "text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      📁 Upload File
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setImageMode("url");
+                        setImageFile(null);
+                        setImagePreview(null);
+                        if (categoryFileInputRef.current) categoryFileInputRef.current.value = "";
+                      }}
+                      className={`px-2.5 py-1 rounded-md font-semibold transition-all cursor-pointer ${
+                        imageMode === "url"
+                          ? "bg-amber-400 text-slate-950 shadow"
+                          : "text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      🔗 Image URL
+                    </button>
+                  </div>
+                </div>
+
+                {imageMode === "upload" ? (
+                  <div key="category-upload-mode" className="flex items-center gap-3">
+                    <input
+                      key="category-file-input"
+                      type="file"
+                      ref={categoryFileInputRef}
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          if (file.size > 10 * 1024 * 1024) {
+                            showAlert("error", "File Too Large", "Category image must be under 10MB.");
+                            return;
+                          }
+                          setImageFile(file);
+                          setImagePreview(URL.createObjectURL(file));
+                          setForm({ ...form, imageUrl: "" }); // Enforce mutual exclusivity
+                        }
+                      }}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => categoryFileInputRef.current?.click()}
+                      className="flex-1 py-3 px-4 bg-slate-900 border border-dashed border-slate-700 hover:border-amber-400 rounded-xl text-slate-300 flex items-center justify-center gap-2 cursor-pointer text-xs transition-colors"
+                    >
+                      <ImageIcon className="w-4 h-4 text-amber-400" />
+                      <span>{imageFile ? imageFile.name : "Choose File (PNG, JPG, WEBP - Max 10MB)"}</span>
+                    </button>
+
+                    {imagePreview && (
+                      <div className="relative group">
+                        <img
+                          src={imagePreview}
+                          alt="Category Preview"
+                          className="w-12 h-12 object-cover rounded-xl border border-slate-700 bg-slate-900"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setImageFile(null);
+                            setImagePreview(null);
+                            if (categoryFileInputRef.current) categoryFileInputRef.current.value = "";
+                          }}
+                          className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-rose-600 text-white rounded-full flex items-center justify-center text-[10px] cursor-pointer shadow"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div key="category-url-mode" className="space-y-2">
+                    <input
+                      key="category-url-input"
+                      type="url"
+                      value={form.imageUrl || ""}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setForm({ ...form, imageUrl: val });
+                        setImagePreview(val || null);
+                      }}
+                      placeholder="https://images.unsplash.com/... or Cloudinary HTTPS URL"
+                      className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none focus:border-amber-400"
+                    />
+                    {form.imageUrl && (
+                      <div className="flex items-center gap-2 text-[11px] text-slate-400">
+                        <img
+                          src={form.imageUrl}
+                          alt="Preview"
+                          className="w-8 h-8 object-cover rounded-lg border border-slate-700 bg-slate-900"
+                          onError={(e) => {
+                            (e.target as HTMLElement).style.display = "none";
+                          }}
+                        />
+                        <span className="truncate">{form.imageUrl}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+                <span className="text-[10px] text-slate-500 font-mono block">
+                  Cloudinary Folder: <code className="text-amber-400/80">dresses/categories</code> (Mutual exclusivity enforced)
+                </span>
               </div>
 
               {/* Toggles: isFeatured, isActive, sortOrder */}

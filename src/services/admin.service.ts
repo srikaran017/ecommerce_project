@@ -1345,7 +1345,10 @@ export class AdminService {
   ): Promise<{ success: boolean; data?: T; message?: string; error?: any; statusCode?: number }> {
     const token = AuthService.getAccessToken();
     const headers = new Headers(options.headers || {});
-    headers.set("Content-Type", "application/json");
+    const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
+    if (!isFormData && !headers.has("Content-Type")) {
+      headers.set("Content-Type", "application/json");
+    }
     if (token) {
       headers.set("Authorization", `Bearer ${token}`);
     }
@@ -1781,43 +1784,160 @@ export class AdminService {
    * Creates a garment with variants, attributes, and images in an atomic database transaction.
    */
   static async createProduct(
-    input: CreateProductInput
-  ): Promise<{ success: boolean; product?: AdminProduct; message?: string }> {
-    const res = await this.request<AdminProduct>("/products", {
-      method: "POST",
-      body: JSON.stringify(input),
-    });
-    if (res.success && res.data) return { success: true, product: res.data };
+    input: CreateProductInput | FormData
+  ): Promise<{ success: boolean; product?: AdminProduct; message?: string; error?: any }> {
+    const isFormData = typeof FormData !== "undefined" && input instanceof FormData;
+    let res: { success: boolean; data?: AdminProduct; message?: string; error?: any; statusCode?: number };
+
+    if (isFormData) {
+      const formData = input as FormData;
+      const files: File[] = [];
+      formData.forEach((value, key) => {
+        if (value instanceof File && (key === "images" || key === "files" || key === "image")) {
+          if (value.size > 0) files.push(value);
+        }
+      });
+
+      let parsedVariants: any[] = [];
+      const rawVariants = formData.get("variants");
+      if (rawVariants) {
+        try {
+          parsedVariants = typeof rawVariants === "string" ? JSON.parse(rawVariants) : rawVariants;
+        } catch {
+          parsedVariants = [];
+        }
+      }
+
+      const regularP = Number(formData.get("regularPrice") || 0);
+      const saleP = formData.get("salePrice") ? Number(formData.get("salePrice")) : null;
+      const costP = formData.get("costPrice") ? Number(formData.get("costPrice")) : null;
+      const offerP = formData.get("offerPrice") ? Number(formData.get("offerPrice")) : null;
+
+      const cleanPayload: CreateProductInput = {
+        name: String(formData.get("name") || "").trim(),
+        brand: String(formData.get("brand") || "Maison De Élégance").trim(),
+        description: String(formData.get("description") || "").trim(),
+        shortDescription: formData.get("shortDescription") ? String(formData.get("shortDescription")) : undefined,
+        categoryId: String(formData.get("categoryId") || ""),
+        categorySlug: formData.get("categorySlug") ? String(formData.get("categorySlug")) : undefined,
+        categoryName: formData.get("categoryName") ? String(formData.get("categoryName")) : undefined,
+        regularPrice: regularP,
+        salePrice: saleP,
+        costPrice: costP,
+        offerPrice: offerP,
+        isActive: formData.has("isActive") ? formData.get("isActive") !== "false" : true,
+        isFeatured: formData.has("isFeatured") ? (formData.get("isFeatured") === "true" || formData.get("isFeatured") === "1") : false,
+        variants: parsedVariants,
+      };
+
+      res = await this.request<AdminProduct>("/products", {
+        method: "POST",
+        body: JSON.stringify(cleanPayload),
+      });
+
+      const targetProduct =
+        (res.data as any)?.product ||
+        (res as any)?.product ||
+        res.data;
+      const targetId =
+        targetProduct?.id ||
+        (res.data as any)?.id ||
+        (res as any)?.product?.id ||
+        (res as any)?.id;
+
+      if (res.success && targetId && targetId !== "undefined" && targetId !== "null" && files.length > 0) {
+        try {
+          const filesData = new FormData();
+          files.forEach((f) => filesData.append("images", f));
+          const uploadRes = await this.uploadProductImages(targetId, filesData);
+          if (uploadRes?.data?.images && targetProduct) {
+            targetProduct.images = uploadRes.data.images;
+          }
+        } catch (uploadErr) {
+          console.warn("[UploadProductImages error]:", uploadErr);
+        }
+      }
+    } else {
+      const cleanInput = { ...(input as CreateProductInput) };
+      if (typeof cleanInput.isActive === "string") {
+        cleanInput.isActive = (cleanInput.isActive as any) !== "false";
+      }
+      if (typeof cleanInput.isFeatured === "string") {
+        cleanInput.isFeatured = (cleanInput.isFeatured as any) === "true";
+      }
+      if (typeof cleanInput.variants === "string") {
+        try {
+          cleanInput.variants = JSON.parse(cleanInput.variants as any);
+        } catch {}
+      }
+      if (typeof cleanInput.regularPrice === "string") {
+        cleanInput.regularPrice = Number(cleanInput.regularPrice);
+      }
+      res = await this.request<AdminProduct>("/products", {
+        method: "POST",
+        body: JSON.stringify(cleanInput),
+      });
+    }
+
+    if (res.success) {
+      const finalProduct = (res.data as any)?.product || (res as any)?.product || res.data;
+      if (finalProduct) return { success: true, product: finalProduct };
+    }
+
+    if (res.statusCode && res.statusCode >= 400) {
+      return {
+        success: false,
+        message: res.message || "Failed to create product",
+        error: res.error,
+      };
+    }
 
     // Fallback local save
+    const parsedInput: CreateProductInput = isFormData
+      ? {
+          name: String((input as FormData).get("name") || "Untitled Garment"),
+          brand: String((input as FormData).get("brand") || "Maison De Élégance"),
+          categoryId: String((input as FormData).get("categoryId") || ""),
+          regularPrice: Number((input as FormData).get("regularPrice") || 0),
+          salePrice: (input as FormData).get("salePrice") ? Number((input as FormData).get("salePrice")) : null,
+          costPrice: (input as FormData).get("costPrice") ? Number((input as FormData).get("costPrice")) : null,
+          description: String((input as FormData).get("description") || ""),
+          variants: (input as FormData).get("variants") ? JSON.parse(String((input as FormData).get("variants"))) : [],
+          images: [],
+          isActive: (input as FormData).get("isActive") !== "false",
+          tags: ["Apparel", "Luxury"],
+          gender: ((input as FormData).get("gender") as any) || "WOMEN",
+        }
+      : (input as CreateProductInput);
+
     const products = this.getLocalProducts();
     const newId = `prod_uuid_${Date.now()}`;
-    const baseSlug = input.slug || input.name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+    const baseSlug = parsedInput.slug || parsedInput.name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
     let uniqueSlug = baseSlug;
     let counter = 1;
     while (products.some((p) => p.slug === uniqueSlug)) {
       uniqueSlug = `${baseSlug}-${counter++}`;
     }
 
-    const regPrice = Number(input.regularPrice ?? input.basePrice ?? 0);
-    const sPrice = input.salePrice != null ? Number(input.salePrice) : null;
-    const cPrice = input.costPrice != null ? Number(input.costPrice) : Math.round(regPrice * 0.45);
+    const regPrice = Number(parsedInput.regularPrice ?? parsedInput.basePrice ?? 0);
+    const sPrice = parsedInput.salePrice != null ? Number(parsedInput.salePrice) : null;
+    const cPrice = parsedInput.costPrice != null ? Number(parsedInput.costPrice) : Math.round(regPrice * 0.45);
 
     // Look up category
     const categories = this.getLocalCategories();
     const cat = categories.find(
-      (c) => c.id === input.categoryId || c.slug === input.categorySlug || c.name === input.categoryName
+      (c) => c.id === parsedInput.categoryId || c.slug === parsedInput.categorySlug || c.name === parsedInput.categoryName
     );
     const categoryRef = {
-      id: cat?.id || input.categoryId || `cat_${Date.now()}`,
-      name: cat?.name || input.categoryName || "Haute Couture",
-      slug: cat?.slug || input.categorySlug || "haute-couture",
+      id: cat?.id || parsedInput.categoryId || `cat_${Date.now()}`,
+      name: cat?.name || parsedInput.categoryName || "Haute Couture",
+      slug: cat?.slug || parsedInput.categorySlug || "haute-couture",
     };
 
     // Build variants & attributes
     let processedVariants: AdminProductVariant[] = [];
-    if (input.variants && input.variants.length > 0) {
-      processedVariants = input.variants.map((v, i) => {
+    if (parsedInput.variants && parsedInput.variants.length > 0) {
+      processedVariants = parsedInput.variants.map((v, i) => {
         const vSize = v.size || "Free Size";
         const vColor = v.color || v.colorName || "Standard";
         const vReg = v.regularPrice != null ? Number(v.regularPrice) : regPrice;
@@ -1826,7 +1946,7 @@ export class AdminService {
         const vStock = Number(v.stockQuantity ?? v.stock ?? 0);
         const vSku =
           v.sku ||
-          `${(input.sku || input.name.slice(0, 3)).toUpperCase()}-${vSize}-${vColor.slice(0, 2).toUpperCase()}`;
+          `${(parsedInput.sku || parsedInput.name.slice(0, 3)).toUpperCase()}-${vSize}-${vColor.slice(0, 2).toUpperCase()}`;
 
         return {
           id: v.id || `var_${Date.now()}_${i}`,
@@ -1857,7 +1977,7 @@ export class AdminService {
       processedVariants = [
         {
           id: `var_${Date.now()}_0`,
-          sku: input.sku || `${input.name.slice(0, 3).toUpperCase()}-OS`,
+          sku: parsedInput.sku || `${parsedInput.name.slice(0, 3).toUpperCase()}-OS`,
           name: "Standard",
           size: "Free Size",
           color: "Standard",
@@ -1868,8 +1988,8 @@ export class AdminService {
           costPrice: cPrice.toFixed(2),
           price: sPrice ?? regPrice,
           compareAtPrice: regPrice,
-          stock: Number(input.stockQuantity || 10),
-          stockQuantity: Number(input.stockQuantity || 10),
+          stock: Number(parsedInput.stockQuantity || 10),
+          stockQuantity: Number(parsedInput.stockQuantity || 10),
           lowStockThreshold: 5,
           isActive: true,
           attributes: [
@@ -1886,11 +2006,11 @@ export class AdminService {
       0
     );
 
-    const processedImages: AdminProductImage[] = (input.images || []).map((img, i) => ({
+    const processedImages: AdminProductImage[] = (parsedInput.images || []).map((img, i) => ({
       id: `img_${Date.now()}_${i}`,
       productId: newId,
       url: img.url,
-      altText: img.altText || input.name,
+      altText: img.altText || parsedInput.name,
       isThumbnail: img.isThumbnail ?? (img.isPrimary ?? i === 0),
       isPrimary: img.isPrimary ?? i === 0,
       sortOrder: img.sortOrder ?? i,
@@ -1908,19 +2028,19 @@ export class AdminService {
 
     const newProd: AdminProduct = {
       id: newId,
-      name: input.name,
+      name: parsedInput.name,
       slug: uniqueSlug,
-      description: input.description,
-      shortDescription: input.shortDescription,
-      brand: input.brand || "Maison De Élégance",
-      sku: input.sku || `SKU-${Date.now().toString().slice(-6)}`,
+      description: parsedInput.description,
+      shortDescription: parsedInput.shortDescription,
+      brand: parsedInput.brand || "Maison De Élégance",
+      sku: parsedInput.sku || `SKU-${Date.now().toString().slice(-6)}`,
       regularPrice: regPrice.toFixed(2),
       salePrice: sPrice != null ? sPrice.toFixed(2) : null,
-      offerPrice: input.offerPrice != null ? Number(input.offerPrice).toFixed(2) : null,
+      offerPrice: parsedInput.offerPrice != null ? Number(parsedInput.offerPrice).toFixed(2) : null,
       costPrice: cPrice.toFixed(2),
       stockQuantity: computedTotalStock,
-      isActive: input.isActive ?? true,
-      isFeatured: input.isFeatured ?? false,
+      isActive: parsedInput.isActive ?? true,
+      isFeatured: parsedInput.isFeatured ?? false,
       totalSold: 0,
       rating: 5.0,
       reviewCount: 0,
@@ -1937,11 +2057,11 @@ export class AdminService {
       collections: [],
 
       // Backward compatibility fields
-      status: (input.isActive ?? true) ? "ACTIVE" : "ARCHIVED",
+      status: (parsedInput.isActive ?? true) ? "ACTIVE" : "ARCHIVED",
       categorySlug: categoryRef.slug,
       categoryName: categoryRef.name,
-      tags: input.tags || ["Apparel", "Luxury"],
-      gender: input.gender || "WOMEN",
+      tags: parsedInput.tags || ["Apparel", "Luxury"],
+      gender: parsedInput.gender || "WOMEN",
       totalStock: computedTotalStock,
       basePrice: sPrice ?? regPrice,
       createdAt: new Date().toISOString(),
@@ -1959,13 +2079,92 @@ export class AdminService {
    */
   static async updateProduct(
     id: string,
-    input: UpdateProductInput
-  ): Promise<{ success: boolean; product?: AdminProduct; message?: string }> {
-    const res = await this.request<AdminProduct>(`/products/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(input),
-    });
+    input: UpdateProductInput | FormData
+  ): Promise<{ success: boolean; product?: AdminProduct; message?: string; error?: any }> {
+    const isFormData = typeof FormData !== "undefined" && input instanceof FormData;
+    let res: { success: boolean; data?: AdminProduct; message?: string; error?: any; statusCode?: number };
+
+    if (isFormData) {
+      const formData = input as FormData;
+      const files: File[] = [];
+      formData.forEach((value, key) => {
+        if (value instanceof File && (key === "images" || key === "files" || key === "image")) {
+          if (value.size > 0) files.push(value);
+        }
+      });
+
+      let parsedVariants: any[] | undefined = undefined;
+      const rawVariants = formData.get("variants");
+      if (rawVariants) {
+        try {
+          parsedVariants = typeof rawVariants === "string" ? JSON.parse(rawVariants) : (rawVariants as any);
+        } catch {
+          parsedVariants = undefined;
+        }
+      }
+
+      const cleanPayload: UpdateProductInput = {
+        name: formData.get("name") ? String(formData.get("name")).trim() : undefined,
+        brand: formData.get("brand") ? String(formData.get("brand")).trim() : undefined,
+        description: formData.get("description") ? String(formData.get("description")).trim() : undefined,
+        shortDescription: formData.get("shortDescription") ? String(formData.get("shortDescription")) : undefined,
+        categoryId: formData.get("categoryId") ? String(formData.get("categoryId")) : undefined,
+        categorySlug: formData.get("categorySlug") ? String(formData.get("categorySlug")) : undefined,
+        categoryName: formData.get("categoryName") ? String(formData.get("categoryName")) : undefined,
+        regularPrice: formData.get("regularPrice") ? Number(formData.get("regularPrice")) : undefined,
+        salePrice: formData.get("salePrice") !== null && formData.get("salePrice") !== undefined ? Number(formData.get("salePrice")) : undefined,
+        costPrice: formData.get("costPrice") ? Number(formData.get("costPrice")) : undefined,
+        offerPrice: formData.get("offerPrice") ? Number(formData.get("offerPrice")) : undefined,
+        isActive: formData.has("isActive") ? formData.get("isActive") !== "false" : undefined,
+        isFeatured: formData.has("isFeatured") ? (formData.get("isFeatured") === "true" || formData.get("isFeatured") === "1") : undefined,
+        variants: parsedVariants,
+      };
+
+      res = await this.request<AdminProduct>(`/products/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(cleanPayload),
+      });
+
+      if (res.success && res.data && files.length > 0) {
+        try {
+          const filesData = new FormData();
+          files.forEach((f) => filesData.append("images", f));
+          await this.uploadProductImages(id, filesData);
+        } catch (uploadErr) {
+          console.warn("[UploadProductImages error]:", uploadErr);
+        }
+      }
+    } else {
+      const cleanInput = { ...(input as UpdateProductInput) };
+      if (typeof cleanInput.isActive === "string") {
+        cleanInput.isActive = (cleanInput.isActive as any) !== "false";
+      }
+      if (typeof cleanInput.isFeatured === "string") {
+        cleanInput.isFeatured = (cleanInput.isFeatured as any) === "true";
+      }
+      if (typeof cleanInput.variants === "string") {
+        try {
+          cleanInput.variants = JSON.parse(cleanInput.variants as any);
+        } catch {}
+      }
+      if (typeof cleanInput.regularPrice === "string") {
+        cleanInput.regularPrice = Number(cleanInput.regularPrice);
+      }
+      res = await this.request<AdminProduct>(`/products/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(cleanInput),
+      });
+    }
+
     if (res.success && res.data) return { success: true, product: res.data };
+
+    if (res.statusCode && res.statusCode >= 400) {
+      return {
+        success: false,
+        message: res.message || "Failed to update product",
+        error: res.error,
+      };
+    }
 
     const products = this.getLocalProducts();
     const idx = products.findIndex((p) => p.id === id);
@@ -1973,10 +2172,24 @@ export class AdminService {
 
     const existing = products[idx];
 
+    const parsedInput: UpdateProductInput = isFormData
+      ? {
+          name: (input as FormData).get("name") ? String((input as FormData).get("name")) : undefined,
+          brand: (input as FormData).get("brand") ? String((input as FormData).get("brand")) : undefined,
+          categoryId: (input as FormData).get("categoryId") ? String((input as FormData).get("categoryId")) : undefined,
+          regularPrice: (input as FormData).get("regularPrice") ? Number((input as FormData).get("regularPrice")) : undefined,
+          salePrice: (input as FormData).get("salePrice") !== null && (input as FormData).get("salePrice") !== undefined ? Number((input as FormData).get("salePrice")) : undefined,
+          costPrice: (input as FormData).get("costPrice") ? Number((input as FormData).get("costPrice")) : undefined,
+          description: (input as FormData).get("description") ? String((input as FormData).get("description")) : undefined,
+          variants: (input as FormData).get("variants") ? JSON.parse(String((input as FormData).get("variants"))) : undefined,
+          isActive: (input as FormData).get("isActive") ? (input as FormData).get("isActive") !== "false" : undefined,
+        }
+      : (input as UpdateProductInput);
+
     // Update variants if passed
     let updatedVariants = existing.variants;
-    if (input.variants && Array.isArray(input.variants)) {
-      updatedVariants = input.variants.map((vInput, i) => {
+    if (parsedInput.variants && Array.isArray(parsedInput.variants)) {
+      updatedVariants = parsedInput.variants.map((vInput: any, i: number) => {
         const existingVar = existing.variants.find((v) => v.id === vInput.id || v.sku === vInput.sku);
         const vSize = vInput.size || existingVar?.size || "M";
         const vColor = vInput.color || vInput.colorName || existingVar?.colorName || "Standard";
@@ -2014,14 +2227,14 @@ export class AdminService {
 
     const updated: AdminProduct = {
       ...existing,
-      ...input,
-      regularPrice: input.regularPrice != null ? Number(input.regularPrice).toFixed(2) : existing.regularPrice,
-      salePrice: input.salePrice !== undefined ? (input.salePrice != null ? Number(input.salePrice).toFixed(2) : null) : existing.salePrice,
-      costPrice: input.costPrice != null ? Number(input.costPrice).toFixed(2) : existing.costPrice,
+      ...parsedInput,
+      regularPrice: parsedInput.regularPrice != null ? Number(parsedInput.regularPrice).toFixed(2) : existing.regularPrice,
+      salePrice: parsedInput.salePrice !== undefined ? (parsedInput.salePrice != null ? Number(parsedInput.salePrice).toFixed(2) : null) : existing.salePrice,
+      costPrice: parsedInput.costPrice != null ? Number(parsedInput.costPrice).toFixed(2) : existing.costPrice,
       variants: updatedVariants,
       stockQuantity: newTotalStock,
       totalStock: newTotalStock,
-      basePrice: input.salePrice != null ? Number(input.salePrice) : (input.regularPrice != null ? Number(input.regularPrice) : existing.basePrice),
+      basePrice: parsedInput.salePrice != null ? Number(parsedInput.salePrice) : (parsedInput.regularPrice != null ? Number(parsedInput.regularPrice) : existing.basePrice),
       variantsCount: updatedVariants.length,
       variantsSummary: updatedVariants.map((v) => ({
         id: v.id,
@@ -2198,14 +2411,51 @@ export class AdminService {
    */
   static async uploadProductImages(
     id: string,
-    images: Array<{ url: string; altText?: string; isThumbnail?: boolean; sortOrder?: number }> | FormData
+    images:
+      | Array<{ url: string; altText?: string; isThumbnail?: boolean; sortOrder?: number; variantId?: string }>
+      | { url: string; altText?: string; isThumbnail?: boolean; sortOrder?: number; variantId?: string }
+      | FormData
   ): Promise<UploadProductImagesResponse> {
+    const cleanId = typeof id === "string" ? id.trim() : "";
+    if (!cleanId || cleanId === "undefined" || cleanId === "null") {
+      console.warn("[uploadProductImages] Aborted: Invalid or undefined product ID provided:", id);
+      return {
+        success: false,
+        statusCode: 400,
+        message: "Missing or invalid product ID for image upload.",
+        data: { images: [] } as any,
+      };
+    }
+
     const isFormData = typeof FormData !== "undefined" && images instanceof FormData;
+    let requestBody: any;
+    if (isFormData) {
+      requestBody = images;
+    } else if (Array.isArray(images)) {
+      if (images.length === 1) {
+        requestBody = JSON.stringify(images[0]);
+      } else {
+        requestBody = JSON.stringify({ images });
+      }
+    } else {
+      requestBody = JSON.stringify(images);
+    }
+
     const res = await this.request<UploadProductImagesResponse>(`/products/${id}/images`, {
       method: "POST",
-      body: isFormData ? (images as any) : JSON.stringify({ images }),
+      body: requestBody,
     });
     if (res.success && res.data) return res.data;
+
+    if (res.statusCode && res.statusCode >= 400) {
+      return {
+        success: false,
+        statusCode: res.statusCode,
+        message: res.message || "Failed to upload image(s)",
+        error: res.error,
+        data: { images: [] },
+      };
+    }
 
     const products = this.getLocalProducts();
     const prod = products.find((p) => p.id === id);
@@ -4117,16 +4367,17 @@ export class AdminService {
    * 4.2. Create Subordinate User
    * Endpoint: POST /api/v1/admin/users
    */
-  static async createUser(input: CreateSubordinateUserInput): Promise<{
+  static async createUser(input: CreateSubordinateUserInput | FormData): Promise<{
     success: boolean;
     statusCode: number;
     message: string;
     data?: { user: AdminManagedUser };
     error?: string;
   }> {
+    const isFormData = typeof FormData !== "undefined" && input instanceof FormData;
     const res = await this.request<{ user: AdminManagedUser }>("/users", {
       method: "POST",
-      body: JSON.stringify(input),
+      body: isFormData ? (input as FormData) : JSON.stringify(input),
     });
 
     if (res.success && res.data?.user) {
@@ -4137,7 +4388,7 @@ export class AdminService {
       return {
         success: true,
         statusCode: 201,
-        message: res.message || `${input.role} user created successfully`,
+        message: res.message || `${res.data.user.role} user created successfully`,
         data: res.data,
       };
     }
@@ -4156,19 +4407,39 @@ export class AdminService {
     const currentUser = useAuthStore.getState().user;
     const currentRole = currentUser?.role || "SUPER_ADMIN";
 
+    const fd = typeof FormData !== "undefined" && input instanceof FormData ? (input as FormData) : null;
+    let perms: ModulePermissionCode[] | undefined;
+    if (fd) {
+      const pRaw = fd.get("permissions");
+      if (typeof pRaw === "string") {
+        try { perms = JSON.parse(pRaw); } catch {}
+      }
+    }
+    const parsedInput: CreateSubordinateUserInput = fd
+      ? {
+          name: String(fd.get("name") || ""),
+          email: String(fd.get("email") || ""),
+          password: String(fd.get("password") || ""),
+          role: (fd.get("role") as any) || "STAFF",
+          phone: fd.get("phone") ? String(fd.get("phone")) : undefined,
+          permissions: perms,
+          avatarUrl: fd.get("avatarUrl") ? String(fd.get("avatarUrl")) : undefined,
+        }
+      : (input as CreateSubordinateUserInput);
+
     // Business Guard: Check role hierarchy
-    if (!canCreateRole(currentRole, input.role)) {
+    if (!canCreateRole(currentRole, parsedInput.role)) {
       return {
         success: false,
         statusCode: 403,
         error: "FORBIDDEN_ROLE_CREATION",
-        message: `Your role (${currentRole}) is not permitted to create a ${input.role}.`,
+        message: `Your role (${currentRole}) is not permitted to create a ${parsedInput.role}.`,
       };
     }
 
     // Validation Guard: Unique email check
     const users = this.getLocalUsers();
-    if (users.some((u) => u.email.toLowerCase() === input.email.toLowerCase())) {
+    if (users.some((u) => u.email.toLowerCase() === parsedInput.email.toLowerCase())) {
       return {
         success: false,
         statusCode: 409,
@@ -4178,9 +4449,9 @@ export class AdminService {
     }
 
     // Business Guard: Delegation of permissions
-    if (input.permissions && input.permissions.length > 0 && currentRole !== "SUPER_ADMIN") {
+    if (parsedInput.permissions && parsedInput.permissions.length > 0 && currentRole !== "SUPER_ADMIN") {
       const allowed = getDelegatablePermsHelper(currentRole);
-      const invalid = input.permissions.filter((p) => !allowed.includes(p));
+      const invalid = parsedInput.permissions.filter((p) => !allowed.includes(p));
       if (invalid.length > 0) {
         return {
           success: false,
@@ -4193,11 +4464,12 @@ export class AdminService {
 
     const newUser: AdminManagedUser = {
       id: `usr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-      name: input.name.trim(),
-      email: input.email.trim().toLowerCase(),
-      role: input.role,
-      permissions: input.permissions || [],
-      phone: input.phone?.trim() || undefined,
+      name: parsedInput.name.trim(),
+      email: parsedInput.email.trim().toLowerCase(),
+      role: parsedInput.role,
+      permissions: parsedInput.permissions || [],
+      phone: parsedInput.phone?.trim() || undefined,
+      avatarUrl: parsedInput.avatarUrl || undefined,
       isActive: true,
       createdById: currentUser?.id || "admin_super",
       creator: currentUser
@@ -4218,7 +4490,7 @@ export class AdminService {
     return {
       success: true,
       statusCode: 201,
-      message: `${input.role} user created successfully`,
+      message: `${parsedInput.role} user created successfully`,
       data: { user: newUser },
     };
   }
@@ -4371,7 +4643,7 @@ export class AdminService {
    */
   static async updateUser(
     id: string,
-    input: UpdateSubordinateUserInput
+    input: UpdateSubordinateUserInput | FormData
   ): Promise<{
     success: boolean;
     statusCode: number;
@@ -4379,9 +4651,10 @@ export class AdminService {
     data?: { user: AdminManagedUser };
     error?: string;
   }> {
+    const isFormData = typeof FormData !== "undefined" && input instanceof FormData;
     const res = await this.request<{ user: AdminManagedUser }>(`/users/${id}`, {
       method: "PUT",
-      body: JSON.stringify(input),
+      body: isFormData ? (input as FormData) : JSON.stringify(input),
     });
 
     if (res.success && res.data?.user) {
@@ -4435,10 +4708,28 @@ export class AdminService {
       };
     }
 
+    const fd = typeof FormData !== "undefined" && input instanceof FormData ? (input as FormData) : null;
+    let perms: ModulePermissionCode[] | undefined;
+    if (fd) {
+      const pRaw = fd.get("permissions");
+      if (typeof pRaw === "string") {
+        try { perms = JSON.parse(pRaw); } catch {}
+      }
+    }
+    const parsedInput: UpdateSubordinateUserInput = fd
+      ? {
+          name: fd.get("name") ? String(fd.get("name")) : undefined,
+          phone: fd.get("phone") ? String(fd.get("phone")) : undefined,
+          permissions: perms,
+          isActive: fd.get("isActive") !== null ? fd.get("isActive") !== "false" : undefined,
+          avatarUrl: fd.get("avatarUrl") ? String(fd.get("avatarUrl")) : undefined,
+        }
+      : (input as UpdateSubordinateUserInput);
+
     // Business Guard: Permission delegation
-    if (input.permissions && input.permissions.length > 0 && currentRole !== "SUPER_ADMIN") {
+    if (parsedInput.permissions && parsedInput.permissions.length > 0 && currentRole !== "SUPER_ADMIN") {
       const allowed = getDelegatablePermsHelper(currentRole);
-      const invalid = input.permissions.filter((p) => !allowed.includes(p));
+      const invalid = parsedInput.permissions.filter((p: ModulePermissionCode) => !allowed.includes(p));
       if (invalid.length > 0) {
         return {
           success: false,
@@ -4451,10 +4742,11 @@ export class AdminService {
 
     const updatedUser: AdminManagedUser = {
       ...targetUser,
-      ...(input.name !== undefined && { name: input.name.trim() }),
-      ...(input.phone !== undefined && { phone: input.phone?.trim() }),
-      ...(input.permissions !== undefined && { permissions: input.permissions }),
-      ...(input.isActive !== undefined && { isActive: input.isActive }),
+      ...(parsedInput.name !== undefined && { name: parsedInput.name.trim() }),
+      ...(parsedInput.phone !== undefined && { phone: parsedInput.phone?.trim() }),
+      ...(parsedInput.permissions !== undefined && { permissions: parsedInput.permissions }),
+      ...(parsedInput.isActive !== undefined && { isActive: parsedInput.isActive }),
+      ...(parsedInput.avatarUrl !== undefined && { avatarUrl: parsedInput.avatarUrl }),
       updatedAt: new Date().toISOString(),
     };
 
@@ -4745,16 +5037,17 @@ export class AdminService {
    * 2.3. Create Category
    * Endpoint: POST /api/v1/admin/categories
    */
-  static async createCategory(input: CreateCategoryInput): Promise<{
+  static async createCategory(input: CreateCategoryInput | FormData): Promise<{
     success: boolean;
     statusCode: number;
     message: string;
     data?: { category: AdminCategory };
     error?: string;
   }> {
+    const isFormData = typeof FormData !== "undefined" && input instanceof FormData;
     const res = await this.request<{ category: AdminCategory }>("/categories", {
       method: "POST",
-      body: JSON.stringify(input),
+      body: isFormData ? input : JSON.stringify(input),
     });
 
     if (res.success && res.data?.category) {
@@ -4779,11 +5072,25 @@ export class AdminService {
       };
     }
 
+    const fd = typeof FormData !== "undefined" && input instanceof FormData ? (input as FormData) : null;
+    const parsedInput: CreateCategoryInput = fd
+      ? {
+          name: String(fd.get("name") || "Untitled Category"),
+          slug: fd.get("slug") ? String(fd.get("slug")) : undefined,
+          description: fd.get("description") ? String(fd.get("description")) : undefined,
+          imageUrl: fd.get("imageUrl") ? String(fd.get("imageUrl")) : (fd.get("image") ? URL.createObjectURL(fd.get("image") as File) : null),
+          parentId: fd.get("parentId") ? String(fd.get("parentId")) : null,
+          sortOrder: fd.get("sortOrder") ? Number(fd.get("sortOrder")) : 0,
+          isFeatured: fd.get("isFeatured") === "true",
+          isActive: fd.get("isActive") !== "false",
+        }
+      : (input as CreateCategoryInput);
+
     // Smart Local Fallback
     const cats = this.getLocalCategories();
 
     // Check duplicate name under same parent
-    if (cats.some((c) => (c.parentId || null) === (input.parentId || null) && c.name.toLowerCase() === input.name.trim().toLowerCase())) {
+    if (cats.some((c) => (c.parentId || null) === (parsedInput.parentId || null) && c.name.toLowerCase() === parsedInput.name.trim().toLowerCase())) {
       return {
         success: false,
         statusCode: 409,
@@ -4792,20 +5099,20 @@ export class AdminService {
       };
     }
 
-    const uniqueSlug = input.slug?.trim() || generateCategorySlug(input.name, cats);
-    const parent = input.parentId ? cats.find((c) => c.id === input.parentId) : null;
+    const uniqueSlug = parsedInput.slug?.trim() || generateCategorySlug(parsedInput.name, cats);
+    const parent = parsedInput.parentId ? cats.find((c) => c.id === parsedInput.parentId) : null;
 
     const newCat: AdminCategory = {
       id: `cat_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-      name: input.name.trim(),
+      name: parsedInput.name.trim(),
       slug: uniqueSlug,
-      description: input.description?.trim() || null,
-      imageUrl: input.imageUrl || null,
-      parentId: input.parentId || null,
-      sortOrder: input.sortOrder !== undefined ? input.sortOrder : cats.length,
-      displayOrder: input.sortOrder !== undefined ? input.sortOrder : cats.length,
-      isFeatured: Boolean(input.isFeatured),
-      isActive: input.isActive !== undefined ? input.isActive : true,
+      description: parsedInput.description?.trim() || null,
+      imageUrl: parsedInput.imageUrl || null,
+      parentId: parsedInput.parentId || null,
+      sortOrder: parsedInput.sortOrder !== undefined ? parsedInput.sortOrder : cats.length,
+      displayOrder: parsedInput.sortOrder !== undefined ? parsedInput.sortOrder : cats.length,
+      isFeatured: Boolean(parsedInput.isFeatured),
+      isActive: parsedInput.isActive !== undefined ? parsedInput.isActive : true,
       productCount: 0,
       childrenCount: 0,
       parent: parent ? { id: parent.id, name: parent.name, slug: parent.slug } : null,
@@ -4832,7 +5139,7 @@ export class AdminService {
    */
   static async updateCategory(
     id: string,
-    input: UpdateCategoryInput
+    input: UpdateCategoryInput | FormData
   ): Promise<{
     success: boolean;
     statusCode: number;
@@ -4840,9 +5147,10 @@ export class AdminService {
     data?: { category: AdminCategory };
     error?: string;
   }> {
+    const isFormData = typeof FormData !== "undefined" && input instanceof FormData;
     const res = await this.request<{ category: AdminCategory }>(`/categories/${id}`, {
       method: "PUT",
-      body: JSON.stringify(input),
+      body: isFormData ? input : JSON.stringify(input),
     });
 
     if (res.success && res.data?.category) {
@@ -4883,9 +5191,22 @@ export class AdminService {
     }
 
     const currentCat = cats[idx];
+    const fd = typeof FormData !== "undefined" && input instanceof FormData ? (input as FormData) : null;
+    const parsedInput: UpdateCategoryInput = fd
+      ? {
+          name: fd.get("name") ? String(fd.get("name")) : undefined,
+          slug: fd.get("slug") ? String(fd.get("slug")) : undefined,
+          description: fd.get("description") ? String(fd.get("description")) : undefined,
+          imageUrl: fd.get("imageUrl") ? String(fd.get("imageUrl")) : (fd.get("image") ? URL.createObjectURL(fd.get("image") as File) : undefined),
+          parentId: fd.get("parentId") ? String(fd.get("parentId")) : (fd.has("parentId") ? null : undefined),
+          sortOrder: fd.get("sortOrder") ? Number(fd.get("sortOrder")) : undefined,
+          isFeatured: fd.get("isFeatured") !== null ? fd.get("isFeatured") === "true" : undefined,
+          isActive: fd.get("isActive") !== null ? fd.get("isActive") !== "false" : undefined,
+        }
+      : (input as UpdateCategoryInput);
 
     // Circular Hierarchy Guard: Cannot select self as parent
-    if (input.parentId && input.parentId === id) {
+    if (parsedInput.parentId && parsedInput.parentId === id) {
       return {
         success: false,
         statusCode: 400,
@@ -4895,7 +5216,7 @@ export class AdminService {
     }
 
     // Circular Hierarchy Guard: Cannot select own descendant as parent
-    if (input.parentId && isCategoryDescendant(id, input.parentId, cats)) {
+    if (parsedInput.parentId && isCategoryDescendant(id, parsedInput.parentId, cats)) {
       return {
         success: false,
         statusCode: 400,
@@ -4905,8 +5226,8 @@ export class AdminService {
     }
 
     // Duplicate name check under same parent
-    const targetParentId = input.parentId !== undefined ? input.parentId : currentCat.parentId;
-    const targetName = input.name !== undefined ? input.name.trim() : currentCat.name;
+    const targetParentId = parsedInput.parentId !== undefined ? parsedInput.parentId : currentCat.parentId;
+    const targetName = parsedInput.name !== undefined ? parsedInput.name.trim() : currentCat.name;
     if (cats.some((c) => c.id !== id && (c.parentId || null) === (targetParentId || null) && c.name.toLowerCase() === targetName.toLowerCase())) {
       return {
         success: false,
@@ -4916,23 +5237,23 @@ export class AdminService {
       };
     }
 
-    const updatedSlug = input.name
-      ? generateCategorySlug(input.name, cats, id)
-      : input.slug || currentCat.slug;
+    const updatedSlug = parsedInput.name
+      ? generateCategorySlug(parsedInput.name, cats, id)
+      : parsedInput.slug || currentCat.slug;
 
     const parent = targetParentId ? cats.find((c) => c.id === targetParentId) : null;
 
     const updatedCat: AdminCategory = {
       ...currentCat,
-      ...(input.name !== undefined && { name: input.name.trim() }),
+      ...(parsedInput.name !== undefined && { name: parsedInput.name.trim() }),
       slug: updatedSlug,
-      ...(input.description !== undefined && { description: input.description?.trim() || null }),
-      ...(input.imageUrl !== undefined && { imageUrl: input.imageUrl }),
+      ...(parsedInput.description !== undefined && { description: parsedInput.description?.trim() || null }),
+      ...(parsedInput.imageUrl !== undefined && { imageUrl: parsedInput.imageUrl }),
       parentId: targetParentId || null,
-      sortOrder: input.sortOrder !== undefined ? input.sortOrder : currentCat.sortOrder,
-      displayOrder: input.sortOrder !== undefined ? input.sortOrder : currentCat.displayOrder,
-      ...(input.isFeatured !== undefined && { isFeatured: input.isFeatured }),
-      ...(input.isActive !== undefined && { isActive: input.isActive }),
+      sortOrder: parsedInput.sortOrder !== undefined ? parsedInput.sortOrder : currentCat.sortOrder,
+      displayOrder: parsedInput.sortOrder !== undefined ? parsedInput.sortOrder : currentCat.displayOrder,
+      ...(parsedInput.isFeatured !== undefined && { isFeatured: parsedInput.isFeatured }),
+      ...(parsedInput.isActive !== undefined && { isActive: parsedInput.isActive }),
       parent: parent ? { id: parent.id, name: parent.name, slug: parent.slug } : null,
       updatedAt: new Date().toISOString(),
     };
@@ -5213,16 +5534,17 @@ export class AdminService {
    * 3.3. Create Collection
    * Endpoint: POST /api/v1/admin/collections
    */
-  static async createCollection(input: CreateCollectionInput): Promise<{
+  static async createCollection(input: CreateCollectionInput | FormData): Promise<{
     success: boolean;
     statusCode: number;
     message: string;
     data?: { collection: AdminCollection };
     error?: string;
   }> {
+    const isFormData = typeof FormData !== "undefined" && input instanceof FormData;
     const res = await this.request<{ collection: AdminCollection }>("/collections", {
       method: "POST",
-      body: JSON.stringify(input),
+      body: isFormData ? input : JSON.stringify(input),
     });
 
     if (res.success && res.data?.collection) {
@@ -5249,22 +5571,45 @@ export class AdminService {
 
     // Smart Local Fallback
     const cols = this.getLocalCollections();
-    const name = (input.name || input.title || "").trim();
-    const uniqueSlug = input.slug?.trim() || generateCollectionSlug(name, cols);
+    const fd = typeof FormData !== "undefined" && input instanceof FormData ? (input as FormData) : null;
+    let parsedProductIds: string[] | undefined;
+    if (fd) {
+      const pRaw = fd.get("productIds");
+      if (typeof pRaw === "string") {
+        try { parsedProductIds = JSON.parse(pRaw); } catch {}
+      }
+    }
+
+    const parsedInput: CreateCollectionInput = fd
+      ? {
+          name: (fd.get("name") as string) || "Untitled Collection",
+          title: (fd.get("name") as string) || "Untitled Collection",
+          slug: (fd.get("slug") as string) || undefined,
+          description: (fd.get("description") as string) || undefined,
+          imageUrl: (fd.get("imageUrl") as string) || (fd.get("image") ? URL.createObjectURL(fd.get("image") as File) : undefined),
+          isFeatured: fd.get("isFeatured") === "true",
+          sortOrder: fd.get("sortOrder") ? Number(fd.get("sortOrder")) : cols.length,
+          isActive: fd.get("isActive") !== "false",
+          productIds: parsedProductIds,
+        }
+      : (input as CreateCollectionInput);
+
+    const name = (parsedInput.name || parsedInput.title || "").trim();
+    const uniqueSlug = parsedInput.slug?.trim() || generateCollectionSlug(name, cols);
 
     const newCol: AdminCollection = {
       id: `col_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       name,
       title: name,
       slug: uniqueSlug,
-      description: input.description?.trim() || "",
-      imageUrl: input.imageUrl || null,
-      isFeatured: Boolean(input.isFeatured),
-      sortOrder: input.sortOrder !== undefined ? input.sortOrder : cols.length,
-      isActive: input.isActive !== undefined ? input.isActive : true,
-      productsCount: input.productIds?.length || 0,
-      productCount: input.productIds?.length || 0,
-      productIds: input.productIds || [],
+      description: parsedInput.description?.trim() || "",
+      imageUrl: parsedInput.imageUrl || null,
+      isFeatured: Boolean(parsedInput.isFeatured),
+      sortOrder: parsedInput.sortOrder !== undefined ? parsedInput.sortOrder : cols.length,
+      isActive: parsedInput.isActive !== undefined ? parsedInput.isActive : true,
+      productsCount: parsedInput.productIds?.length || 0,
+      productCount: parsedInput.productIds?.length || 0,
+      productIds: parsedInput.productIds || [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -5287,7 +5632,7 @@ export class AdminService {
    */
   static async updateCollection(
     id: string,
-    input: UpdateCollectionInput
+    input: UpdateCollectionInput | FormData
   ): Promise<{
     success: boolean;
     statusCode: number;
@@ -5295,9 +5640,10 @@ export class AdminService {
     data?: { collection: AdminCollection };
     error?: string;
   }> {
+    const isFormData = typeof FormData !== "undefined" && input instanceof FormData;
     const res = await this.request<{ collection: AdminCollection }>(`/collections/${id}`, {
       method: "PUT",
-      body: JSON.stringify(input),
+      body: isFormData ? input : JSON.stringify(input),
     });
 
     if (res.success && res.data?.collection) {
@@ -5338,23 +5684,45 @@ export class AdminService {
     }
 
     const current = cols[idx];
-    const name = input.name !== undefined ? input.name.trim() : input.title !== undefined ? input.title.trim() : current.name;
-    const slug = input.slug !== undefined ? input.slug.trim() : input.name ? generateCollectionSlug(name, cols, id) : current.slug;
+    const fd = typeof FormData !== "undefined" && input instanceof FormData ? (input as FormData) : null;
+    let parsedProductIds: string[] | undefined;
+    if (fd) {
+      const pRaw = fd.get("productIds");
+      if (typeof pRaw === "string") {
+        try { parsedProductIds = JSON.parse(pRaw); } catch {}
+      }
+    }
+
+    const parsedInput: UpdateCollectionInput = fd
+      ? {
+          name: (fd.get("name") as string) || undefined,
+          slug: (fd.get("slug") as string) || undefined,
+          description: (fd.get("description") as string) || undefined,
+          imageUrl: (fd.get("imageUrl") as string) || (fd.get("image") ? URL.createObjectURL(fd.get("image") as File) : undefined),
+          isFeatured: fd.get("isFeatured") !== null ? fd.get("isFeatured") === "true" : undefined,
+          sortOrder: fd.get("sortOrder") ? Number(fd.get("sortOrder")) : undefined,
+          isActive: fd.get("isActive") !== null ? fd.get("isActive") !== "false" : undefined,
+          productIds: parsedProductIds,
+        }
+      : (input as UpdateCollectionInput);
+
+    const name = parsedInput.name !== undefined ? parsedInput.name.trim() : (parsedInput as any).title !== undefined ? (parsedInput as any).title.trim() : current.name;
+    const slug = parsedInput.slug !== undefined ? parsedInput.slug.trim() : parsedInput.name ? generateCollectionSlug(name, cols, id) : current.slug;
 
     const updatedCol: AdminCollection = {
       ...current,
       name,
       title: name,
       slug,
-      ...(input.description !== undefined && { description: input.description.trim() }),
-      ...(input.imageUrl !== undefined && { imageUrl: input.imageUrl }),
-      ...(input.isFeatured !== undefined && { isFeatured: input.isFeatured }),
-      ...(input.sortOrder !== undefined && { sortOrder: input.sortOrder }),
-      ...(input.isActive !== undefined && { isActive: input.isActive }),
-      ...(input.productIds !== undefined && {
-        productIds: input.productIds,
-        productsCount: input.productIds.length,
-        productCount: input.productIds.length,
+      ...(parsedInput.description !== undefined && { description: parsedInput.description.trim() }),
+      ...(parsedInput.imageUrl !== undefined && { imageUrl: parsedInput.imageUrl }),
+      ...(parsedInput.isFeatured !== undefined && { isFeatured: parsedInput.isFeatured }),
+      ...(parsedInput.sortOrder !== undefined && { sortOrder: parsedInput.sortOrder }),
+      ...(parsedInput.isActive !== undefined && { isActive: parsedInput.isActive }),
+      ...(parsedInput.productIds !== undefined && {
+        productIds: parsedInput.productIds,
+        productsCount: parsedInput.productIds.length,
+        productCount: parsedInput.productIds.length,
       }),
       updatedAt: new Date().toISOString(),
     };
@@ -6112,16 +6480,17 @@ export class AdminService {
    * 3.2. POST /api/v1/admin/promotions
    */
   static async createPromotion(
-    input: CreatePromotionInput
+    input: CreatePromotionInput | FormData
   ): Promise<{
     success: boolean;
     statusCode: number;
     message: string;
     data?: AdminPromotion;
   }> {
+    const isFormData = typeof FormData !== "undefined" && input instanceof FormData;
     const res = await this.request<AdminPromotion>("/promotions", {
       method: "POST",
-      body: JSON.stringify(input),
+      body: isFormData ? input : JSON.stringify(input),
     });
 
     if (res.success && res.data) {
@@ -6135,22 +6504,40 @@ export class AdminService {
 
     const promotions = this.getLocalPromotions();
     const now = new Date().toISOString();
+    const fd = typeof FormData !== "undefined" && input instanceof FormData ? (input as FormData) : null;
+    const parsedInput: CreatePromotionInput = fd
+      ? {
+          title: String(fd.get("title") || "SPECIAL SALE"),
+          subtitle: fd.get("subtitle") ? String(fd.get("subtitle")) : "",
+          badge: fd.get("badge") ? String(fd.get("badge")) : "SPECIAL PROMO",
+          discountPercentage: fd.get("discountPercentage") ? Number(fd.get("discountPercentage")) : 20,
+          couponCode: fd.get("couponCode") ? String(fd.get("couponCode")) : undefined,
+          startDate: fd.get("startDate") ? String(fd.get("startDate")) : now,
+          endDate: fd.get("endDate") ? String(fd.get("endDate")) : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+          backgroundImage: fd.get("backgroundImage") ? (typeof fd.get("backgroundImage") === "string" ? String(fd.get("backgroundImage")) : "https://images.unsplash.com/photo-1610030469983-98e550d6193c?q=80&w=1200") : "https://images.unsplash.com/photo-1610030469983-98e550d6193c?q=80&w=1200",
+          ctaText: fd.get("ctaText") ? String(fd.get("ctaText")) : "SHOP THE SALE",
+          ctaLink: fd.get("ctaLink") ? String(fd.get("ctaLink")) : "/products",
+          sortOrder: fd.get("sortOrder") ? Number(fd.get("sortOrder")) : promotions.length + 1,
+          isActive: fd.get("isActive") !== "false",
+        }
+      : (input as CreatePromotionInput);
+
     const newPromo: AdminPromotion = {
       id: `promo_uuid_${Date.now()}`,
-      title: input.title.trim().toUpperCase(),
-      subtitle: input.subtitle?.trim() || "",
-      badge: input.badge?.trim() || "SPECIAL PROMO",
-      discountPercentage: input.discountPercentage || 20,
-      couponCode: input.couponCode?.trim().toUpperCase() || undefined,
-      startDate: input.startDate || now,
-      endDate: input.endDate || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+      title: parsedInput.title.trim().toUpperCase(),
+      subtitle: parsedInput.subtitle?.trim() || "",
+      badge: parsedInput.badge?.trim() || "SPECIAL PROMO",
+      discountPercentage: parsedInput.discountPercentage || 20,
+      couponCode: parsedInput.couponCode?.trim().toUpperCase() || undefined,
+      startDate: parsedInput.startDate || now,
+      endDate: parsedInput.endDate || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
       backgroundImage:
-        input.backgroundImage ||
+        parsedInput.backgroundImage ||
         "https://images.unsplash.com/photo-1610030469983-98e550d6193c?q=80&w=1200",
-      ctaText: input.ctaText?.trim() || "SHOP THE SALE",
-      ctaLink: input.ctaLink?.trim() || "/products",
-      sortOrder: input.sortOrder !== undefined ? input.sortOrder : promotions.length + 1,
-      isActive: input.isActive !== undefined ? input.isActive : true,
+      ctaText: parsedInput.ctaText?.trim() || "SHOP THE SALE",
+      ctaLink: parsedInput.ctaLink?.trim() || "/products",
+      sortOrder: parsedInput.sortOrder !== undefined ? parsedInput.sortOrder : promotions.length + 1,
+      isActive: parsedInput.isActive !== undefined ? parsedInput.isActive : true,
       createdAt: now,
       updatedAt: now,
     };
@@ -6172,16 +6559,17 @@ export class AdminService {
    */
   static async updatePromotion(
     id: string,
-    input: UpdatePromotionInput
+    input: UpdatePromotionInput | FormData
   ): Promise<{
     success: boolean;
     statusCode: number;
     message: string;
     data?: AdminPromotion;
   }> {
+    const isFormData = typeof FormData !== "undefined" && input instanceof FormData;
     const res = await this.request<AdminPromotion>(`/promotions/${id}`, {
       method: "PUT",
-      body: JSON.stringify(input),
+      body: isFormData ? input : JSON.stringify(input),
     });
 
     if (res.success && res.data) {
@@ -6199,20 +6587,38 @@ export class AdminService {
       throw new Error(`Promotion ${id} not found`);
     }
 
+    const updateFd = typeof FormData !== "undefined" && input instanceof FormData ? (input as FormData) : null;
+    const parsedInput: UpdatePromotionInput = updateFd
+      ? {
+          title: updateFd.get("title") ? String(updateFd.get("title")) : undefined,
+          subtitle: updateFd.get("subtitle") ? String(updateFd.get("subtitle")) : undefined,
+          badge: updateFd.get("badge") ? String(updateFd.get("badge")) : undefined,
+          discountPercentage: updateFd.get("discountPercentage") ? Number(updateFd.get("discountPercentage")) : undefined,
+          couponCode: updateFd.get("couponCode") ? String(updateFd.get("couponCode")) : undefined,
+          startDate: updateFd.get("startDate") ? String(updateFd.get("startDate")) : undefined,
+          endDate: updateFd.get("endDate") ? String(updateFd.get("endDate")) : undefined,
+          backgroundImage: updateFd.get("backgroundImage") ? String(updateFd.get("backgroundImage")) : undefined,
+          ctaText: updateFd.get("ctaText") ? String(updateFd.get("ctaText")) : undefined,
+          ctaLink: updateFd.get("ctaLink") ? String(updateFd.get("ctaLink")) : undefined,
+          sortOrder: updateFd.get("sortOrder") ? Number(updateFd.get("sortOrder")) : undefined,
+          isActive: updateFd.get("isActive") !== null ? updateFd.get("isActive") !== "false" : undefined,
+        }
+      : (input as UpdatePromotionInput);
+
     const updated: AdminPromotion = {
       ...promotions[idx],
-      ...(input.title && { title: input.title.trim().toUpperCase() }),
-      ...(input.subtitle !== undefined && { subtitle: input.subtitle.trim() }),
-      ...(input.badge !== undefined && { badge: input.badge.trim() }),
-      ...(input.discountPercentage !== undefined && { discountPercentage: input.discountPercentage }),
-      ...(input.couponCode !== undefined && { couponCode: input.couponCode.trim().toUpperCase() }),
-      ...(input.startDate && { startDate: input.startDate }),
-      ...(input.endDate && { endDate: input.endDate }),
-      ...(input.backgroundImage && { backgroundImage: input.backgroundImage }),
-      ...(input.ctaText && { ctaText: input.ctaText.trim() }),
-      ...(input.ctaLink && { ctaLink: input.ctaLink.trim() }),
-      ...(input.sortOrder !== undefined && { sortOrder: input.sortOrder }),
-      ...(input.isActive !== undefined && { isActive: input.isActive }),
+      ...(parsedInput.title && { title: parsedInput.title.trim().toUpperCase() }),
+      ...(parsedInput.subtitle !== undefined && { subtitle: parsedInput.subtitle.trim() }),
+      ...(parsedInput.badge !== undefined && { badge: parsedInput.badge.trim() }),
+      ...(parsedInput.discountPercentage !== undefined && { discountPercentage: parsedInput.discountPercentage }),
+      ...(parsedInput.couponCode !== undefined && { couponCode: parsedInput.couponCode.trim().toUpperCase() }),
+      ...(parsedInput.startDate && { startDate: parsedInput.startDate }),
+      ...(parsedInput.endDate && { endDate: parsedInput.endDate }),
+      ...(parsedInput.backgroundImage && { backgroundImage: parsedInput.backgroundImage }),
+      ...(parsedInput.ctaText && { ctaText: parsedInput.ctaText.trim() }),
+      ...(parsedInput.ctaLink && { ctaLink: parsedInput.ctaLink.trim() }),
+      ...(parsedInput.sortOrder !== undefined && { sortOrder: parsedInput.sortOrder }),
+      ...(parsedInput.isActive !== undefined && { isActive: parsedInput.isActive }),
       updatedAt: new Date().toISOString(),
     };
 

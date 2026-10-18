@@ -75,6 +75,7 @@ export interface AdminManagedUser {
   role: AdminRole;
   permissions: ModulePermissionCode[];
   phone?: string | null;
+  avatarUrl?: string | null;
   isActive: boolean;
   createdById?: string | null;
   creator?: {
@@ -93,6 +94,7 @@ export interface CreateSubordinateUserInput {
   role: "STORE_ADMIN" | "STAFF" | "CUSTOMER";
   phone?: string;
   permissions?: ModulePermissionCode[];
+  avatarUrl?: string | null;
 }
 
 export interface UpdateSubordinateUserInput {
@@ -100,6 +102,7 @@ export interface UpdateSubordinateUserInput {
   phone?: string;
   permissions?: ModulePermissionCode[];
   isActive?: boolean;
+  avatarUrl?: string | null;
 }
 
 export interface UserListQueryParams {
@@ -443,6 +446,7 @@ export interface UploadProductImagesResponse {
   data: {
     images: AdminProductImage[];
   };
+  error?: any;
 }
 
 

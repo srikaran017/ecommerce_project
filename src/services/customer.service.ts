@@ -36,6 +36,7 @@ export interface UpdateAccountPayload {
   lastName: string;
   email: string;
   phoneNumber?: string;
+  avatarUrl?: string | null;
 }
 
 export interface ChangePasswordPayload {
@@ -238,20 +239,36 @@ export class CustomerService {
   /**
    * PATCH /api/v1/customer/account
    */
+  /**
+   * PATCH /api/v1/customer/account
+   */
   static async updateAccountDetails(
-    payload: UpdateAccountPayload
+    payload: UpdateAccountPayload | FormData
   ): Promise<{ success: boolean; data?: AccountDetails; message: string; error?: any }> {
     const baseUrl = getApiBaseUrl();
+    const token = AuthService.getAccessToken();
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+
+    let body: any;
+    if (payload instanceof FormData) {
+      body = payload;
+    } else {
+      headers["Content-Type"] = "application/json";
+      body = JSON.stringify({
+        firstName: payload.firstName.trim(),
+        lastName: payload.lastName.trim(),
+        email: payload.email.trim().toLowerCase(),
+        phoneNumber: payload.phoneNumber?.trim() || undefined,
+        avatarUrl: payload.avatarUrl?.trim() || undefined,
+      });
+    }
+
     try {
       const res = await fetch(`${baseUrl}/customer/account`, {
         method: "PATCH",
-        headers: this.getHeaders(),
-        body: JSON.stringify({
-          firstName: payload.firstName.trim(),
-          lastName: payload.lastName.trim(),
-          email: payload.email.trim().toLowerCase(),
-          phoneNumber: payload.phoneNumber?.trim() || undefined,
-        }),
+        headers,
+        body,
       });
 
       const json = await res.json().catch(() => ({}));
@@ -278,6 +295,44 @@ export class CustomerService {
   }
 
   /**
+   * Dedicated Customer Avatar Upload
+   * POST /api/v1/customer/account/avatar
+   * Mode 1: File Upload (multipart/form-data with field 'avatar' or 'image')
+   * Mode 2: URL (JSON with field 'avatarUrl')
+   */
+  static async uploadAvatar(
+    input: File | { avatarUrl: string } | FormData
+  ): Promise<{ success: boolean; data?: { avatarUrl: string }; message: string; error?: any }> {
+    const baseUrl = getApiBaseUrl();
+    const token = AuthService.getAccessToken();
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+
+    let body: any;
+    if (input instanceof FormData) {
+      body = input;
+    } else if (input instanceof File) {
+      body = new FormData();
+      body.append("avatar", input); // Cloudinary folder: dresses/avatars
+    } else {
+      headers["Content-Type"] = "application/json";
+      body = JSON.stringify(input);
+    }
+
+    try {
+      const res = await fetch(`${baseUrl}/customer/account/avatar`, {
+        method: "POST",
+        headers,
+        body,
+      });
+      const json = await res.json().catch(() => ({}));
+      return json;
+    } catch (err: any) {
+      return { success: false, message: err.message || "Failed to upload avatar" };
+    }
+  }
+
+  /**
    * Alias for backward compatibility with ProfileTab
    */
   static async updateProfile(payload: Partial<CustomerProfile>): Promise<{ success: boolean; message: string; data?: CustomerProfile }> {
@@ -285,12 +340,14 @@ export class CustomerService {
     const lastName = payload.lastName || payload.name?.split(" ").slice(1).join(" ") || "Client";
     const email = payload.email || "";
     const phoneNumber = payload.phoneNumber || payload.phone || "";
+    const avatarUrl = payload.avatarUrl || "";
 
     const res = await this.updateAccountDetails({
       firstName,
       lastName,
       email,
       phoneNumber,
+      avatarUrl: avatarUrl || undefined,
     });
 
     if (typeof window !== "undefined") {
