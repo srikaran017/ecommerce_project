@@ -33,6 +33,7 @@ import {
   Upload,
   Camera,
   Link as LinkIcon,
+  Trash2,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/auth.store";
 import { AdminService } from "@/services/admin.service";
@@ -75,6 +76,9 @@ export default function AdminUsersPage() {
   const [createRolePreset, setCreateRolePreset] = useState<SubordinateRole>("STAFF");
   const [selectedUserForEdit, setSelectedUserForEdit] = useState<AdminManagedUser | null>(null);
   const [selectedUserForView, setSelectedUserForView] = useState<AdminManagedUser | null>(null);
+  const [userToDelete, setUserToDelete] = useState<AdminManagedUser | null>(null);
+  const [isDeletingUser, setIsDeletingUser] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // Form State: Create User
   const [createForm, setCreateForm] = useState({
@@ -890,6 +894,29 @@ export default function AdminUsersPage() {
                             }
                           >
                             <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+
+                          {/* Delete Staff button */}
+                          <button
+                            onClick={() => {
+                              setUserToDelete(u);
+                              setDeleteError(null);
+                            }}
+                            disabled={isSelf || !canManage}
+                            className={`p-1.5 rounded-lg border transition-colors ${
+                              !isSelf && canManage
+                                ? "bg-slate-900 hover:bg-rose-950/40 text-slate-400 hover:text-rose-400 border-slate-800 hover:border-rose-500/30 cursor-pointer"
+                                : "bg-slate-900/50 text-slate-700 border-slate-800/50 cursor-not-allowed opacity-50"
+                            }`}
+                            title={
+                              isSelf
+                                ? "You cannot delete your own account"
+                                : !canManage
+                                ? "Cannot delete an account with equal or higher role"
+                                : `Delete staff account '${u.name}'`
+                            }
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </td>
@@ -1747,6 +1774,102 @@ export default function AdminUsersPage() {
                 className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs uppercase tracking-wider transition-colors"
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete User Confirmation Modal */}
+      {userToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-slate-900 border border-rose-500/30 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 text-rose-400">
+              <div className="w-10 h-10 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center">
+                <Trash2 className="w-5 h-5 text-rose-400" />
+              </div>
+              <div>
+                <h3 className="font-bold text-white text-base">Delete Staff Account</h3>
+                <p className="text-xs text-slate-400">This action will permanently delete the subordinate account</p>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
+              <div className="text-xs text-slate-400">
+                Are you sure you want to delete staff account <span className="font-bold text-white">{userToDelete.name}</span>?
+              </div>
+              <div className="text-[11px] text-slate-500 space-y-1">
+                <div>Email: <span className="text-slate-300 font-mono">{userToDelete.email}</span></div>
+                <div>Role: <span className="text-amber-400 font-semibold">{userToDelete.role}</span></div>
+              </div>
+              <div className="text-[11px] text-amber-400/90 bg-amber-400/10 p-2.5 rounded-xl border border-amber-400/20">
+                Any staff members created by this user will have their creator reference safely unlinked.
+              </div>
+            </div>
+
+            {deleteError && (
+              <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-400 text-xs flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                <span>{deleteError}</span>
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => {
+                  setUserToDelete(null);
+                  setDeleteError(null);
+                }}
+                disabled={isDeletingUser}
+                className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs uppercase tracking-wider transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!userToDelete) return;
+                  setIsDeletingUser(true);
+                  setDeleteError(null);
+                  try {
+                    const res = await AdminService.deleteUser(userToDelete.id);
+                    if (res.success) {
+                      showAlert("success", "Staff Deleted", res.message || `User '${userToDelete.name}' deleted successfully.`);
+                      setUserToDelete(null);
+                      await loadData(true);
+                    } else {
+                      setDeleteError(res.message || "Failed to delete staff account.");
+                    }
+                  } catch (err: any) {
+                    const code = err.code || err.statusCode;
+                    let msg = err.message || "Failed to delete user.";
+                    if (code === "CANNOT_DELETE_SELF" || msg.includes("CANNOT_DELETE_SELF")) {
+                      msg = "You cannot delete your own account.";
+                    } else if (code === "CANNOT_DELETE_LAST_SUPER_ADMIN" || msg.includes("CANNOT_DELETE_LAST_SUPER_ADMIN")) {
+                      msg = "Cannot delete the primary/last active Super Admin account.";
+                    } else if (code === "FORBIDDEN_USER_DELETE" || msg.includes("FORBIDDEN_USER_DELETE")) {
+                      msg = "You do not have permission to delete this user.";
+                    }
+                    setDeleteError(msg);
+                  } finally {
+                    setIsDeletingUser(false);
+                  }
+                }}
+                disabled={isDeletingUser}
+                className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs uppercase tracking-wider transition-all shadow-lg hover:shadow-rose-600/30 flex items-center gap-2 disabled:opacity-50"
+              >
+                {isDeletingUser ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Deleting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Confirm Delete</span>
+                  </>
+                )}
               </button>
             </div>
           </div>

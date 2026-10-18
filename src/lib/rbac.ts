@@ -225,6 +225,19 @@ export const rbac = {
     if (r === "SUPER_ADMIN" || r === "STORE_ADMIN" || r === "STAFF") return true;
     return hasPermission(role, "inventory:view");
   },
+  hasPermission: (role?: string | null, permission?: any) => hasPermission(role, permission),
+  canReadCustomers: (role?: string) => {
+    if (!role) return false;
+    const r = role.toUpperCase();
+    if (r === "SUPER_ADMIN" || r === "STORE_ADMIN" || r === "STAFF") return true;
+    return hasPermission(role, "users:read" as any);
+  },
+  canWriteCustomers: (role?: string) => {
+    if (!role) return false;
+    const r = role.toUpperCase();
+    if (r === "SUPER_ADMIN" || r === "STORE_ADMIN") return true;
+    return hasPermission(role, "users:write" as any);
+  },
   canWriteInventory: (role?: string) => {
     if (!role) return false;
     const r = role.toUpperCase();

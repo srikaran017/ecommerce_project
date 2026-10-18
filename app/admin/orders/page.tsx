@@ -23,6 +23,7 @@ import {
   MapPin,
   ChevronRight,
   RefreshCw,
+  Trash2,
 } from "lucide-react";
 import { storeConfig } from "@/config/store.config";
 import {
@@ -160,6 +161,34 @@ export default function AdminOrdersPage() {
 
   // Quick Drawer Preview State
   const [previewOrder, setPreviewOrder] = useState<AdminOrder | null>(null);
+
+  // Order Deletion Modal State (DELETE /api/v1/admin/orders/:id)
+  const [orderToDelete, setOrderToDelete] = useState<AdminOrder | null>(null);
+  const [isDeletingOrder, setIsDeletingOrder] = useState(false);
+  const [deleteOrderError, setDeleteOrderError] = useState<string | null>(null);
+
+  const handleDeleteOrder = async () => {
+    if (!orderToDelete) return;
+    setIsDeletingOrder(true);
+    setDeleteOrderError(null);
+    try {
+      const res = await AdminService.deleteOrder(orderToDelete.id);
+      if (res.success) {
+        setFeedback({
+          type: "success",
+          text: res.message || `Order #${orderToDelete.orderNumber} deleted successfully.`,
+        });
+        setOrderToDelete(null);
+        await loadOrders();
+      } else {
+        setDeleteOrderError(res.message || "Failed to delete order.");
+      }
+    } catch (err: any) {
+      setDeleteOrderError(err.message || "Failed to delete order.");
+    } finally {
+      setIsDeletingOrder(false);
+    }
+  };
 
   const loadOrders = async () => {
     setIsLoading(true);
@@ -767,6 +796,20 @@ export default function AdminOrdersPage() {
                             </button>
                           )}
 
+                          {/* Delete Order Button */}
+                          {rbac.canCancelOrders(user?.role) && (
+                            <button
+                              onClick={() => {
+                                setOrderToDelete(ord);
+                                setDeleteOrderError(null);
+                              }}
+                              className="p-1.5 hover:bg-rose-950 text-slate-400 hover:text-rose-400 rounded-lg transition-colors cursor-pointer"
+                              title="Delete Order (Auto-Restores Stock if Active)"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+
                           {/* View Detail Page */}
                           <Link
                             href={`/admin/orders/${ord.id}`}
@@ -1118,6 +1161,106 @@ export default function AdminOrdersPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* ==================================================== */}
+      {/* 3.3.4. DELETE ORDER CONFIRMATION MODAL */}
+      {/* ==================================================== */}
+      {orderToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-slate-950 border border-rose-500/30 rounded-3xl p-6 sm:p-7 max-w-md w-full space-y-5 shadow-2xl">
+            <div className="flex items-center gap-3 text-rose-400 border-b border-slate-800 pb-4">
+              <div className="w-10 h-10 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5 text-rose-400" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white uppercase tracking-wider">
+                  Delete Order
+                </h3>
+                <p className="text-xs text-slate-400">
+                  #{orderToDelete.orderNumber} • {orderToDelete.customerName}
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div className="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400">Order Amount:</span>
+                  <span className="font-bold text-white font-mono">
+                    {storeConfig.currency.symbol}{orderToDelete.totalAmount?.toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400">Current Status:</span>
+                  <span className="font-bold text-amber-400 font-mono">
+                    {orderToDelete.status}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400">Items:</span>
+                  <span className="font-medium text-slate-300">
+                    {orderToDelete.items?.length || 0} product(s)
+                  </span>
+                </div>
+              </div>
+
+              {["PENDING", "CONFIRMED", "PROCESSING", "PACKED", "SHIPPED"].includes(orderToDelete.status) ? (
+                <div className="p-3.5 bg-amber-400/10 border border-amber-400/30 rounded-2xl text-amber-300 space-y-1">
+                  <div className="font-bold flex items-center gap-1.5">
+                    <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span>Automatic Inventory Restoral</span>
+                  </div>
+                  <p className="text-[11px] text-amber-200/90 leading-relaxed">
+                    Deleting this active order will restore reserved items back into warehouse stock and write a RETURN ledger transaction.
+                  </p>
+                </div>
+              ) : (
+                <div className="p-3.5 bg-slate-900 border border-slate-800 rounded-2xl text-slate-400 text-[11px]">
+                  This order is already in status <span className="font-bold text-white">{orderToDelete.status}</span>. Deleting it cleans up order records without altering stock.
+                </div>
+              )}
+
+              {deleteOrderError && (
+                <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-400 text-xs flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 shrink-0" />
+                  <span>{deleteOrderError}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="pt-3 border-t border-slate-800 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setOrderToDelete(null);
+                  setDeleteOrderError(null);
+                }}
+                disabled={isDeletingOrder}
+                className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs uppercase tracking-wider transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteOrder}
+                disabled={isDeletingOrder}
+                className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs uppercase tracking-wider transition-all shadow-lg hover:shadow-rose-600/30 flex items-center gap-2 disabled:opacity-50 cursor-pointer"
+              >
+                {isDeletingOrder ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Deleting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Confirm Delete</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

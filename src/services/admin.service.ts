@@ -116,6 +116,19 @@ import {
   UsersListResponse,
   ModulePermissionCode,
   AdminRole,
+  AdminCustomerListItem,
+  CustomerListQueryParams,
+  CustomerListResponse,
+  AdminCustomer360,
+  Customer360Response,
+  CreateCustomerInput,
+  CreateCustomerResponse,
+  UpdateCustomerInput,
+  UpdateCustomerResponse,
+  DeleteCustomerResponse,
+  DeleteUserResponse,
+  InventoryItemDetailResponse,
+  DeleteOrderResponse,
 } from "@/types/admin.types";
 import { FALLBACK_PRODUCTS } from "@/data/products.data";
 import { storeConfig } from "@/config/store.config";
@@ -146,6 +159,7 @@ const STORAGE_KEYS = {
   PROMOTIONS: "admin_mock_promotions_v1",
   AUDIT_LOGS: "admin_mock_audit_logs_v1",
   USERS: "admin_mock_users_v1",
+  CUSTOMERS: "admin_mock_customers_v1",
   STORE_CONFIG: "admin_mock_store_config_v1",
 };
 
@@ -2863,6 +2877,62 @@ export class AdminService {
   }
 
   /**
+   * 2.1b. GET /api/v1/admin/inventory/:id
+   * Single SKU / variant or standalone product stock breakdown & audit log (document/admin/09.admin_api_details.md)
+   */
+  static async getInventoryItemById(id: string): Promise<InventoryItemDetailResponse> {
+    const res = await this.request<any>(`/inventory/${id}`);
+    if (res.success && res.data) {
+      return {
+        success: true,
+        statusCode: 200,
+        message: res.message || "Inventory item details fetched successfully",
+        data: res.data,
+      };
+    }
+
+    if (res.statusCode && res.statusCode >= 400 && res.statusCode !== 404) {
+      return {
+        success: false,
+        statusCode: res.statusCode,
+        message: res.message || "Failed to fetch inventory item",
+        error: res.error || "INVENTORY_ERROR",
+      };
+    }
+
+    // Smart Local Fallback
+    const listRes = await this.getInventoryItems({ limit: 1000 });
+    const item = listRes.data.find(
+      (it) => it.id === id || it.variantId === id || it.productId === id
+    );
+
+    if (!item) {
+      return {
+        success: false,
+        statusCode: 404,
+        error: "INVENTORY_NOT_FOUND",
+        message: "Inventory record not found.",
+      };
+    }
+
+    // Get 10 most recent transactions for this item
+    const logs: InventoryTransaction[] = this.getInventoryTransactions();
+    const recentTransactions = logs
+      .filter((l: InventoryTransaction) => (item.variantId && l.variantId === item.variantId) || l.productId === item.productId)
+      .slice(0, 10);
+
+    return {
+      success: true,
+      statusCode: 200,
+      message: "Inventory item details fetched successfully",
+      data: {
+        ...item,
+        recentTransactions,
+      },
+    };
+  }
+
+  /**
    * 2.2. POST /api/v1/admin/inventory/adjust
    * Atomic stock adjustment with unalterable double-entry ledger audit trail
    */
@@ -4328,6 +4398,119 @@ export class AdminService {
   }
 
   /**
+   * DELETE /api/v1/admin/orders/:id
+   * Delete test/unwanted orders (auto-restores stock if not yet delivered) (document/admin/09.admin_api_details.md)
+   */
+  static async deleteOrder(id: string): Promise<DeleteOrderResponse> {
+    const res = await this.request<{ id: string; orderNumber: string; status: string }>(`/orders/${id}`, {
+      method: "DELETE",
+    });
+
+    if (res.success && res.data) {
+      const orders = this.getLocalOrders();
+      const updated = orders.filter((o) => o.id !== id && o.orderNumber !== id);
+      setLocalData(STORAGE_KEYS.ORDERS, updated);
+      this.logAudit("ORDER", res.data.orderNumber, `Deleted order #${res.data.orderNumber}`);
+      return {
+        success: true,
+        statusCode: 200,
+        message: res.message || `Order #${res.data.orderNumber} deleted successfully`,
+        data: res.data,
+      };
+    }
+
+    if (res.statusCode && res.statusCode >= 400 && res.statusCode !== 404) {
+      return {
+        success: false,
+        statusCode: res.statusCode,
+        message: res.message || "Failed to delete order",
+        error: res.error || "ORDER_DELETE_FAILED",
+      };
+    }
+
+    // Smart Local Fallback
+    const orders = this.getLocalOrders();
+    const idx = orders.findIndex((o) => o.id === id || o.orderNumber === id);
+    if (idx === -1) {
+      return {
+        success: false,
+        statusCode: 404,
+        error: "ORDER_NOT_FOUND",
+        message: "Order not found.",
+      };
+    }
+
+    const orderToDelete = orders[idx];
+
+    // Automatic Inventory Restoral for active non-terminal orders
+    const activeStatuses = ["PENDING", "CONFIRMED", "PROCESSING", "PACKED", "SHIPPED"];
+    if (activeStatuses.includes(orderToDelete.status.toUpperCase()) && Array.isArray(orderToDelete.items)) {
+      const products = this.getLocalProducts();
+      let inventoryLogs: InventoryTransaction[] = this.getInventoryTransactions();
+
+      for (const item of orderToDelete.items) {
+        const prod = products.find((p) => p.id === item.productId);
+        if (prod) {
+          if (item.variantId && Array.isArray(prod.variants)) {
+            const v = prod.variants.find((vr) => vr.id === item.variantId);
+            if (v) {
+              const prev = v.stockQuantity ?? (v as any).stock ?? 0;
+              const next = prev + item.quantity;
+              v.stockQuantity = next;
+              (v as any).stock = next;
+
+              inventoryLogs.unshift({
+                id: `tx_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+                variantId: v.id,
+                productId: prod.id,
+                productName: prod.name,
+                variantSku: v.sku,
+                type: "RETURN",
+                quantityChange: item.quantity,
+                previousStock: prev,
+                newStock: next,
+                reason: `Order #${orderToDelete.orderNumber} deletion inventory restoral`,
+                referenceId: orderToDelete.orderNumber,
+                createdAt: new Date().toISOString(),
+                createdBy: {
+                  id: "system",
+                  name: "System Restoral",
+                  email: "system@atelier.com",
+                  role: "SUPER_ADMIN",
+                },
+              });
+            }
+          } else {
+            const prev = prod.stockQuantity ?? (prod as any).stock ?? 0;
+            const next = prev + item.quantity;
+            prod.stockQuantity = next;
+            (prod as any).stock = next;
+          }
+        }
+      }
+      setLocalData(STORAGE_KEYS.PRODUCTS, products);
+      setLocalData(STORAGE_KEYS.INVENTORY_LOGS, inventoryLogs);
+    }
+
+    // Remove from local orders
+    orders.splice(idx, 1);
+    setLocalData(STORAGE_KEYS.ORDERS, orders);
+
+    this.logAudit("ORDER", orderToDelete.orderNumber, `Deleted order #${orderToDelete.orderNumber}`);
+
+    return {
+      success: true,
+      statusCode: 200,
+      message: `Order #${orderToDelete.orderNumber} deleted successfully`,
+      data: {
+        id: orderToDelete.id,
+        orderNumber: orderToDelete.orderNumber,
+        status: "CANCELLED",
+      },
+    };
+  }
+
+  /**
    * 2.9. GET /api/v1/admin/orders/export/csv
    */
   static async exportOrdersCsv(): Promise<string> {
@@ -4947,6 +5130,726 @@ export class AdminService {
       statusCode: 200,
       message: isActive ? "User activated successfully" : "User deactivated successfully",
       data: { user: targetUser },
+    };
+  }
+
+  /**
+   * 4.7. Delete Subordinate User
+   * Endpoint: DELETE /api/v1/admin/users/:id
+   * (document/admin/09.admin_api_details.md)
+   */
+  static async deleteUser(id: string): Promise<DeleteUserResponse> {
+    const currentUser = useAuthStore.getState().user;
+    const currentRole = (currentUser?.role || "SUPER_ADMIN").toUpperCase() as AdminRole;
+
+    // Guard 1: Self-deletion forbidden
+    if (currentUser?.id === id) {
+      return {
+        success: false,
+        statusCode: 400,
+        error: "CANNOT_DELETE_SELF",
+        message: "You cannot delete your own account.",
+      };
+    }
+
+    const res = await this.request<{ user: { id: string; name: string; email: string; role: AdminRole } }>(`/users/${id}`, {
+      method: "DELETE",
+    });
+
+    if (res.success && res.data?.user) {
+      const users = this.getLocalUsers();
+      const updated = users.filter((u) => u.id !== id);
+      // Creator link cleanup: unlink any staff created by this deleted user
+      updated.forEach((u) => {
+        if (u.createdById === id) u.createdById = null;
+      });
+      setLocalData(STORAGE_KEYS.USERS, updated);
+      this.logAudit("USER", id, `Deleted user '${res.data.user.name}' (${res.data.user.role})`);
+      return {
+        success: true,
+        statusCode: 200,
+        message: res.message || `User '${res.data.user.name}' (${res.data.user.role}) deleted successfully`,
+        data: res.data,
+      };
+    }
+
+    if (res.statusCode && res.statusCode >= 400 && res.statusCode !== 404) {
+      return {
+        success: false,
+        statusCode: res.statusCode,
+        error: res.error || "FORBIDDEN_USER_DELETE",
+        message: res.message || "Failed to delete user.",
+      };
+    }
+
+    // Smart Local Fallback
+    const users = this.getLocalUsers();
+    const targetUser = users.find((u) => u.id === id);
+    if (!targetUser) {
+      return {
+        success: false,
+        statusCode: 404,
+        error: "USER_NOT_FOUND",
+        message: "User ID does not exist in database.",
+      };
+    }
+
+    // Guard 2: Hierarchy enforcement
+    if (!canManageUser(currentRole, targetUser.role)) {
+      return {
+        success: false,
+        statusCode: 403,
+        error: "FORBIDDEN_USER_DELETE",
+        message: "You do not have permission to delete this user.",
+      };
+    }
+
+    // Guard 3: Primary Super Admin Protection
+    if (targetUser.role === "SUPER_ADMIN") {
+      const activeSuperAdmins = users.filter((u) => u.role === "SUPER_ADMIN" && u.isActive && u.id !== id);
+      if (activeSuperAdmins.length === 0) {
+        return {
+          success: false,
+          statusCode: 400,
+          error: "CANNOT_DELETE_LAST_SUPER_ADMIN",
+          message: "Cannot delete the primary/last active Super Admin account.",
+        };
+      }
+    }
+
+    // Perform deletion & Creator Link Cleanup
+    const updatedUsers = users.filter((u) => u.id !== id);
+    updatedUsers.forEach((u) => {
+      if (u.createdById === id) u.createdById = null;
+    });
+    setLocalData(STORAGE_KEYS.USERS, updatedUsers);
+
+    this.logAudit("USER", id, `Deleted user '${targetUser.name}' (${targetUser.role})`);
+
+    return {
+      success: true,
+      statusCode: 200,
+      message: `User '${targetUser.name}' (${targetUser.role}) deleted successfully`,
+      data: {
+        user: {
+          id: targetUser.id,
+          name: targetUser.name,
+          email: targetUser.email,
+          role: targetUser.role,
+        },
+      },
+    };
+  }
+
+  // ----------------------------------------------------
+  // MODULE: CUSTOMER CRM (/api/v1/admin/customers)
+  // Spec: document/admin/09.admin_api_details.md
+  // ----------------------------------------------------
+
+  static getLocalCustomers(): AdminCustomerListItem[] {
+    const list = getLocalData<AdminCustomerListItem[]>(STORAGE_KEYS.CUSTOMERS, []);
+    if (!list || list.length === 0) {
+      const initial: AdminCustomerListItem[] = [
+        {
+          id: "4781b3d0-d3e3-4f5e-a441-a365eb9b596b",
+          name: "Victoria Beckham",
+          email: "victoria@example.com",
+          phone: "9876543299",
+          avatarUrl: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80",
+          isActive: true,
+          ordersCount: 4,
+          totalSpent: 48990.0,
+          averageOrderValue: 12247.5,
+          lastOrderDate: new Date(Date.now() - 2 * 3600 * 1000).toISOString(),
+          location: "London, UK",
+          createdAt: new Date(Date.now() - 30 * 86400 * 1000).toISOString(),
+        },
+        {
+          id: "6c2d7832-b99f-44ad-96b5-1dfb62eaa41b",
+          name: "Ananya Rao",
+          email: "ananya.rao@example.com",
+          phone: "9123456789",
+          avatarUrl: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=400&q=80",
+          isActive: true,
+          ordersCount: 2,
+          totalSpent: 24500.0,
+          averageOrderValue: 12250.0,
+          lastOrderDate: new Date(Date.now() - 86400 * 1000).toISOString(),
+          location: "Bengaluru, Karnataka",
+          createdAt: new Date(Date.now() - 45 * 86400 * 1000).toISOString(),
+        },
+        {
+          id: "0bd8c799-20b2-4c5f-881e-a5baaeb4535a",
+          name: "Priya Sharma",
+          email: "priya.sharma@example.com",
+          phone: "9876543210",
+          avatarUrl: "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=400&q=80",
+          isActive: true,
+          ordersCount: 1,
+          totalSpent: 12990.0,
+          averageOrderValue: 12990.0,
+          lastOrderDate: new Date(Date.now() - 3 * 86400 * 1000).toISOString(),
+          location: "Hyderabad, Telangana",
+          createdAt: new Date(Date.now() - 60 * 86400 * 1000).toISOString(),
+        },
+      ];
+      setLocalData(STORAGE_KEYS.CUSTOMERS, initial);
+      return initial;
+    }
+    return list;
+  }
+
+  /**
+   * 3.1. List Customers
+   * Endpoint: GET /api/v1/admin/customers
+   * Query Parameters: page, limit, search, sortBy, sortOrder, isActive
+   */
+  static async getCustomers(params?: CustomerListQueryParams): Promise<CustomerListResponse> {
+    const searchParams = new URLSearchParams();
+    if (params?.page) searchParams.set("page", String(params.page));
+    if (params?.limit) searchParams.set("limit", String(params.limit));
+    if (params?.search) searchParams.set("search", params.search);
+    if (params?.sortBy) searchParams.set("sortBy", params.sortBy);
+    if (params?.sortOrder) searchParams.set("sortOrder", params.sortOrder);
+    if (params?.isActive !== undefined) searchParams.set("isActive", String(params.isActive));
+
+    const qs = searchParams.toString();
+    const res = await this.request<AdminCustomerListItem[]>(`/customers${qs ? `?${qs}` : ""}`);
+
+    if (res.success && Array.isArray(res.data)) {
+      return {
+        success: true,
+        statusCode: 200,
+        message: res.message || "Customers fetched successfully",
+        data: res.data,
+        pagination: (res as any).pagination || {
+          page: params?.page || 1,
+          limit: params?.limit || 20,
+          total: res.data.length,
+          totalPages: Math.max(1, Math.ceil(res.data.length / (params?.limit || 20))),
+        },
+      };
+    }
+
+    // Smart Local Fallback
+    let customers = this.getLocalCustomers();
+
+    // 1. Filter by search (name, email, phone)
+    if (params?.search && params.search.trim()) {
+      const q = params.search.toLowerCase().trim();
+      customers = customers.filter(
+        (c) =>
+          c.name.toLowerCase().includes(q) ||
+          c.email.toLowerCase().includes(q) ||
+          Boolean(c.phone && c.phone.includes(q))
+      );
+    }
+
+    // 2. Filter by isActive
+    if (params?.isActive !== undefined) {
+      const activeBool = params.isActive === true || params.isActive === "true";
+      customers = customers.filter((c) => c.isActive === activeBool);
+    }
+
+    // 3. Sort by sortBy & sortOrder
+    const sortBy = params?.sortBy || "createdAt";
+    const sortOrder = params?.sortOrder || "desc";
+    customers.sort((a, b) => {
+      let comparison = 0;
+      if (sortBy === "totalSpent") {
+        comparison = (a.totalSpent || 0) - (b.totalSpent || 0);
+      } else if (sortBy === "orderCount") {
+        comparison = (a.ordersCount || 0) - (b.ordersCount || 0);
+      } else if (sortBy === "name") {
+        comparison = a.name.localeCompare(b.name);
+      } else {
+        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        comparison = dateA - dateB;
+      }
+      return sortOrder === "asc" ? comparison : -comparison;
+    });
+
+    const page = params?.page || 1;
+    const limit = params?.limit || 20;
+    const total = customers.length;
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const startIdx = (page - 1) * limit;
+    const paginated = customers.slice(startIdx, startIdx + limit);
+
+    return {
+      success: true,
+      statusCode: 200,
+      message: "Customers fetched successfully",
+      data: paginated,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+      },
+    };
+  }
+
+  /**
+   * 3.2. Get Customer 360 Detail
+   * Endpoint: GET /api/v1/admin/customers/:id
+   */
+  static async getCustomerById(id: string): Promise<Customer360Response> {
+    const res = await this.request<AdminCustomer360>(`/customers/${id}`);
+    if (res.success && res.data) {
+      return {
+        success: true,
+        statusCode: 200,
+        message: res.message || "Customer 360 profile fetched successfully",
+        data: res.data,
+      };
+    }
+
+    if (res.statusCode && res.statusCode >= 400 && res.statusCode !== 404) {
+      return {
+        success: false,
+        statusCode: res.statusCode,
+        error: res.error || "CUSTOMER_ERROR",
+        message: res.message || "Failed to load customer profile.",
+      };
+    }
+
+    // Smart Local Fallback
+    const customers = this.getLocalCustomers();
+    const customer = customers.find((c) => c.id === id);
+
+    if (!customer) {
+      return {
+        success: false,
+        statusCode: 404,
+        error: "CUSTOMER_NOT_FOUND",
+        message: "Customer record not found.",
+      };
+    }
+
+    // Correlate with local orders
+    const orders = this.getLocalOrders();
+    const customerOrders = orders.filter(
+      (o) =>
+        (o.customerEmail && o.customerEmail.toLowerCase() === customer.email.toLowerCase()) ||
+        o.customerName.toLowerCase() === customer.name.toLowerCase()
+    );
+
+    const completed = customerOrders.filter((o) => o.status === "DELIVERED").length;
+    const pending = customerOrders.filter((o) => ["PENDING", "CONFIRMED", "PROCESSING"].includes(o.status)).length;
+    const shipped = customerOrders.filter((o) => ["SHIPPED", "OUT_FOR_DELIVERY"].includes(o.status)).length;
+    const cancelled = customerOrders.filter((o) => o.status === "CANCELLED").length;
+    const totalSpent = customerOrders.reduce((sum, o) => sum + (o.totalAmount || (o as any).total || 0), 0) || customer.totalSpent;
+    const totalOrders = customerOrders.length || customer.ordersCount;
+    const aov = totalOrders > 0 ? Math.round((totalSpent / totalOrders) * 100) / 100 : customer.averageOrderValue;
+
+    const recentOrders = customerOrders.slice(0, 5).map((o) => ({
+      id: o.id,
+      orderNumber: o.orderNumber,
+      totalAmount: o.totalAmount || (o as any).total || 0,
+      status: o.status,
+      paymentStatus: o.paymentStatus || "COMPLETED",
+      paymentMethod: o.paymentMethod || "RAZORPAY",
+      trackingNumber: o.trackingNumber || null,
+      courierPartner: (o as any).courierInfo?.partner || (o as any).courierPartner || null,
+      itemsCount: o.items?.length || 1,
+      createdAt: o.createdAt,
+      items: (o.items || []).map((it: any) => ({
+        id: it.id,
+        title: it.productName || it.title || "Luxury Garment",
+        quantity: it.quantity,
+        price: it.unitPrice || it.price || 0,
+        imageUrl: it.imageUrl || it.thumbnail,
+      })),
+    }));
+
+    const savedAddresses = [
+      {
+        id: `addr-${customer.id}-1`,
+        firstName: customer.name.split(" ")[0] || "Victoria",
+        lastName: customer.name.split(" ").slice(1).join(" ") || "Client",
+        company: "Private Residence",
+        address1: customer.location || "12 Kensington Palace Gardens",
+        address2: "Suite 4B",
+        city: customer.location?.split(",")[0]?.trim() || "London",
+        state: customer.location?.split(",")[1]?.trim() || "London",
+        postalCode: "W8 4QP",
+        country: "UK",
+        phoneNumber: customer.phone || "9876543299",
+        isDefault: true,
+        createdAt: customer.createdAt,
+      },
+    ];
+
+    return {
+      success: true,
+      statusCode: 200,
+      message: "Customer 360 profile fetched successfully",
+      data: {
+        profile: {
+          id: customer.id,
+          name: customer.name,
+          email: customer.email,
+          phone: customer.phone,
+          avatarUrl: customer.avatarUrl,
+          isActive: customer.isActive,
+          createdAt: customer.createdAt,
+          updatedAt: new Date().toISOString(),
+        },
+        metrics: {
+          lifetimeValue: totalSpent,
+          totalOrders,
+          completedOrders: completed,
+          pendingOrders: pending,
+          shippedOrders: shipped,
+          cancelledOrders: cancelled,
+          averageOrderValue: aov,
+          wishlistCount: 5,
+        },
+        savedAddresses,
+        recentOrders,
+      },
+    };
+  }
+
+  /**
+   * 3.3. Create Customer
+   * Endpoint: POST /api/v1/admin/customers
+   */
+  static async createCustomer(
+    input: CreateCustomerInput | FormData
+  ): Promise<CreateCustomerResponse> {
+    const isFormData = typeof FormData !== "undefined" && input instanceof FormData;
+    const res = await this.request<{ customer: any }>("/customers", {
+      method: "POST",
+      body: isFormData ? (input as FormData) : JSON.stringify(input),
+    });
+
+    if (res.success && res.data?.customer) {
+      const customers = this.getLocalCustomers();
+      const newCust: AdminCustomerListItem = {
+        id: res.data.customer.id,
+        name: res.data.customer.name,
+        email: res.data.customer.email,
+        phone: res.data.customer.phone || null,
+        avatarUrl: res.data.customer.avatarUrl || null,
+        isActive: res.data.customer.isActive ?? true,
+        ordersCount: 0,
+        totalSpent: 0,
+        averageOrderValue: 0,
+        lastOrderDate: null,
+        location: null,
+        createdAt: res.data.customer.createdAt || new Date().toISOString(),
+      };
+      customers.unshift(newCust);
+      setLocalData(STORAGE_KEYS.CUSTOMERS, customers);
+      this.logAudit("CUSTOMER", newCust.id, `Created customer account (${newCust.name})`);
+      return {
+        success: true,
+        statusCode: 201,
+        message: res.message || "Customer account created successfully",
+        data: res.data,
+      };
+    }
+
+    if (res.statusCode && res.statusCode >= 400) {
+      return {
+        success: false,
+        statusCode: res.statusCode,
+        error: res.error || "CREATE_CUSTOMER_FAILED",
+        message: res.message || "Failed to create customer.",
+      };
+    }
+
+    // Smart Local Fallback
+    const fd = isFormData ? (input as FormData) : null;
+    const name = fd ? String(fd.get("name") || "") : (input as CreateCustomerInput).name;
+    const email = fd ? String(fd.get("email") || "") : (input as CreateCustomerInput).email;
+    const phone = fd ? String(fd.get("phone") || "") : (input as CreateCustomerInput).phone;
+    const avatarUrl = fd ? String(fd.get("avatarUrl") || "") : (input as CreateCustomerInput).avatarUrl;
+
+    const customers = this.getLocalCustomers();
+    if (customers.some((c) => c.email.toLowerCase() === email.toLowerCase())) {
+      return {
+        success: false,
+        statusCode: 409,
+        error: "EMAIL_ALREADY_EXISTS",
+        message: "An account with this email already exists.",
+      };
+    }
+
+    const newId = `cust_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const newCustomer: AdminCustomerListItem = {
+      id: newId,
+      name: name.trim(),
+      email: email.trim().toLowerCase(),
+      phone: phone?.trim() || null,
+      avatarUrl: avatarUrl?.trim() || null,
+      isActive: true,
+      ordersCount: 0,
+      totalSpent: 0,
+      averageOrderValue: 0,
+      lastOrderDate: null,
+      location: null,
+      createdAt: new Date().toISOString(),
+    };
+
+    customers.unshift(newCustomer);
+    setLocalData(STORAGE_KEYS.CUSTOMERS, customers);
+
+    // Also register in local users so it reflects in staff & user directory
+    const users = this.getLocalUsers();
+    users.unshift({
+      id: newId,
+      name: newCustomer.name,
+      email: newCustomer.email,
+      role: "CUSTOMER",
+      permissions: [],
+      phone: newCustomer.phone,
+      avatarUrl: newCustomer.avatarUrl,
+      isActive: true,
+      createdById: useAuthStore.getState().user?.id || null,
+      createdAt: newCustomer.createdAt,
+      updatedAt: newCustomer.createdAt,
+    });
+    setLocalData(STORAGE_KEYS.USERS, users);
+
+    this.logAudit("CUSTOMER", newId, `Created customer account (${newCustomer.name})`);
+
+    return {
+      success: true,
+      statusCode: 201,
+      message: "Customer account created successfully",
+      data: {
+        customer: {
+          id: newId,
+          name: newCustomer.name,
+          email: newCustomer.email,
+          phone: newCustomer.phone,
+          avatarUrl: newCustomer.avatarUrl,
+          role: "CUSTOMER",
+          isActive: true,
+          createdAt: newCustomer.createdAt,
+        },
+      },
+    };
+  }
+
+  /**
+   * 3.4. Update Customer
+   * Endpoint: PUT /api/v1/admin/customers/:id
+   */
+  static async updateCustomer(
+    id: string,
+    input: UpdateCustomerInput | FormData
+  ): Promise<UpdateCustomerResponse> {
+    const isFormData = typeof FormData !== "undefined" && input instanceof FormData;
+    const res = await this.request<{ customer: any }>(`/customers/${id}`, {
+      method: "PUT",
+      body: isFormData ? (input as FormData) : JSON.stringify(input),
+    });
+
+    if (res.success && res.data?.customer) {
+      const customers = this.getLocalCustomers();
+      const idx = customers.findIndex((c) => c.id === id);
+      if (idx !== -1) {
+        customers[idx] = {
+          ...customers[idx],
+          name: res.data.customer.name,
+          email: res.data.customer.email,
+          phone: res.data.customer.phone || null,
+          avatarUrl: res.data.customer.avatarUrl || null,
+          isActive: res.data.customer.isActive ?? customers[idx].isActive,
+        };
+        setLocalData(STORAGE_KEYS.CUSTOMERS, customers);
+      }
+      this.logAudit("CUSTOMER", id, `Updated customer profile (${res.data.customer.name})`);
+      return {
+        success: true,
+        statusCode: 200,
+        message: res.message || "Customer profile updated successfully",
+        data: res.data,
+      };
+    }
+
+    if (res.statusCode && res.statusCode >= 400) {
+      return {
+        success: false,
+        statusCode: res.statusCode,
+        error: res.error || "UPDATE_CUSTOMER_FAILED",
+        message: res.message || "Failed to update customer profile.",
+      };
+    }
+
+    // Smart Local Fallback
+    const customers = this.getLocalCustomers();
+    const idx = customers.findIndex((c) => c.id === id);
+    if (idx === -1) {
+      return {
+        success: false,
+        statusCode: 404,
+        error: "CUSTOMER_NOT_FOUND",
+        message: "Customer record not found.",
+      };
+    }
+
+    const fd = isFormData ? (input as FormData) : null;
+    const parsed: UpdateCustomerInput = fd
+      ? {
+          name: fd.get("name") ? String(fd.get("name")) : undefined,
+          email: fd.get("email") ? String(fd.get("email")) : undefined,
+          phone: fd.get("phone") ? String(fd.get("phone")) : undefined,
+          isActive: fd.get("isActive") !== null ? fd.get("isActive") !== "false" : undefined,
+          avatarUrl: fd.get("avatarUrl") ? String(fd.get("avatarUrl")) : undefined,
+        }
+      : (input as UpdateCustomerInput);
+
+    const target = customers[idx];
+    const updatedCustomer: AdminCustomerListItem = {
+      ...target,
+      ...(parsed.name !== undefined && { name: parsed.name.trim() }),
+      ...(parsed.email !== undefined && { email: parsed.email.trim().toLowerCase() }),
+      ...(parsed.phone !== undefined && { phone: parsed.phone?.trim() || null }),
+      ...(parsed.isActive !== undefined && { isActive: parsed.isActive }),
+      ...(parsed.avatarUrl !== undefined && { avatarUrl: parsed.avatarUrl?.trim() || null }),
+    };
+
+    customers[idx] = updatedCustomer;
+    setLocalData(STORAGE_KEYS.CUSTOMERS, customers);
+
+    // Sync with users list
+    const users = this.getLocalUsers();
+    const userIdx = users.findIndex((u) => u.id === id);
+    if (userIdx !== -1) {
+      users[userIdx] = {
+        ...users[userIdx],
+        name: updatedCustomer.name,
+        email: updatedCustomer.email,
+        phone: updatedCustomer.phone,
+        avatarUrl: updatedCustomer.avatarUrl,
+        isActive: updatedCustomer.isActive,
+        updatedAt: new Date().toISOString(),
+      };
+      setLocalData(STORAGE_KEYS.USERS, users);
+    }
+
+    this.logAudit("CUSTOMER", id, `Updated customer profile (${updatedCustomer.name})`);
+
+    return {
+      success: true,
+      statusCode: 200,
+      message: "Customer profile updated successfully",
+      data: {
+        customer: {
+          id: updatedCustomer.id,
+          name: updatedCustomer.name,
+          email: updatedCustomer.email,
+          phone: updatedCustomer.phone,
+          avatarUrl: updatedCustomer.avatarUrl,
+          role: "CUSTOMER",
+          isActive: updatedCustomer.isActive,
+          updatedAt: new Date().toISOString(),
+        },
+      },
+    };
+  }
+
+  /**
+   * 3.5. Delete / Deactivate Customer
+   * Endpoint: DELETE /api/v1/admin/customers/:id
+   * Rule:
+   * - 0 orders: Hard-deletes customer
+   * - 1+ orders: Soft-deactivates customer (isActive: false) to protect sales revenue data
+   */
+  static async deleteCustomer(id: string): Promise<DeleteCustomerResponse> {
+    const res = await this.request<{ id: string; name: string; email: string }>(`/customers/${id}`, {
+      method: "DELETE",
+    });
+
+    if (res.success && res.data) {
+      const customers = this.getLocalCustomers();
+      const updated = customers.filter((c) => c.id !== id);
+      setLocalData(STORAGE_KEYS.CUSTOMERS, updated);
+      this.logAudit("CUSTOMER", id, `Deleted customer '${res.data.name}'`);
+      return {
+        success: true,
+        statusCode: 200,
+        message: res.message || `Customer '${res.data.name}' deleted successfully`,
+        data: res.data,
+      };
+    }
+
+    if (res.statusCode && res.statusCode >= 400 && res.statusCode !== 404) {
+      return {
+        success: false,
+        statusCode: res.statusCode,
+        error: res.error || "DELETE_CUSTOMER_FAILED",
+        message: res.message || "Failed to delete customer.",
+      };
+    }
+
+    // Smart Local Fallback
+    const customers = this.getLocalCustomers();
+    const idx = customers.findIndex((c) => c.id === id);
+    if (idx === -1) {
+      return {
+        success: false,
+        statusCode: 404,
+        error: "CUSTOMER_NOT_FOUND",
+        message: "Customer record not found.",
+      };
+    }
+
+    const customer = customers[idx];
+    const hasOrders = (customer.ordersCount || 0) > 0;
+
+    if (hasOrders) {
+      // Soft-deactivate to protect historical sales data
+      customer.isActive = false;
+      customers[idx] = customer;
+      setLocalData(STORAGE_KEYS.CUSTOMERS, customers);
+
+      const users = this.getLocalUsers();
+      const userIdx = users.findIndex((u) => u.id === id);
+      if (userIdx !== -1) {
+        users[userIdx].isActive = false;
+        setLocalData(STORAGE_KEYS.USERS, users);
+      }
+
+      this.logAudit("CUSTOMER", id, `Deactivated customer '${customer.name}' to preserve historical orders`);
+
+      return {
+        success: true,
+        statusCode: 200,
+        message: `Customer '${customer.name}' has orders on record. Account was deactivated instead of deleted to protect order history.`,
+        data: {
+          id: customer.id,
+          name: customer.name,
+          email: customer.email,
+        },
+      };
+    }
+
+    // 0 orders: Hard-delete
+    customers.splice(idx, 1);
+    setLocalData(STORAGE_KEYS.CUSTOMERS, customers);
+
+    const users = this.getLocalUsers();
+    const filteredUsers = users.filter((u) => u.id !== id);
+    setLocalData(STORAGE_KEYS.USERS, filteredUsers);
+
+    this.logAudit("CUSTOMER", id, `Permanently deleted customer '${customer.name}'`);
+
+    return {
+      success: true,
+      statusCode: 200,
+      message: `Customer '${customer.name}' deleted successfully`,
+      data: {
+        id: customer.id,
+        name: customer.name,
+        email: customer.email,
+      },
     };
   }
 

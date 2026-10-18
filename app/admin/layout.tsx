@@ -21,6 +21,7 @@ import {
   TrendingUp,
   Moon,
   Palette,
+  UserCheck,
 } from "lucide-react";
 import { storeConfig } from "@/config/store.config";
 import { useAuthStore } from "@/stores/auth.store";
@@ -135,6 +136,7 @@ export default function AdminLayout({
     { label: "Orders", href: "/admin/orders", icon: ShoppingBag },
     { label: "Products", href: "/admin/products", icon: Package },
     { label: "Inventory", href: "/admin/inventory", icon: Layers },
+    { label: "Customers", href: "/admin/customers", icon: UserCheck },
     { label: "Categories", href: "/admin/categories", icon: FolderTree },
     { label: "Collections", href: "/admin/collections", icon: Sparkles },
     { label: "Flash Sales", href: "/admin/promotions", icon: Sparkles },

@@ -25,6 +25,7 @@ import {
   ArrowDownRight,
   Sparkles,
   Info,
+  Eye,
 } from "lucide-react";
 import { storeConfig } from "@/config/store.config";
 import { AdminService } from "@/services/admin.service";
@@ -89,6 +90,31 @@ export default function AdminInventoryPage() {
   // Safety Buffer Threshold Edit Modal State
   const [thresholdItem, setThresholdItem] = useState<InventoryItem | null>(null);
   const [newThreshold, setNewThreshold] = useState<string>("5");
+
+  // Single Item Inspect Modal State (GET /api/v1/admin/inventory/:id)
+  const [inspectItemId, setInspectItemId] = useState<string | null>(null);
+  const [inspectItemData, setInspectItemData] = useState<any | null>(null);
+  const [isInspectLoading, setIsInspectLoading] = useState(false);
+  const [inspectError, setInspectError] = useState<string | null>(null);
+
+  const handleInspectItem = async (id: string) => {
+    setInspectItemId(id);
+    setInspectItemData(null);
+    setIsInspectLoading(true);
+    setInspectError(null);
+    try {
+      const res = await AdminService.getInventoryItemById(id);
+      if (res.success && res.data) {
+        setInspectItemData(res.data);
+      } else {
+        setInspectError(res.message || "Failed to load inventory item details.");
+      }
+    } catch (err: any) {
+      setInspectError(err.message || "Failed to load item details.");
+    } finally {
+      setIsInspectLoading(false);
+    }
+  };
 
   // Load Categories for Filter Dropdown
   useEffect(() => {
@@ -774,6 +800,15 @@ export default function AdminInventoryPage() {
                       {/* Ledger Actions */}
                       <td className="py-4 px-6 text-right">
                         <div className="flex items-center justify-end gap-1.5">
+                          {/* Inspect Item Lookup */}
+                          <button
+                            onClick={() => handleInspectItem(item.id || item.variantId || item.productId)}
+                            className="p-1.5 bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-800 rounded-xl transition-colors cursor-pointer"
+                            title="Inspect Item & 10 Recent Movements"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+
                           {/* Quick Restock (+10) */}
                           {rbac.canWriteInventory(user?.role) && (
                             <button
@@ -1379,6 +1414,274 @@ export default function AdminInventoryPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* 9. Single Item Inspection Modal (GET /api/v1/admin/inventory/:id) */}
+      {inspectItemId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-slate-950 border border-slate-800 rounded-3xl max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+            {/* Modal Header */}
+            <div className="p-5 border-b border-slate-800 flex items-center justify-between bg-slate-900/50">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-400/10 border border-amber-400/20 flex items-center justify-center">
+                  <Package className="w-4 h-4 text-amber-400" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white uppercase tracking-wider">
+                    Inventory SKU Inspection
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    Comprehensive stock breakdown & audit movement trail
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setInspectItemId(null);
+                  setInspectItemData(null);
+                }}
+                className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 overflow-y-auto space-y-6 flex-1">
+              {isInspectLoading ? (
+                <div className="py-16 text-center text-slate-400 space-y-3">
+                  <RefreshCw className="w-8 h-8 animate-spin mx-auto text-amber-400" />
+                  <p className="text-xs">Fetching single inventory item & ledger audit history...</p>
+                </div>
+              ) : inspectError ? (
+                <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs flex items-center gap-2.5">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  <span>{inspectError}</span>
+                </div>
+              ) : inspectItemData ? (
+                <>
+                  {/* Top Garment Breakdown Card */}
+                  <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                    <img
+                      src={inspectItemData.thumbnail || "https://images.unsplash.com/photo-1566174053879-31528523f8ae?w=800"}
+                      alt={inspectItemData.productName}
+                      className="w-16 h-20 object-cover rounded-xl border border-slate-700 bg-slate-950 shrink-0"
+                    />
+                    <div className="space-y-1 flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-mono text-amber-400 font-bold bg-amber-400/10 px-2 py-0.5 rounded text-xs">
+                          {inspectItemData.sku}
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-300 border border-slate-700">
+                          {inspectItemData.itemType}
+                        </span>
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                            inspectItemData.status === "OUT_OF_STOCK"
+                              ? "bg-rose-500/10 text-rose-400 border-rose-500/30"
+                              : inspectItemData.status === "LOW_STOCK"
+                              ? "bg-amber-500/10 text-amber-400 border-amber-500/30"
+                              : "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                          }`}
+                        >
+                          {inspectItemData.status}
+                        </span>
+                      </div>
+                      <h4 className="text-white font-bold text-sm truncate">
+                        {inspectItemData.productName}
+                      </h4>
+                      <p className="text-xs text-slate-400">
+                        {inspectItemData.variantName || `${inspectItemData.size || ""} ${inspectItemData.color || ""}`} • {inspectItemData.brand}
+                      </p>
+                      {inspectItemData.category && (
+                        <span className="text-[10px] text-slate-500">
+                          Category: {inspectItemData.category.name}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Stock vs Threshold Progress Gauge */}
+                  <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
+                    <div className="flex items-center justify-between text-xs">
+                      <div>
+                        <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">
+                          Current Stock
+                        </span>
+                        <span className="text-xl font-bold font-mono text-white">
+                          {inspectItemData.stockQuantity} <span className="text-xs text-slate-400 font-normal">units</span>
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">
+                          Safety Threshold
+                        </span>
+                        <span className="text-sm font-bold font-mono text-amber-400">
+                          {inspectItemData.lowStockThreshold} units
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Progress Bar */}
+                    <div>
+                      {(() => {
+                        const maxDisplay = Math.max(inspectItemData.lowStockThreshold * 3, 20);
+                        const pct = Math.min(100, Math.round((inspectItemData.stockQuantity / maxDisplay) * 100));
+                        const isLow = inspectItemData.stockQuantity <= inspectItemData.lowStockThreshold;
+                        const isZero = inspectItemData.stockQuantity === 0;
+
+                        return (
+                          <div className="w-full bg-slate-950 rounded-full h-3 p-0.5 border border-slate-800">
+                            <div
+                              className={`h-full rounded-full transition-all duration-500 ${
+                                isZero
+                                  ? "bg-rose-500 w-0"
+                                  : isLow
+                                  ? "bg-gradient-to-r from-amber-500 to-amber-400"
+                                  : "bg-gradient-to-r from-emerald-500 to-emerald-400"
+                              }`}
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                        );
+                      })()}
+                      <div className="flex justify-between text-[10px] text-slate-500 mt-1">
+                        <span>0 units</span>
+                        <span>Safety Alert: &le; {inspectItemData.lowStockThreshold}</span>
+                        <span>Capacity Benchmark</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Pricing Breakdown */}
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="p-3 bg-slate-900 rounded-xl border border-slate-800">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
+                        Regular Price
+                      </span>
+                      <span className="text-xs font-mono font-bold text-white mt-1 block">
+                        {storeConfig.currency.symbol}{Number(inspectItemData.regularPrice || 0).toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="p-3 bg-slate-900 rounded-xl border border-slate-800">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
+                        Sale Price
+                      </span>
+                      <span className="text-xs font-mono font-bold text-emerald-400 mt-1 block">
+                        {storeConfig.currency.symbol}{Number(inspectItemData.salePrice || inspectItemData.regularPrice || 0).toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="p-3 bg-slate-900 rounded-xl border border-slate-800">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
+                        Cost Price
+                      </span>
+                      <span className="text-xs font-mono font-bold text-slate-300 mt-1 block">
+                        {storeConfig.currency.symbol}{Number(inspectItemData.costPrice || 0).toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Recent 10 Audit Transactions */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                        <History className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Recent Movement Ledger (Last 10 Audits)</span>
+                      </h4>
+                      <span className="text-[10px] text-slate-500">
+                        {inspectItemData.recentTransactions?.length || 0} events
+                      </span>
+                    </div>
+
+                    {inspectItemData.recentTransactions && inspectItemData.recentTransactions.length > 0 ? (
+                      <div className="border border-slate-800 rounded-2xl overflow-hidden bg-slate-900/60">
+                        <table className="w-full text-left text-[11px]">
+                          <thead>
+                            <tr className="bg-slate-900 text-slate-400 border-b border-slate-800 text-[9px] uppercase font-bold tracking-wider">
+                              <th className="py-2.5 px-3">Type</th>
+                              <th className="py-2.5 px-3">Change</th>
+                              <th className="py-2.5 px-3">Prev &rarr; New</th>
+                              <th className="py-2.5 px-3">Reason / Ref</th>
+                              <th className="py-2.5 px-3">Staff Actor</th>
+                              <th className="py-2.5 px-3 text-right">Date</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-800/60 text-slate-300 font-mono">
+                            {inspectItemData.recentTransactions.map((tx: any) => {
+                              const isPositive = tx.quantityChange > 0;
+                              return (
+                                <tr key={tx.id} className="hover:bg-slate-850">
+                                  <td className="py-2 px-3">
+                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold font-sans bg-slate-800 text-slate-300 border border-slate-700">
+                                      {tx.type}
+                                    </span>
+                                  </td>
+                                  <td className="py-2 px-3 font-bold">
+                                    <span className={isPositive ? "text-emerald-400" : "text-rose-400"}>
+                                      {isPositive ? `+${tx.quantityChange}` : tx.quantityChange}
+                                    </span>
+                                  </td>
+                                  <td className="py-2 px-3 text-slate-400 text-[10px]">
+                                    {tx.previousStock} &rarr; <span className="text-white font-bold">{tx.newStock}</span>
+                                  </td>
+                                  <td className="py-2 px-3 font-sans text-[11px] text-slate-300 truncate max-w-[140px]">
+                                    {tx.reason || tx.referenceId || "—"}
+                                  </td>
+                                  <td className="py-2 px-3 font-sans text-[10px] text-slate-400">
+                                    {tx.createdBy?.name || "System"}
+                                  </td>
+                                  <td className="py-2 px-3 text-right text-slate-500 text-[10px] whitespace-nowrap">
+                                    {new Date(tx.createdAt).toLocaleDateString([], { month: "short", day: "numeric" })}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="p-6 text-center text-slate-500 bg-slate-900 rounded-2xl border border-slate-800 text-xs">
+                        No recent movements recorded for this item.
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : null}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-slate-800 bg-slate-900/40 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => {
+                  setInspectItemId(null);
+                  setInspectItemData(null);
+                }}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs uppercase tracking-wider transition-colors cursor-pointer"
+              >
+                Close
+              </button>
+
+              {inspectItemData && rbac.canWriteInventory(user?.role) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const currentId = inspectItemId;
+                    setInspectItemId(null);
+                    setInspectItemData(null);
+                    // Find item in items list to open standard adjust modal
+                    const found = items.find((it) => it.id === currentId || it.variantId === currentId || it.productId === currentId);
+                    if (found) {
+                      openAdjustModal(found, "RESTOCK");
+                    }
+                  }}
+                  className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs uppercase tracking-wider rounded-xl transition-all shadow-sm cursor-pointer"
+                >
+                  Adjust Stock
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}

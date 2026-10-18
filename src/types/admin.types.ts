@@ -1451,4 +1451,249 @@ export interface PurgeCacheResponse {
   message: string;
 }
 
+// ==========================================
+// CUSTOMER CRM TYPES (document/admin/09.admin_api_details.md)
+// ==========================================
+
+export interface AdminCustomerListItem {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string | null;
+  avatarUrl?: string | null;
+  isActive: boolean;
+  ordersCount: number;
+  totalSpent: number;
+  averageOrderValue: number;
+  lastOrderDate?: string | null;
+  location?: string | null;
+  createdAt: string;
+}
+
+export interface CustomerListQueryParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  sortBy?: "createdAt" | "totalSpent" | "orderCount" | "name";
+  sortOrder?: "asc" | "desc";
+  isActive?: boolean | "true" | "false";
+}
+
+export interface CustomerListResponse {
+  success: boolean;
+  statusCode: number;
+  message: string;
+  data: AdminCustomerListItem[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export interface CustomerMetrics {
+  lifetimeValue: number;
+  totalOrders: number;
+  completedOrders: number;
+  pendingOrders: number;
+  shippedOrders: number;
+  cancelledOrders: number;
+  averageOrderValue: number;
+  wishlistCount: number;
+}
+
+export interface CustomerSavedAddress {
+  id: string;
+  firstName: string;
+  lastName: string;
+  company?: string | null;
+  address1: string;
+  address2?: string | null;
+  city: string;
+  state: string;
+  postalCode: string;
+  country: string;
+  phoneNumber?: string | null;
+  isDefault: boolean;
+  createdAt: string;
+}
+
+export interface CustomerRecentOrderItem {
+  id: string;
+  title: string;
+  quantity: number;
+  price: number;
+  imageUrl?: string;
+}
+
+export interface CustomerRecentOrder {
+  id: string;
+  orderNumber: string;
+  totalAmount: number;
+  status: string;
+  paymentStatus: string;
+  paymentMethod: string;
+  trackingNumber?: string | null;
+  courierPartner?: string | null;
+  itemsCount: number;
+  createdAt: string;
+  items: CustomerRecentOrderItem[];
+}
+
+export interface AdminCustomer360 {
+  profile: {
+    id: string;
+    name: string;
+    email: string;
+    phone?: string | null;
+    avatarUrl?: string | null;
+    isActive: boolean;
+    createdAt: string;
+    updatedAt?: string;
+  };
+  metrics: CustomerMetrics;
+  savedAddresses: CustomerSavedAddress[];
+  recentOrders: CustomerRecentOrder[];
+}
+
+export interface Customer360Response {
+  success: boolean;
+  statusCode: number;
+  message: string;
+  data?: AdminCustomer360;
+  error?: string;
+}
+
+export interface CreateCustomerInput {
+  name: string;
+  email: string;
+  password?: string;
+  phone?: string;
+  avatarUrl?: string;
+  avatar?: File;
+  address?: {
+    firstName: string;
+    lastName: string;
+    company?: string;
+    address1: string;
+    address2?: string;
+    city: string;
+    state: string;
+    postalCode: string;
+    country: string;
+    phoneNumber?: string;
+  };
+}
+
+export interface UpdateCustomerInput {
+  name?: string;
+  email?: string;
+  phone?: string;
+  password?: string;
+  isActive?: boolean;
+  avatarUrl?: string;
+  avatar?: File;
+}
+
+export interface CreateCustomerResponse {
+  success: boolean;
+  statusCode: number;
+  message: string;
+  data?: {
+    customer: {
+      id: string;
+      name: string;
+      email: string;
+      phone?: string | null;
+      avatarUrl?: string | null;
+      role: string;
+      isActive: boolean;
+      createdAt: string;
+    };
+  };
+  error?: string;
+}
+
+export interface UpdateCustomerResponse {
+  success: boolean;
+  statusCode: number;
+  message: string;
+  data?: {
+    customer: {
+      id: string;
+      name: string;
+      email: string;
+      phone?: string | null;
+      avatarUrl?: string | null;
+      role: string;
+      isActive: boolean;
+      updatedAt: string;
+    };
+  };
+  error?: string;
+}
+
+export interface DeleteCustomerResponse {
+  success: boolean;
+  statusCode: number;
+  message: string;
+  data?: {
+    id: string;
+    name: string;
+    email: string;
+  };
+  error?: string;
+}
+
+// ==========================================
+// STAFF DELETION TYPES
+// ==========================================
+
+export interface DeleteUserResponse {
+  success: boolean;
+  statusCode: number;
+  message: string;
+  data?: {
+    user: {
+      id: string;
+      name: string;
+      email: string;
+      role: AdminRole;
+    };
+  };
+  error?: string;
+}
+
+// ==========================================
+// INVENTORY LOOKUP TYPES
+// ==========================================
+
+export interface InventoryItemDetailResponse {
+  success: boolean;
+  statusCode: number;
+  message: string;
+  data?: InventoryItem & {
+    recentTransactions?: InventoryTransaction[];
+  };
+  error?: string;
+}
+
+// ==========================================
+// ORDER DELETION TYPES
+// ==========================================
+
+export interface DeleteOrderResponse {
+  success: boolean;
+  statusCode: number;
+  message: string;
+  data?: {
+    id: string;
+    orderNumber: string;
+    status: string;
+  };
+  error?: string;
+}
+
+
 
