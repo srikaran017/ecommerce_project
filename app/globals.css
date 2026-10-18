@@ -36,7 +36,6 @@ body {
 h1, h2, h3, h4, h5, h6, .font-heading {
   font-family: var(--font-heading), var(--font-body), system-ui, -apple-system, sans-serif;
   letter-spacing: -0.015em;
-  color: var(--foreground);
 }
 
 /* Custom scrollbar for clean ecommerce aesthetics */
@@ -84,3 +83,307 @@ h1, h2, h3, h4, h5, h6, .font-heading {
   border-radius: 0.75rem;
   box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04);
 }
+
+/* ==========================================================================
+   Admin Pastel Light Theme System
+   Only active inside .admin-theme-pastel on admin routes
+   ========================================================================== */
+.admin-theme-pastel {
+  --admin-pastel-bg: #f8f6f0;
+  --admin-pastel-card: #ffffff;
+  --admin-pastel-muted: #f4efe6;
+  --admin-pastel-subtle: #faf7f2;
+  --admin-pastel-sidebar: #ece5d8;
+  --admin-pastel-border: #e6ded1;
+  --admin-pastel-text: #1e293b;
+  --admin-pastel-sub: #475569;
+  --admin-pastel-muted-text: #64748b;
+  color-scheme: light;
+}
+
+.admin-theme-pastel,
+.admin-theme-pastel main {
+  background-color: var(--admin-pastel-bg) !important;
+  color: var(--admin-pastel-text) !important;
+}
+
+.admin-theme-pastel aside {
+  background-color: var(--admin-pastel-sidebar) !important;
+  border-color: var(--admin-pastel-border) !important;
+}
+
+.admin-theme-pastel header {
+  background-color: rgba(248, 246, 240, 0.85) !important;
+  border-color: var(--admin-pastel-border) !important;
+}
+
+/* Card & Container Overrides */
+.admin-theme-pastel .bg-slate-950 {
+  background-color: var(--admin-pastel-card) !important;
+  border-color: var(--admin-pastel-border) !important;
+}
+
+.admin-theme-pastel aside .bg-slate-950 {
+  background-color: var(--admin-pastel-sidebar) !important;
+}
+
+.admin-theme-pastel .bg-slate-900 {
+  background-color: var(--admin-pastel-card) !important;
+  border-color: var(--admin-pastel-border) !important;
+}
+
+.admin-theme-pastel .bg-slate-900\/50,
+.admin-theme-pastel .bg-slate-900\/60,
+.admin-theme-pastel .bg-slate-900\/70,
+.admin-theme-pastel .bg-slate-900\/80,
+.admin-theme-pastel .bg-slate-900\/40,
+.admin-theme-pastel .bg-slate-900\/90 {
+  background-color: var(--admin-pastel-subtle) !important;
+}
+
+.admin-theme-pastel .bg-slate-800 {
+  background-color: var(--admin-pastel-muted) !important;
+  border-color: var(--admin-pastel-border) !important;
+}
+
+.admin-theme-pastel .bg-slate-800\/50,
+.admin-theme-pastel .bg-slate-800\/60,
+.admin-theme-pastel .bg-slate-800\/40,
+.admin-theme-pastel .bg-slate-800\/70,
+.admin-theme-pastel .bg-slate-800\/80 {
+  background-color: var(--admin-pastel-subtle) !important;
+}
+
+/* Borders */
+.admin-theme-pastel .border-slate-800,
+.admin-theme-pastel .border-slate-700,
+.admin-theme-pastel .border-slate-800\/80,
+.admin-theme-pastel .border-slate-800\/60,
+.admin-theme-pastel .border-slate-800\/50,
+.admin-theme-pastel .border-slate-800\/40,
+.admin-theme-pastel .border-slate-700\/50,
+.admin-theme-pastel .border-slate-700\/80 {
+  border-color: var(--admin-pastel-border) !important;
+}
+
+.admin-theme-pastel .divide-slate-800 > :not([hidden]) ~ :not([hidden]),
+.admin-theme-pastel .divide-slate-800\/80 > :not([hidden]) ~ :not([hidden]),
+.admin-theme-pastel .divide-slate-700 > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--admin-pastel-border) !important;
+}
+
+/* Text Colors */
+.admin-theme-pastel .text-white {
+  color: #0f172a !important;
+}
+
+.admin-theme-pastel .text-slate-100,
+.admin-theme-pastel .text-slate-200 {
+  color: var(--admin-pastel-text) !important;
+}
+
+.admin-theme-pastel .text-slate-300,
+.admin-theme-pastel .text-slate-400 {
+  color: var(--admin-pastel-sub) !important;
+}
+
+.admin-theme-pastel .text-slate-500 {
+  color: var(--admin-pastel-muted-text) !important;
+}
+
+/* Form Controls */
+.admin-theme-pastel input:not([type="checkbox"]):not([type="radio"]),
+.admin-theme-pastel select,
+.admin-theme-pastel textarea {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: var(--admin-pastel-border) !important;
+}
+
+.admin-theme-pastel input::placeholder,
+.admin-theme-pastel textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
+/* Interactive States */
+.admin-theme-pastel .hover\:bg-slate-900:hover,
+.admin-theme-pastel .hover\:bg-slate-800:hover,
+.admin-theme-pastel .hover\:bg-slate-900\/40:hover,
+.admin-theme-pastel .hover\:bg-slate-800\/50:hover {
+  background-color: #ede6d9 !important;
+}
+
+.admin-theme-pastel .hover\:text-white:hover,
+.admin-theme-pastel .hover\:text-slate-100:hover {
+  color: #0f172a !important;
+}
+
+/* Sidebar Active / Inactive Links */
+.admin-theme-pastel aside nav a.bg-amber-500\/10,
+.admin-theme-pastel aside nav a[class*="text-amber-400"] {
+  background-color: #ffffff !important;
+  color: #b45309 !important;
+  border-color: #fcd34d !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+}
+
+.admin-theme-pastel aside nav a:not([class*="bg-amber-500"]):hover {
+  background-color: #e4dcd0 !important;
+  color: #1c1917 !important;
+}
+
+/* Table Enhancements */
+.admin-theme-pastel thead tr {
+  background-color: var(--admin-pastel-muted) !important;
+  border-color: var(--admin-pastel-border) !important;
+}
+
+.admin-theme-pastel thead th {
+  color: var(--admin-pastel-sub) !important;
+}
+
+.admin-theme-pastel tbody tr:hover {
+  background-color: #f8f5ec !important;
+}
+
+/* Status Badges in Pastel Colors */
+.admin-theme-pastel .text-amber-400,
+.admin-theme-pastel .text-amber-300 {
+  color: #92400e !important;
+}
+.admin-theme-pastel .bg-amber-400\/10,
+.admin-theme-pastel .bg-amber-500\/10,
+.admin-theme-pastel .bg-amber-400\/20 {
+  background-color: #fef3c7 !important;
+  border-color: #fde68a !important;
+}
+
+.admin-theme-pastel .text-emerald-400,
+.admin-theme-pastel .text-emerald-300 {
+  color: #065f46 !important;
+}
+.admin-theme-pastel .bg-emerald-500\/10,
+.admin-theme-pastel .bg-emerald-400\/10 {
+  background-color: #d1fae5 !important;
+  border-color: #a7f3d0 !important;
+}
+
+.admin-theme-pastel .text-sky-400,
+.admin-theme-pastel .text-sky-300 {
+  color: #075985 !important;
+}
+.admin-theme-pastel .bg-sky-500\/10,
+.admin-theme-pastel .bg-sky-400\/10 {
+  background-color: #e0f2fe !important;
+  border-color: #bae6fd !important;
+}
+
+.admin-theme-pastel .text-rose-400,
+.admin-theme-pastel .text-rose-300 {
+  color: #9f1239 !important;
+}
+.admin-theme-pastel .bg-rose-500\/10,
+.admin-theme-pastel .bg-rose-400\/10 {
+  background-color: #ffe4e6 !important;
+  border-color: #fecdd3 !important;
+}
+
+.admin-theme-pastel .text-purple-400,
+.admin-theme-pastel .text-purple-300 {
+  color: #5b21b6 !important;
+}
+.admin-theme-pastel .bg-purple-500\/10,
+.admin-theme-pastel .bg-purple-400\/10 {
+  background-color: #ede9fe !important;
+  border-color: #ddd6fe !important;
+}
+
+/* Modals & Popovers */
+.admin-theme-pastel [role="dialog"],
+.admin-theme-pastel .fixed .bg-slate-900,
+.admin-theme-pastel .fixed .bg-slate-950 {
+  background-color: #ffffff !important;
+  border-color: var(--admin-pastel-border) !important;
+  box-shadow: 0 20px 45px -10px rgba(100, 80, 50, 0.15) !important;
+}
+
+/* ==========================================================================
+   Admin Dark Theme System
+   Ensures crystal-clear high contrast text across all dark mode admin pages.
+   Headings, titles, badges, and metrics shine vividly on dark slate surfaces.
+   ========================================================================== */
+.admin-theme-dark {
+  --admin-dark-bg: #0b1120;
+  --admin-dark-card: #0f172a;
+  --admin-dark-sidebar: #020617;
+  --admin-dark-border: #1e293b;
+  color-scheme: dark;
+}
+
+.admin-theme-dark h1,
+.admin-theme-dark h2,
+.admin-theme-dark h3,
+.admin-theme-dark h4,
+.admin-theme-dark h5,
+.admin-theme-dark h6,
+.admin-theme-dark .font-heading {
+  color: #ffffff !important;
+}
+
+.admin-theme-dark h1 span:not([class*="text-amber"]):not([class*="text-emerald"]):not([class*="text-rose"]):not([class*="text-sky"]):not([class*="text-blue"]):not([class*="text-purple"]):not([class*="text-indigo"]),
+.admin-theme-dark h2 span:not([class*="text-amber"]):not([class*="text-emerald"]):not([class*="text-rose"]):not([class*="text-sky"]):not([class*="text-blue"]):not([class*="text-purple"]):not([class*="text-indigo"]),
+.admin-theme-dark h3 span:not([class*="text-amber"]):not([class*="text-emerald"]):not([class*="text-rose"]):not([class*="text-sky"]):not([class*="text-blue"]):not([class*="text-purple"]):not([class*="text-indigo"]),
+.admin-theme-dark h4 span:not([class*="text-amber"]):not([class*="text-emerald"]):not([class*="text-rose"]):not([class*="text-sky"]):not([class*="text-blue"]):not([class*="text-purple"]):not([class*="text-indigo"]) {
+  color: #ffffff !important;
+}
+
+.admin-theme-dark .text-white {
+  color: #ffffff !important;
+}
+
+.admin-theme-dark .text-slate-100 {
+  color: #f8fafc !important;
+}
+
+.admin-theme-dark .text-slate-200 {
+  color: #e2e8f0 !important;
+}
+
+.admin-theme-dark .text-slate-300 {
+  color: #cbd5e1 !important;
+}
+
+.admin-theme-dark .text-slate-400 {
+  color: #94a3b8 !important;
+}
+
+.admin-theme-dark .text-slate-500 {
+  color: #94a3b8 !important;
+}
+
+/* Luminous status badges in dark mode */
+.admin-theme-dark .text-amber-400 {
+  color: #fbbf24 !important;
+}
+.admin-theme-dark .text-amber-300 {
+  color: #fcd34d !important;
+}
+.admin-theme-dark .text-emerald-400 {
+  color: #34d399 !important;
+}
+.admin-theme-dark .text-rose-400 {
+  color: #fb7185 !important;
+}
+.admin-theme-dark .text-sky-400 {
+  color: #38bdf8 !important;
+}
+.admin-theme-dark .text-blue-400 {
+  color: #60a5fa !important;
+}
+.admin-theme-dark .text-purple-400 {
+  color: #c084fc !important;
+}
+.admin-theme-dark .text-indigo-400 {
+  color: #818cf8 !important;
+}
+

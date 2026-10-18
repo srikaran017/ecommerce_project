@@ -6,6 +6,7 @@ interface UIState {
   isSearchOpen: boolean;
   activeTheme: ThemeConfig;
   quickViewProductId: string | null;
+  adminTheme: "dark" | "pastel";
 
   toggleMobileMenu: () => void;
   closeMobileMenu: () => void;
@@ -13,13 +14,16 @@ interface UIState {
   closeSearch: () => void;
   setQuickViewProductId: (id: string | null) => void;
   setTheme: (themeId: string) => void;
+  setAdminTheme: (theme: "dark" | "pastel") => void;
+  toggleAdminTheme: () => void;
 }
 
-export const useUIStore = create<UIState>((set) => ({
+export const useUIStore = create<UIState>((set, get) => ({
   isMobileMenuOpen: false,
   isSearchOpen: false,
   activeTheme: themeConfig,
   quickViewProductId: null,
+  adminTheme: "dark",
 
   toggleMobileMenu: () =>
     set((state) => ({ isMobileMenuOpen: !state.isMobileMenuOpen })),
@@ -29,6 +33,25 @@ export const useUIStore = create<UIState>((set) => ({
   closeSearch: () => set({ isSearchOpen: false }),
 
   setQuickViewProductId: (id) => set({ quickViewProductId: id }),
+
+  setAdminTheme: (theme) => {
+    set({ adminTheme: theme });
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("admin_theme_mode", theme);
+      } catch {}
+    }
+  },
+
+  toggleAdminTheme: () => {
+    const next = get().adminTheme === "dark" ? "pastel" : "dark";
+    set({ adminTheme: next });
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("admin_theme_mode", next);
+      } catch {}
+    }
+  },
 
   setTheme: (themeId) => {
     const selected = PRESET_THEMES[themeId] || themeConfig;

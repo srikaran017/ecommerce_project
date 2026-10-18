@@ -19,11 +19,15 @@ import {
   Users,
   FileText,
   TrendingUp,
+  Moon,
+  Palette,
 } from "lucide-react";
 import { storeConfig } from "@/config/store.config";
 import { useAuthStore } from "@/stores/auth.store";
 
 import { canAccessAdmin } from "@/lib/rbac";
+
+import { useUIStore } from "@/stores/ui.store";
 
 export default function AdminLayout({
   children,
@@ -33,11 +37,26 @@ export default function AdminLayout({
   const pathname = usePathname();
   const router = useRouter();
   const { user, isAuthenticated } = useAuthStore();
+  const { adminTheme, setAdminTheme, toggleAdminTheme } = useUIStore();
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
-  }, []);
+    try {
+      const saved = localStorage.getItem("admin_theme_mode") as "dark" | "pastel" | null;
+      if (saved === "pastel" || saved === "dark") {
+        setAdminTheme(saved);
+      }
+    } catch {}
+  }, [setAdminTheme]);
+
+  const toggleTheme = (mode?: "dark" | "pastel") => {
+    if (mode) {
+      setAdminTheme(mode);
+    } else {
+      toggleAdminTheme();
+    }
+  };
 
   const isAdmin = Boolean(isAuthenticated && canAccessAdmin(user?.role));
 
@@ -45,11 +64,9 @@ export default function AdminLayout({
     if (!isMounted) return;
 
     if (!isAuthenticated) {
-      // Logged-out user -> Redirect to existing Login page
       const redirectParam = pathname ? `?redirect=${encodeURIComponent(pathname)}` : "?redirect=/admin";
       router.replace(`/login${redirectParam}`);
     } else if (!isAdmin) {
-      // Logged-in normal customer -> Cannot access Admin page -> Redirect to non-admin home page
       router.replace("/");
     }
   }, [isMounted, isAuthenticated, isAdmin, router, pathname]);
@@ -66,7 +83,7 @@ export default function AdminLayout({
     );
   }
 
-  // Logged-out state: Redirecting to login
+  // Not signed in
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 text-center">
@@ -85,7 +102,7 @@ export default function AdminLayout({
     );
   }
 
-  // Normal Customer trying to access Admin: Access Denied
+  // Signed in but not an admin
   if (!isAdmin) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 text-center">
@@ -131,11 +148,17 @@ export default function AdminLayout({
   ];
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col md:flex-row">
+    <div
+      className={`min-h-screen flex flex-col md:flex-row transition-colors duration-200 relative ${
+        adminTheme === "pastel"
+          ? "admin-theme-pastel"
+          : "admin-theme-dark bg-slate-900 text-slate-100"
+      }`}
+    >
       
-      {/* Shopify-Style Dark Sidebar */}
+      {/* Dark & Pastel Admin Sidebar */}
       <aside className="w-full md:w-64 bg-slate-950 border-r border-slate-800 p-6 flex flex-col justify-between flex-shrink-0">
-        <div className="space-y-8">
+        <div className="space-y-6">
           
           {/* Brand header */}
           <div className="space-y-1">
@@ -209,8 +232,8 @@ export default function AdminLayout({
           </div>
         </div>
 
-        {/* Back to storefront link */}
-        <div className="pt-6 border-t border-slate-800 space-y-2">
+        {/* Sidebar Footer Link */}
+        <div className="pt-6 border-t border-slate-800 space-y-4">
           <Link
             href="/"
             className="flex items-center gap-2 text-xs font-medium text-slate-400 hover:text-white transition-colors"
@@ -222,9 +245,81 @@ export default function AdminLayout({
       </aside>
 
       {/* Main Content Viewport */}
-      <main className="flex-1 p-6 sm:p-10 bg-slate-900 overflow-y-auto">
-        {children}
-      </main>
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Admin Access Sticky Header Bar with Dedicated Theme Switcher */}
+        <header className="h-16 border-b border-slate-800 px-6 sm:px-10 flex items-center justify-between flex-shrink-0 bg-slate-950/80 backdrop-blur-md sticky top-0 z-20">
+          {/* Breadcrumb / Section identifier */}
+          <div className="flex items-center gap-2.5">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 hidden sm:inline-block">
+              Admin Portal
+            </span>
+            <span className="text-slate-600 hidden sm:inline-block">/</span>
+            <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">
+              {pathname === "/admin"
+                ? "Dashboard"
+                : pathname.replace("/admin/", "").replace(/-/g, " ")}
+            </span>
+          </div>
+
+          {/* Right Action Cluster with The Single Navbar Theme Toggle Button */}
+          <div className="flex items-center gap-3 sm:gap-4">
+            {/* The single Admin Theme Toggle in the Navbar */}
+            <div className="flex items-center bg-slate-900 border border-slate-700/80 p-1 rounded-xl shadow-xs">
+              <button
+                type="button"
+                onClick={() => toggleTheme("dark")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  adminTheme === "dark"
+                    ? "bg-amber-500 text-slate-950 shadow-xs"
+                    : "text-slate-400 hover:text-white"
+                }`}
+                title="Switch admin panel to Dark Mode"
+              >
+                <Moon className="w-3.5 h-3.5" />
+                <span>Dark</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => toggleTheme("pastel")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  adminTheme === "pastel"
+                    ? "bg-amber-600 text-white shadow-xs"
+                    : "text-slate-400 hover:text-white"
+                }`}
+                title="Switch admin panel to Pastel Light Mode"
+              >
+                <Palette className="w-3.5 h-3.5" />
+                <span>Pastel</span>
+              </button>
+            </div>
+
+            {/* Admin Badge */}
+            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-xl text-xs">
+              <span className="w-2 h-2 rounded-full bg-emerald-400" />
+              <span className="font-medium text-slate-300 max-w-[130px] truncate">
+                {user?.name || user?.email}
+              </span>
+              <span className="text-[10px] uppercase font-bold text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded border border-amber-400/20 font-mono">
+                {user?.role || "ADMIN"}
+              </span>
+            </div>
+
+            {/* Storefront return link */}
+            <Link
+              href="/"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Storefront</span>
+            </Link>
+          </div>
+        </header>
+
+        {/* Page Content Viewport */}
+        <main className="flex-1 p-6 sm:p-10 bg-slate-900 overflow-y-auto">
+          {children}
+        </main>
+      </div>
 
     </div>
   );

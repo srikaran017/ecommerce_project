@@ -136,8 +136,8 @@ export default function AdminAnalyticsPage() {
             <span>Module 08</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight flex items-center gap-3">
-            <TrendingUp className="w-7 h-7 text-amber-400" />
-            <span>Performance Analytics & Telemetry</span>
+            <TrendingUp className="w-7 h-7 text-amber-400 shrink-0" />
+            <span className="text-white">Performance Analytics & Telemetry</span>
           </h1>
           <p className="text-xs sm:text-sm text-slate-400 mt-1">
             Aggregated gross revenue, comparative delta growth, atelier fulfillment health, and in-memory caching.
@@ -471,7 +471,7 @@ export default function AdminAnalyticsPage() {
             <div>
               <h2 className="text-base font-bold text-white uppercase tracking-wider flex items-center gap-2">
                 <Flame className="w-5 h-5 text-amber-400" />
-                <span>Top-Selling Couture Silhouettes</span>
+                <span className="text-white">Top-Selling Couture Silhouettes</span>
               </h2>
               <p className="text-xs text-slate-400 mt-0.5">
                 Ranked by customer sales volume and gross turnover.
@@ -538,7 +538,7 @@ export default function AdminAnalyticsPage() {
             <div>
               <h2 className="text-base font-bold text-white uppercase tracking-wider flex items-center gap-2">
                 <Layers className="w-5 h-5 text-amber-400" />
-                <span>Fulfillment State Machine Distribution</span>
+                <span className="text-white">Fulfillment State Machine Distribution</span>
               </h2>
               <p className="text-xs text-slate-400 mt-0.5">
                 Orders pipeline breakdown across {distributionTotal} completed & active purchases.
