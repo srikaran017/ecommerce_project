@@ -83,6 +83,9 @@ export default function OrderConfirmationPage() {
   }
 
   const isCod = confirmation.paymentMethod === "COD";
+  const totalPayable = Number(
+    confirmation.pricing?.totalAmount ?? (confirmation as any).totalAmount ?? (confirmation as any).total ?? 0
+  );
 
   return (
     <div className="py-16 bg-[var(--background)] min-h-screen">
@@ -119,13 +122,13 @@ export default function OrderConfirmationPage() {
               <div className="space-y-1 text-xs text-amber-900">
                 <p className="font-bold uppercase tracking-wider">Cash on Delivery Notice</p>
                 <p>
-                  Payment of <strong>{storeConfig.currency.symbol}{confirmation.pricing.totalAmount.toLocaleString()}</strong> will be collected in cash upon doorstep delivery. Our concierge will contact you at <strong>{confirmation.customerPhone || "your registered number"}</strong> prior to dispatch.
+                  Payment of <strong>{storeConfig.currency.symbol}{totalPayable.toLocaleString()}</strong> will be collected in cash upon doorstep delivery. Our concierge will contact you at <strong>{confirmation.customerPhone || "your registered number"}</strong> prior to dispatch.
                 </p>
               </div>
             </div>
           ) : (
             <div className="max-w-xl mx-auto p-3.5 bg-emerald-50 border border-emerald-200 rounded-[var(--radius)] text-xs text-emerald-900 font-medium">
-              Payment of {storeConfig.currency.symbol}{confirmation.pricing.totalAmount.toLocaleString()} completed successfully via Razorpay.
+              Payment of {storeConfig.currency.symbol}{totalPayable.toLocaleString()} completed successfully via Razorpay.
             </div>
           )}
 
@@ -150,7 +153,7 @@ export default function OrderConfirmationPage() {
             <div className="flex justify-between pt-1">
               <span className="text-[var(--muted-foreground)]">Total Payable:</span>
               <strong className="text-sm text-[var(--foreground)] font-mono">
-                {storeConfig.currency.symbol}{confirmation.pricing.totalAmount.toLocaleString()}
+                {storeConfig.currency.symbol}{totalPayable.toLocaleString()}
               </strong>
             </div>
           </div>
@@ -184,7 +187,7 @@ export default function OrderConfirmationPage() {
                       </div>
                     </div>
                     <span className="text-xs font-bold text-[var(--foreground)] font-mono">
-                      {storeConfig.currency.symbol}{it.totalPrice.toLocaleString()}
+                      {storeConfig.currency.symbol}{Number(it.totalPrice || 0).toLocaleString()}
                     </span>
                   </div>
                 ))}

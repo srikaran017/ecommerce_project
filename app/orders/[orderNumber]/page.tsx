@@ -183,6 +183,20 @@ export default function OrderDetailPage() {
     return "pending";
   };
 
+  const totalAmount = Number(
+    order.totalAmount ?? (order as any).total ?? order.pricing?.totalAmount ?? 0
+  );
+  const deliveryCharge = Number(
+    order.pricing?.shippingAmount ?? (order as any).shippingAmount ?? (order as any).shipping ?? storeConfig.shipping.flatRate
+  );
+  const discountAmount = Number(
+    order.pricing?.discountAmount ?? (order as any).discountAmount ?? (order as any).discount ?? 0
+  );
+  const subtotal = Number(
+    order.pricing?.subtotal ?? (order as any).subtotal ?? Math.max(0, totalAmount - deliveryCharge + discountAmount)
+  );
+  const orderItems = Array.isArray(order.items) ? order.items : [];
+
   return (
     <div className="min-h-screen bg-[var(--background)] py-8 sm:py-12">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
@@ -363,11 +377,11 @@ export default function OrderDetailPage() {
           <div className="lg:col-span-7 bg-white border border-neutral-200/90 rounded-xl p-5 sm:p-6 space-y-4 shadow-xs">
             <h3 className="text-sm font-semibold text-neutral-900 border-b border-neutral-100 pb-3 flex items-center gap-2">
               <Package className="w-4 h-4 text-neutral-500" />
-              <span>Items ({order.items.reduce((acc, i) => acc + i.quantity, 0)})</span>
+              <span>Items ({orderItems.reduce((acc, i) => acc + (i.quantity || 1), 0)})</span>
             </h3>
 
             <div className="divide-y divide-neutral-100">
-              {order.items.map((item) => (
+              {orderItems.map((item) => (
                 <div key={item.id} className="py-3.5 first:pt-0 last:pb-0 flex items-start justify-between gap-4">
                   <div className="flex items-start gap-3 min-w-0">
                     {item.imageUrl ? (
@@ -426,28 +440,28 @@ export default function OrderDetailPage() {
                 <div className="flex justify-between text-neutral-600">
                   <span>Subtotal</span>
                   <span className="font-mono text-neutral-900">
-                    {storeConfig.currency.symbol}{Number(order.pricing?.subtotal || order.totalAmount - (order.pricing?.shippingAmount || storeConfig.shipping.flatRate)).toLocaleString()}
+                    {storeConfig.currency.symbol}{subtotal.toLocaleString()}
                   </span>
                 </div>
 
-                {order.pricing?.discountAmount ? (
+                {discountAmount > 0 ? (
                   <div className="flex justify-between text-emerald-700 font-medium">
                     <span>Discount</span>
-                    <span className="font-mono">-{storeConfig.currency.symbol}{order.pricing.discountAmount.toLocaleString()}</span>
+                    <span className="font-mono">-{storeConfig.currency.symbol}{discountAmount.toLocaleString()}</span>
                   </div>
                 ) : null}
 
                 <div className="flex justify-between text-neutral-600">
                   <span>Delivery charge</span>
                   <span className="font-mono text-neutral-900">
-                    {storeConfig.currency.symbol}{Number(order.pricing?.shippingAmount ?? storeConfig.shipping.flatRate).toLocaleString()}
+                    {storeConfig.currency.symbol}{deliveryCharge.toLocaleString()}
                   </span>
                 </div>
 
                 <div className="flex justify-between text-sm font-semibold text-neutral-900 pt-2.5 border-t border-neutral-200">
                   <span>Total</span>
                   <span className="font-mono font-bold text-base">
-                    {storeConfig.currency.symbol}{order.totalAmount.toLocaleString()}
+                    {storeConfig.currency.symbol}{totalAmount.toLocaleString()}
                   </span>
                 </div>
               </div>

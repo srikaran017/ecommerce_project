@@ -2,6 +2,7 @@ import { getApiBaseUrl } from "@/services/apiConfig";
 import { AuthService } from "@/services/auth.service";
 import { AdminService } from "@/services/admin.service";
 import { useCartStore } from "@/stores/cart.store";
+import { storeConfig } from "@/config/store.config";
 import {
   CustomerOrder,
   CustomerOrderListQueryParams,
@@ -38,11 +39,24 @@ export class OrderService {
       if (res.ok) {
         const json = await res.json().catch(() => ({}));
         if (json.success && Array.isArray(json.data)) {
+          const normalized = json.data.map((raw: any) => ({
+            ...raw,
+            totalAmount: Number(raw.totalAmount ?? raw.total ?? raw.pricing?.totalAmount ?? 0),
+            itemsCount: Number(raw.itemsCount ?? (Array.isArray(raw.items) ? raw.items.length : 0)),
+            items: Array.isArray(raw.items)
+              ? raw.items.map((it: any) => ({
+                  ...it,
+                  price: Number(it.price || 0),
+                  totalPrice: Number(it.totalPrice ?? Number(it.price || 0) * (it.quantity || 1)),
+                  quantity: Number(it.quantity || 1),
+                }))
+              : [],
+          }));
           return {
             success: true,
             statusCode: res.status,
             message: json.message || "Customer order history retrieved successfully",
-            data: json.data,
+            data: normalized,
             pagination: json.pagination || {
               page,
               limit,
@@ -135,11 +149,50 @@ export class OrderService {
       if (res.ok) {
         const json = await res.json().catch(() => ({}));
         if (json.success && json.data) {
+          const raw = json.data;
+          const totalAmount = Number(
+            raw.totalAmount ?? raw.total ?? raw.pricing?.totalAmount ?? 0
+          );
+          const shippingAmount = Number(
+            raw.pricing?.shippingAmount ?? raw.shippingAmount ?? raw.shipping ?? storeConfig.shipping.flatRate
+          );
+          const discountAmount = Number(
+            raw.pricing?.discountAmount ?? raw.discountAmount ?? raw.discount ?? 0
+          );
+          const subtotal = Number(
+            raw.pricing?.subtotal ?? raw.subtotal ?? Math.max(0, totalAmount - shippingAmount + discountAmount)
+          );
+          const taxAmount = Number(
+            raw.pricing?.taxAmount ?? raw.taxAmount ?? raw.tax ?? 0
+          );
+
+          const customerOrder: CustomerOrder = {
+            ...raw,
+            totalAmount,
+            pricing: {
+              subtotal,
+              discountAmount,
+              shippingAmount,
+              taxAmount,
+              totalAmount,
+              currency: raw.pricing?.currency || raw.currency || "INR",
+              ...(raw.pricing || {}),
+            },
+            items: Array.isArray(raw.items)
+              ? raw.items.map((it: any) => ({
+                  ...it,
+                  price: Number(it.price || 0),
+                  totalPrice: Number(it.totalPrice ?? Number(it.price || 0) * (it.quantity || 1)),
+                  quantity: Number(it.quantity || 1),
+                }))
+              : [],
+          };
+
           return {
             success: true,
             statusCode: res.status,
             message: json.message || "Order details retrieved successfully",
-            data: json.data,
+            data: customerOrder,
           };
         }
       }

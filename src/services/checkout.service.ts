@@ -581,11 +581,49 @@ export class CheckoutService {
       if (res.status !== 404) {
         const json = await res.json().catch(() => ({}));
         if (res.ok && json.success && json.data) {
+          const raw = json.data;
+          const totalAmount = Number(
+            raw.pricing?.totalAmount ?? raw.totalAmount ?? raw.total ?? 0
+          );
+          const shippingAmount = Number(
+            raw.pricing?.shippingAmount ?? raw.shippingAmount ?? raw.shipping ?? storeConfig.shipping.flatRate
+          );
+          const discountAmount = Number(
+            raw.pricing?.discountAmount ?? raw.discountAmount ?? raw.discount ?? 0
+          );
+          const subtotal = Number(
+            raw.pricing?.subtotal ?? raw.subtotal ?? Math.max(0, totalAmount - shippingAmount + discountAmount)
+          );
+          const taxAmount = Number(
+            raw.pricing?.taxAmount ?? raw.taxAmount ?? raw.tax ?? 0
+          );
+
+          const confirmationData: OrderConfirmationData = {
+            ...raw,
+            pricing: {
+              subtotal,
+              discountAmount,
+              shippingAmount,
+              taxAmount,
+              totalAmount,
+              currency: raw.pricing?.currency || raw.currency || "INR",
+              ...(raw.pricing || {}),
+            },
+            items: Array.isArray(raw.items)
+              ? raw.items.map((it: any) => ({
+                  ...it,
+                  price: Number(it.price || 0),
+                  totalPrice: Number(it.totalPrice ?? Number(it.price || 0) * (it.quantity || 1)),
+                  quantity: Number(it.quantity || 1),
+                }))
+              : [],
+          };
+
           return {
             success: true,
             statusCode: 200,
             message: json.message || "Order confirmation details retrieved successfully",
-            data: json.data,
+            data: confirmationData,
           };
         }
       }
