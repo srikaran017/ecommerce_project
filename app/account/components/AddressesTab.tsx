@@ -127,20 +127,56 @@ export function AddressesTab({ onShowToast }: AddressesTabProps) {
   };
 
   const handleDelete = async (id: string) => {
-    if (confirm("Are you sure you want to remove this delivery address?")) {
+    if (!confirm("Are you sure you want to remove this delivery address?")) return;
+
+    // Optimistic UI Update (0ms delay)
+    const previous = [...addresses];
+    const target = previous.find((a) => a.id === id);
+    let optimistic = previous.filter((a) => a.id !== id);
+    // Invariant 4: If deleted was default, promote newest remaining
+    if (target?.isDefault && optimistic.length > 0) {
+      optimistic[0] = { ...optimistic[0], isDefault: true };
+    }
+    setAddresses(optimistic);
+
+    try {
       const res = await CustomerService.deleteAddress(id);
       if (res.success) {
         setAddresses(res.data);
         onShowToast(res.message);
+      } else {
+        setAddresses(previous);
+        onShowToast(res.message || "Failed to remove address");
       }
+    } catch {
+      setAddresses(previous);
+      onShowToast("Failed to remove address");
     }
   };
 
   const handleSetDefault = async (id: string) => {
-    const res = await CustomerService.setDefaultAddress(id);
-    if (res.success) {
-      setAddresses(res.data);
-      onShowToast(res.message);
+    // Optimistic UI Update (0ms delay)
+    const previous = [...addresses];
+    const optimistic = previous
+      .map((a) => ({
+        ...a,
+        isDefault: a.id === id,
+      }))
+      .sort((a, b) => (b.isDefault ? 1 : 0) - (a.isDefault ? 1 : 0));
+    setAddresses(optimistic);
+
+    try {
+      const res = await CustomerService.setDefaultAddress(id);
+      if (res.success) {
+        setAddresses(res.data);
+        onShowToast(res.message);
+      } else {
+        setAddresses(previous);
+        onShowToast(res.message || "Failed to update default address");
+      }
+    } catch {
+      setAddresses(previous);
+      onShowToast("Failed to update default address");
     }
   };
 
@@ -465,11 +501,15 @@ export function AddressesTab({ onShowToast }: AddressesTabProps) {
                 <input
                   type="checkbox"
                   checked={formData.isDefault}
+                  disabled={addresses.length === 0 || (addresses.length === 1 && !!editingAddress)}
                   onChange={(e) => setFormData({ ...formData, isDefault: e.target.checked })}
-                  className="rounded text-amber-600 focus:ring-amber-500 w-4 h-4"
+                  className="rounded text-amber-600 focus:ring-amber-500 w-4 h-4 disabled:opacity-50"
                 />
                 <span className="text-xs text-neutral-700 font-medium">
                   Set as default delivery address for rapid checkout
+                  {(addresses.length === 0 || (addresses.length === 1 && !!editingAddress)) && (
+                    <span className="ml-1 text-neutral-400 font-normal">(Primary address is automatically default)</span>
+                  )}
                 </span>
               </label>
 

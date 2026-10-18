@@ -151,20 +151,56 @@ export default function AddressesPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (confirm("Are you sure you want to delete this address?")) {
+    if (!confirm("Are you sure you want to delete this address?")) return;
+
+    // Optimistic UI Update (0ms delay)
+    const previous = [...addresses];
+    const target = previous.find((a) => a.id === id);
+    let optimistic = previous.filter((a) => a.id !== id);
+    // Invariant 4: If deleted was default, promote newest remaining
+    if (target?.isDefault && optimistic.length > 0) {
+      optimistic[0] = { ...optimistic[0], isDefault: true };
+    }
+    setAddresses(optimistic);
+
+    try {
       const res = await CustomerService.deleteAddress(id);
       if (res.success) {
         setAddresses(res.data);
         showToast(res.message);
+      } else {
+        setAddresses(previous);
+        showToast(res.message || "Failed to delete address");
       }
+    } catch {
+      setAddresses(previous);
+      showToast("Failed to delete address");
     }
   };
 
   const handleSetDefault = async (id: string) => {
-    const res = await CustomerService.setDefaultAddress(id);
-    if (res.success) {
-      setAddresses(res.data);
-      showToast(res.message);
+    // Optimistic UI Update (0ms delay)
+    const previous = [...addresses];
+    const optimistic = previous
+      .map((a) => ({
+        ...a,
+        isDefault: a.id === id,
+      }))
+      .sort((a, b) => (b.isDefault ? 1 : 0) - (a.isDefault ? 1 : 0));
+    setAddresses(optimistic);
+
+    try {
+      const res = await CustomerService.setDefaultAddress(id);
+      if (res.success) {
+        setAddresses(res.data);
+        showToast(res.message);
+      } else {
+        setAddresses(previous);
+        showToast(res.message || "Failed to update default address");
+      }
+    } catch {
+      setAddresses(previous);
+      showToast("Failed to update default address");
     }
   };
 
@@ -547,11 +583,15 @@ export default function AddressesPage() {
                   <input
                     type="checkbox"
                     checked={formData.isDefault}
+                    disabled={addresses.length === 0 || (addresses.length === 1 && !!editingAddress)}
                     onChange={(e) => setFormData({ ...formData, isDefault: e.target.checked })}
-                    className="rounded text-neutral-900 focus:ring-neutral-900 w-4 h-4 cursor-pointer"
+                    className="rounded text-neutral-900 focus:ring-neutral-900 w-4 h-4 cursor-pointer disabled:opacity-50"
                   />
                   <span className="text-xs text-neutral-700">
                     Set as default address
+                    {(addresses.length === 0 || (addresses.length === 1 && !!editingAddress)) && (
+                      <span className="ml-1 text-neutral-400 font-normal">(Primary address is automatically default)</span>
+                    )}
                   </span>
                 </label>
 

@@ -389,16 +389,55 @@ export class CheckoutService {
       const orderNumber = `ORD-${datePart}-${randomSuffix}`;
       const orderId = `ord_${Date.now()}_${randomSuffix.toLowerCase()}`;
 
-      const shippingAddr = input.shippingAddress || {
-        firstName: "Valued",
-        lastName: "Client",
-        address1: "Luxury Avenue",
-        city: "Mumbai",
-        state: "Maharashtra",
-        postalCode: "400001",
-        country: "India",
-        phoneNumber: phone || "+91 98765 43210",
-      };
+      // Invariant 5: Checkout Auto-Fallback to saved default address
+      let shippingAddr = input.shippingAddress;
+      if (!shippingAddr && input.shippingAddressId) {
+        const { CustomerService } = await import("@/services/customer.service");
+        const list = CustomerService.getStoredAddresses();
+        const found = list.find((a) => a.id === input.shippingAddressId);
+        if (found) {
+          shippingAddr = {
+            firstName: found.firstName,
+            lastName: found.lastName,
+            address1: found.address1,
+            address2: found.address2 || undefined,
+            city: found.city,
+            state: found.state,
+            postalCode: found.postalCode,
+            country: found.country,
+            phoneNumber: found.phoneNumber || undefined,
+          };
+        }
+      }
+      if (!shippingAddr) {
+        const { CustomerService } = await import("@/services/customer.service");
+        const list = CustomerService.getStoredAddresses();
+        const defaultAddr = list.find((a) => a.isDefault) || list[0];
+        if (defaultAddr) {
+          shippingAddr = {
+            firstName: defaultAddr.firstName,
+            lastName: defaultAddr.lastName,
+            address1: defaultAddr.address1,
+            address2: defaultAddr.address2 || undefined,
+            city: defaultAddr.city,
+            state: defaultAddr.state,
+            postalCode: defaultAddr.postalCode,
+            country: defaultAddr.country,
+            phoneNumber: defaultAddr.phoneNumber || undefined,
+          };
+        } else {
+          shippingAddr = {
+            firstName: "Valued",
+            lastName: "Client",
+            address1: "Luxury Avenue",
+            city: "Mumbai",
+            state: "Maharashtra",
+            postalCode: "400001",
+            country: "India",
+            phoneNumber: "+91 98765 43210",
+          };
+        }
+      }
 
       const customerName = `${shippingAddr.firstName} ${shippingAddr.lastName}`.trim();
       const customerEmail = (input as any).customerEmail || "client@maison.com";
