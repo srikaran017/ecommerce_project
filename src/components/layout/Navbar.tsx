@@ -22,7 +22,8 @@ import { useAuthStore } from "@/stores/auth.store";
 
 export function Navbar() {
   const { isAuthenticated } = useAuthStore();
-  const itemCount = useCartStore((state) => state.getItemCount());
+  const rawItemCount = useCartStore((state) => state.getItemCount());
+  const itemCount = isAuthenticated ? rawItemCount : 0;
   const rawWishlistCount = useWishlistStore((state) => state.wishlistIds.length);
   const wishlistCount = isAuthenticated ? rawWishlistCount : 0;
   const loadWishlistIds = useWishlistStore((state) => state.loadWishlistIds);
@@ -36,8 +37,16 @@ export function Navbar() {
     setIsMounted(true);
     if (isAuthenticated) {
       loadWishlistIds();
+      useCartStore.getState().fetchCart().catch(() => {});
     } else {
       useWishlistStore.setState({ wishlistIds: [] });
+      useCartStore.setState({ items: [], apiCart: null, appliedCoupon: null });
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.removeItem("maison_cart_store");
+          localStorage.removeItem("guest_cart_token");
+        } catch {}
+      }
     }
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 20);
@@ -269,7 +278,7 @@ export function Navbar() {
               className="p-1.5 text-[var(--foreground)] hover:opacity-75 transition-opacity relative flex items-center gap-2 cursor-pointer"
             >
               <ShoppingBag className="w-5 h-5" />
-              {isMounted && itemCount > 0 && (
+              {isMounted && isAuthenticated && itemCount > 0 && (
                 <span className="bg-[var(--primary)] text-[var(--primary-foreground)] text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center border border-[var(--background)] animate-in zoom-in-50">
                   {itemCount}
                 </span>

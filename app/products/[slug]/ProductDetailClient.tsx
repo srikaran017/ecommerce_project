@@ -192,6 +192,11 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
   const handleAddToCart = () => {
     if (selectedVariant.stock <= 0) return;
 
+    if (!isAuthenticated) {
+      router.push(`/login?redirect=/products/${product.slug}`);
+      return;
+    }
+
     const chosenModifiers = Object.entries(selectedModifiers)
       .map(([groupId, optId]) => {
         const group = product.modifierGroups?.find((g) => g.id === groupId);
@@ -229,6 +234,11 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
 
   const handleBuyNow = () => {
     if (selectedVariant.stock <= 0) return;
+
+    if (!isAuthenticated) {
+      router.push(`/login?redirect=/products/${product.slug}`);
+      return;
+    }
 
     const chosenModifiers = Object.entries(selectedModifiers)
       .map(([groupId, optId]) => {

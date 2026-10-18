@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { X, ShoppingBag, Check, ArrowRight } from "lucide-react";
 import { storeConfig } from "@/config/store.config";
 import { useCartStore } from "@/stores/cart.store";
+import { useAuthStore } from "@/stores/auth.store";
 import { ProductData, ProductVariantData } from "@/data/products.data";
 
 interface QuickViewModalProps {
@@ -40,8 +41,17 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
     new Set(product.variants?.map((v) => v.size) || ["S", "M", "L"])
   );
 
+  const { isAuthenticated } = useAuthStore();
+
   const handleAddToCart = () => {
     if (selectedVariant.stock <= 0) return;
+
+    if (!isAuthenticated) {
+      onClose();
+      const currentPath = typeof window !== "undefined" ? window.location.pathname : `/products/${product.slug}`;
+      router.push(`/login?redirect=${encodeURIComponent(currentPath)}`);
+      return;
+    }
 
     addItem({
       productId: product.id,

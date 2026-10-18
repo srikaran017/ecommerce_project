@@ -42,6 +42,7 @@ export function ProductCard({ product }: ProductCardProps) {
   };
 
   const [selectedVariant, setSelectedVariant] = useState<ProductVariantData>(defaultVariant);
+  const { isAuthenticated } = useAuthStore();
   const { isWishlisted: checkWishlist, toggleWishlist: storeToggleWishlist } = useWishlistStore();
   const isWishlisted = isMounted ? checkWishlist(product.id) : false;
   const [isQuickViewOpen, setIsQuickViewOpen] = useState(false);
@@ -73,6 +74,12 @@ export function ProductCard({ product }: ProductCardProps) {
     e.preventDefault();
     e.stopPropagation();
 
+    if (!isAuthenticated) {
+      const currentPath = typeof window !== "undefined" ? window.location.pathname : "/products";
+      router.push(`/login?redirect=${encodeURIComponent(currentPath)}`);
+      return;
+    }
+
     addItem({
       productId: product.id,
       variantId: selectedVariant.id === "default" ? undefined : selectedVariant.id,
@@ -97,8 +104,6 @@ export function ProductCard({ product }: ProductCardProps) {
     e.stopPropagation();
     setIsQuickViewOpen(true);
   };
-
-  const { isAuthenticated } = useAuthStore();
 
   const toggleWishlist = (e: React.MouseEvent) => {
     e.preventDefault();

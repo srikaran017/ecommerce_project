@@ -172,16 +172,6 @@ export const useCartStore = create<CartState>()(
             return;
           }
 
-          // If backend returns empty cart, NEVER wipe out existing local items!
-          const currentItems = get().items;
-          if (currentItems.length > 0) {
-            set({
-              apiCart: null,
-              isLoading: false,
-            });
-            return;
-          }
-
           set({
             apiCart: cart || null,
             items: [],

@@ -48,8 +48,9 @@ export const useAuthStore = create<AuthState>()(
               isLoading: false,
               error: null,
             });
-            // Automatically merge guest cart with customer cart upon login
+            // Automatically merge guest cart and fetch customer cart upon login
             useCartStore.getState().mergeGuestCartOnLogin().catch(() => {});
+            useCartStore.getState().fetchCart().catch(() => {});
             useWishlistStore.getState().loadWishlistIds().catch(() => {});
             return true;
           } else {
@@ -88,8 +89,9 @@ export const useAuthStore = create<AuthState>()(
               isLoading: false,
               error: null,
             });
-            // Automatically merge guest cart with customer cart upon registration
+            // Automatically merge guest cart and fetch customer cart upon registration
             useCartStore.getState().mergeGuestCartOnLogin().catch(() => {});
+            useCartStore.getState().fetchCart().catch(() => {});
             useWishlistStore.getState().loadWishlistIds().catch(() => {});
             return true;
           } else {
@@ -119,8 +121,9 @@ export const useAuthStore = create<AuthState>()(
               isLoading: false,
               error: null,
             });
-            // Automatically merge guest cart with customer cart upon social login
+            // Automatically merge guest cart and fetch customer cart upon social login
             useCartStore.getState().mergeGuestCartOnLogin().catch(() => {});
+            useCartStore.getState().fetchCart().catch(() => {});
             useWishlistStore.getState().loadWishlistIds().catch(() => {});
             return true;
           } else {
@@ -151,10 +154,13 @@ export const useAuthStore = create<AuthState>()(
             error: null,
           });
           useWishlistStore.setState({ wishlistIds: [] });
+          useCartStore.setState({ items: [], apiCart: null, appliedCoupon: null });
           if (typeof window !== "undefined") {
             try {
               localStorage.removeItem("wardrobe_wishlist_ids_v2");
               localStorage.removeItem("wardrobe_wishlist_v1");
+              localStorage.removeItem("maison_cart_store");
+              localStorage.removeItem("guest_cart_token");
             } catch {}
           }
         }
@@ -169,12 +175,20 @@ export const useAuthStore = create<AuthState>()(
               set({ user: null, isAuthenticated: false });
             }
             useWishlistStore.setState({ wishlistIds: [] });
+            useCartStore.setState({ items: [], apiCart: null, appliedCoupon: null });
+            if (typeof window !== "undefined") {
+              try {
+                localStorage.removeItem("maison_cart_store");
+                localStorage.removeItem("guest_cart_token");
+              } catch {}
+            }
             return;
           }
 
           const currentUser = await AuthService.getCurrentUser();
           if (currentUser) {
             set({ user: currentUser, isAuthenticated: true });
+            useCartStore.getState().fetchCart().catch(() => {});
           } else {
             // If user has an active OAuth / Google profile in store, preserve it rather than abruptly logging out
             const activeUser = get().user;
@@ -183,6 +197,14 @@ export const useAuthStore = create<AuthState>()(
             }
             // Token expired or invalid
             set({ user: null, isAuthenticated: false });
+            useWishlistStore.setState({ wishlistIds: [] });
+            useCartStore.setState({ items: [], apiCart: null, appliedCoupon: null });
+            if (typeof window !== "undefined") {
+              try {
+                localStorage.removeItem("maison_cart_store");
+                localStorage.removeItem("guest_cart_token");
+              } catch {}
+            }
           }
         } catch {
           // Session check silent failure
