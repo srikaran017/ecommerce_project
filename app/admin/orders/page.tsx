@@ -239,9 +239,12 @@ export default function AdminOrdersPage() {
       });
 
       if (res.success) {
+        setOrders((prev) =>
+          prev.map((o) => (o.id === advanceStatusOrder.id ? { ...o, status: targetStatus as OrderStatus } : o))
+        );
         showNotification("success", res.message || `Order advanced to ${targetStatus}`);
         setAdvanceStatusOrder(null);
-        loadOrders();
+        await loadOrders();
       } else {
         showNotification("error", res.message || "Failed to advance order status.");
       }
@@ -285,12 +288,25 @@ export default function AdminOrdersPage() {
       });
 
       if (res.success) {
+        setOrders((prev) =>
+          prev.map((o) =>
+            o.id === shippingOrder.id
+              ? {
+                  ...o,
+                  status: "SHIPPED",
+                  trackingNumber: trackingNumber.trim(),
+                  courierPartner,
+                  shippedAt: new Date().toISOString(),
+                }
+              : o
+          )
+        );
         showNotification(
           "success",
           res.message || `Shipment assigned via ${courierPartner} (AWB: ${trackingNumber})`
         );
         setShippingOrder(null);
-        loadOrders();
+        await loadOrders();
       } else {
         showNotification("error", res.message || "Failed to assign shipment.");
       }
@@ -320,13 +336,18 @@ export default function AdminOrdersPage() {
       const res = await AdminService.cancelOrder(cancelOrderTarget.id, cancelReason.trim());
 
       if (res.success) {
+        setOrders((prev) =>
+          prev.map((o) =>
+            o.id === cancelOrderTarget.id ? { ...o, status: "CANCELLED" as OrderStatus } : o
+          )
+        );
         showNotification(
           "success",
           `Order #${cancelOrderTarget.orderNumber} successfully cancelled & stock atomically restocked.`
         );
         setCancelOrderTarget(null);
         setCancelReason("");
-        loadOrders();
+        await loadOrders();
       } else {
         showNotification("error", res.message || "Cancellation rejected by fulfillment engine.");
       }

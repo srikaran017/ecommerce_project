@@ -106,6 +106,7 @@ export default function AdminUsersPage() {
   const [editAvatarFile, setEditAvatarFile] = useState<File | null>(null);
   const [editAvatarUrl, setEditAvatarUrl] = useState("");
   const [editAvatarPreview, setEditAvatarPreview] = useState<string | null>(null);
+  const [modalSuccessMessage, setModalSuccessMessage] = useState<string | null>(null);
 
   // Alert / Feedback Toast
   const [alertMessage, setAlertMessage] = useState<{
@@ -299,9 +300,18 @@ export default function AdminUsersPage() {
         return;
       }
 
+      const userObj = res.data?.user;
+      if (userObj) {
+        setUsers((prev) => [userObj, ...prev]);
+      }
+
+      setModalSuccessMessage(`${createForm.role} ${createForm.name} created successfully! Refreshing...`);
       showAlert("success", "User Created", `${createForm.role} ${createForm.name} created successfully!`);
-      setIsCreateModalOpen(false);
       await loadData(true);
+      setTimeout(() => {
+        setIsCreateModalOpen(false);
+        setModalSuccessMessage(null);
+      }, 1200);
     } catch (err: any) {
       showAlert("error", "Unexpected Error", err.message || "An unexpected error occurred.");
     } finally {
@@ -372,9 +382,32 @@ export default function AdminUsersPage() {
         return;
       }
 
+      const userObj = res.data?.user;
+      if (userObj) {
+        setUsers((prev) => prev.map((u) => (u.id === selectedUserForEdit.id ? userObj : u)));
+      } else {
+        setUsers((prev) =>
+          prev.map((u) =>
+            u.id === selectedUserForEdit.id
+              ? {
+                  ...u,
+                  name: editForm.name.trim(),
+                  phone: editForm.phone || null,
+                  permissions: editForm.permissions,
+                  isActive: editForm.isActive,
+                }
+              : u
+          )
+        );
+      }
+
+      setModalSuccessMessage(`Account for ${editForm.name} updated successfully! Refreshing...`);
       showAlert("success", "User Updated", `Account for ${editForm.name} updated successfully.`);
-      setSelectedUserForEdit(null);
       await loadData(true);
+      setTimeout(() => {
+        setSelectedUserForEdit(null);
+        setModalSuccessMessage(null);
+      }, 1200);
     } catch (err: any) {
       showAlert("error", "Error", err.message || "An error occurred.");
     } finally {
@@ -411,6 +444,11 @@ export default function AdminUsersPage() {
         }
         return;
       }
+
+      // Optimistically toggle user status in state immediately
+      setUsers((prev) =>
+        prev.map((u) => (u.id === targetUser.id ? { ...u, isActive: newStatus } : u))
+      );
 
       showAlert(
         "success",
@@ -1234,6 +1272,14 @@ export default function AdminUsersPage() {
                 </div>
               )}
 
+              {/* In-Modal Success Alert */}
+              {modalSuccessMessage && (
+                <div className="p-3 rounded-xl bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 text-xs font-semibold flex items-center gap-2.5 animate-in fade-in duration-200">
+                  <Check className="w-4 h-4 text-emerald-400 shrink-0 animate-bounce" />
+                  <span>{modalSuccessMessage}</span>
+                </div>
+              )}
+
               {/* Footer */}
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
                 <button
@@ -1543,6 +1589,14 @@ export default function AdminUsersPage() {
                       );
                     })}
                   </div>
+                </div>
+              )}
+
+              {/* In-Modal Success Alert */}
+              {modalSuccessMessage && (
+                <div className="p-3 rounded-xl bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 text-xs font-semibold flex items-center gap-2.5 animate-in fade-in duration-200">
+                  <Check className="w-4 h-4 text-emerald-400 shrink-0 animate-bounce" />
+                  <span>{modalSuccessMessage}</span>
                 </div>
               )}
 

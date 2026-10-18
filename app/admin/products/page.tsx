@@ -71,6 +71,12 @@ export default function AdminProductsPage() {
   const [deleteCandidate, setDeleteCandidate] = useState<AdminProduct | null>(null);
   const [forceDelete, setForceDelete] = useState(false);
 
+  // In-Modal & In-Drawer Feedback States
+  const [drawerFeedback, setDrawerFeedback] = useState<{ type: "success" | "error" | "warning"; message: string } | null>(null);
+  const [isDrawerUploading, setIsDrawerUploading] = useState(false);
+  const [createModalFeedback, setCreateModalFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [isCreatingProduct, setIsCreatingProduct] = useState(false);
+
   // Add Product Form State
   const [formName, setFormName] = useState("");
   const [formBrand, setFormBrand] = useState("Maison De Élégance");
@@ -115,7 +121,7 @@ export default function AdminProductsPage() {
   }, [categories, formCategory]);
 
   // Load Products with Faceted Filters & Pagination
-  const loadProducts = () => {
+  const loadProducts = async () => {
     setIsLoading(true);
     const queryParams: ProductListQueryParams = {
       page: currentPage,
@@ -129,23 +135,23 @@ export default function AdminProductsPage() {
       sort: sortOption,
     };
 
-    AdminService.getProductsWithPagination(queryParams)
-      .then((res) => {
-        if (res.success && res.data) {
-          setProducts(res.data);
-          if (res.pagination) {
-            setPaginationMeta({
-              total: res.pagination.total,
-              totalPages: res.pagination.totalPages,
-            });
-          }
+    try {
+      const res = await AdminService.getProductsWithPagination(queryParams);
+      if (res.success && res.data) {
+        setProducts(res.data);
+        if (res.pagination) {
+          setPaginationMeta({
+            total: res.pagination.total,
+            totalPages: res.pagination.totalPages,
+          });
         }
-      })
-      .catch((err) => {
-        console.error("Error loading products:", err);
-        setFeedback({ type: "error", message: "Failed to load products. Using local fallback cache." });
-      })
-      .finally(() => setIsLoading(false));
+      }
+    } catch (err: any) {
+      console.error("Error loading products:", err);
+      setFeedback({ type: "error", message: "Failed to load products. Using local fallback cache." });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -179,22 +185,59 @@ export default function AdminProductsPage() {
       return;
     }
 
+    const nextActive = field === "active" ? !currentActive : currentActive;
+    const nextFeatured = field === "featured" ? !currentFeatured : currentFeatured;
+
+    // 1. OPTIMISTIC UPDATE: Update UI state immediately with 0ms delay!
+    setProducts((prev) =>
+      prev.map((p) =>
+        p.id === productId
+          ? {
+              ...p,
+              isActive: nextActive,
+              isFeatured: nextFeatured,
+              status: nextActive ? "ACTIVE" : "ARCHIVED",
+            }
+          : p
+      )
+    );
+    if (viewingProduct && viewingProduct.id === productId) {
+      setViewingProduct((prev) =>
+        prev
+          ? {
+              ...prev,
+              isActive: nextActive,
+              isFeatured: nextFeatured,
+            }
+          : null
+      );
+    }
+
     const payload =
       field === "active"
-        ? { isActive: !currentActive }
-        : { isFeatured: !currentFeatured };
+        ? { isActive: nextActive, status: nextActive ? "ACTIVE" : "ARCHIVED" }
+        : { isFeatured: nextFeatured };
 
     try {
       const res = await AdminService.updateProductStatus(productId, payload);
-      if (res.success) {
+      if (res && (res.success || (res as any).data || (res as any).id)) {
+        setFeedback({
+          type: "success",
+          message: `Product ${field === "active" ? (nextActive ? "activated" : "deactivated") : (nextFeatured ? "starred as featured" : "unstarred")}.`,
+        });
+        setTimeout(() => setFeedback(null), 3000);
+        // Background synchronization
+        await loadProducts();
+      } else {
+        // Revert optimistic update on failure
         setProducts((prev) =>
           prev.map((p) =>
             p.id === productId
               ? {
                   ...p,
-                  isActive: field === "active" ? !currentActive : p.isActive,
-                  isFeatured: field === "featured" ? !currentFeatured : p.isFeatured,
-                  status: field === "active" ? (!currentActive ? "ACTIVE" : "ARCHIVED") : p.status,
+                  isActive: currentActive,
+                  isFeatured: currentFeatured,
+                  status: currentActive ? "ACTIVE" : "ARCHIVED",
                 }
               : p
           )
@@ -204,19 +247,40 @@ export default function AdminProductsPage() {
             prev
               ? {
                   ...prev,
-                  isActive: field === "active" ? !currentActive : prev.isActive,
-                  isFeatured: field === "featured" ? !currentFeatured : prev.isFeatured,
+                  isActive: currentActive,
+                  isFeatured: currentFeatured,
                 }
               : null
           );
         }
-        setFeedback({
-          type: "success",
-          message: `Product ${field === "active" ? (payload.isActive ? "activated" : "deactivated") : (payload.isFeatured ? "starred as featured" : "unstarred")}.`,
-        });
-        setTimeout(() => setFeedback(null), 3000);
+        setFeedback({ type: "error", message: res?.message || "Failed to update product status" });
+        setTimeout(() => setFeedback(null), 3500);
       }
     } catch (err: any) {
+      // Revert optimistic update on error
+      setProducts((prev) =>
+        prev.map((p) =>
+          p.id === productId
+            ? {
+                ...p,
+                isActive: currentActive,
+                isFeatured: currentFeatured,
+                status: currentActive ? "ACTIVE" : "ARCHIVED",
+              }
+            : p
+        )
+      );
+      if (viewingProduct && viewingProduct.id === productId) {
+        setViewingProduct((prev) =>
+          prev
+            ? {
+                ...prev,
+                isActive: currentActive,
+                isFeatured: currentFeatured,
+              }
+            : null
+        );
+      }
       setFeedback({ type: "error", message: err.message || "Failed to update product status" });
       setTimeout(() => setFeedback(null), 3500);
     }
@@ -236,17 +300,20 @@ export default function AdminProductsPage() {
     try {
       const res = await AdminService.deleteProduct(deleteCandidate.id, forceDelete);
       if (res.success) {
+        // Optimistically remove from state immediately
+        setProducts((prev) => prev.filter((p) => p.id !== deleteCandidate.id));
         setFeedback({
           type: res.data.action === "ARCHIVED" ? "warning" : "success",
           message: res.message,
         });
+        const deletedId = deleteCandidate.id;
         setDeleteCandidate(null);
         setForceDelete(false);
-        loadProducts();
-        if (viewingProduct && viewingProduct.id === deleteCandidate.id) {
+        if (viewingProduct && viewingProduct.id === deletedId) {
           setViewingProduct(null);
         }
         setTimeout(() => setFeedback(null), 4500);
+        await loadProducts();
       }
     } catch (err: any) {
       setFeedback({ type: "error", message: err.message || "Failed to delete product." });
@@ -278,15 +345,18 @@ export default function AdminProductsPage() {
   // Upload Additional Gallery Image (Mutual Exclusivity: FormData file OR JSON URL)
   const handleUploadDrawerImage = async () => {
     if (!viewingProduct || !viewingProduct.id || viewingProduct.id === "undefined") {
-      setFeedback({ type: "warning", message: "Cannot upload image: Product reference is missing or invalid." });
+      setDrawerFeedback({ type: "warning", message: "Cannot upload image: Product reference is missing or invalid." });
       return;
     }
 
     try {
+      setIsDrawerUploading(true);
+      setDrawerFeedback(null);
       let res;
       if (drawerImageMode === "upload") {
         if (!drawerImageFile) {
-          setFeedback({ type: "warning", message: "Please select an image file to upload." });
+          setDrawerFeedback({ type: "warning", message: "Please select an image file to upload." });
+          setIsDrawerUploading(false);
           return;
         }
         // Mode A: File Upload (multipart/form-data)
@@ -299,7 +369,8 @@ export default function AdminProductsPage() {
       } else {
         const url = drawerImageUrl.trim();
         if (!url) {
-          setFeedback({ type: "warning", message: "Please provide a valid image URL." });
+          setDrawerFeedback({ type: "warning", message: "Please provide a valid image URL." });
+          setIsDrawerUploading(false);
           return;
         }
         // Mode B: Direct Image URL (JSON)
@@ -312,21 +383,64 @@ export default function AdminProductsPage() {
       }
 
       if (res && res.success) {
+        // 1. Immediately re-fetch updated product with new image
         const updated = await AdminService.getProductById(viewingProduct.id);
+        const uploadedImages = res.data?.images || [];
+        const currentImages = viewingProduct.images || [];
+        const mergedImages = updated?.images?.length ? updated.images : [...currentImages, ...uploadedImages];
+        const newThumb = drawerIsThumbnail
+          ? (updated?.thumbnail || drawerImagePreview || drawerImageUrl || mergedImages[0]?.url)
+          : (viewingProduct.thumbnail || mergedImages[0]?.url);
+
+        // Update drawer view
         if (updated) {
           setViewingProduct(updated);
-          loadProducts();
+        } else {
+          setViewingProduct((prev) =>
+            prev ? { ...prev, images: mergedImages, thumbnail: newThumb } : null
+          );
         }
+
+        // IMMEDIATELY update table state in place so changes reflect without manual refresh!
+        setProducts((prev) =>
+          prev.map((p) => {
+            if (p.id === viewingProduct.id) {
+              return {
+                ...p,
+                images: updated?.images || mergedImages,
+                thumbnail: updated?.thumbnail || newThumb,
+                ...(updated ? updated : {}),
+              };
+            }
+            return p;
+          })
+        );
+
         setDrawerImageFile(null);
         setDrawerImagePreview(null);
         setDrawerImageUrl("");
         setDrawerIsThumbnail(false);
         if (drawerFileInputRef.current) drawerFileInputRef.current.value = "";
+        setDrawerFeedback({
+          type: "success",
+          message: "Image uploaded and streamed to Cloudinary successfully! Gallery and catalog refreshed.",
+        });
         setFeedback({ type: "success", message: "Gallery image uploaded successfully." });
+        setTimeout(() => setDrawerFeedback(null), 4500);
         setTimeout(() => setFeedback(null), 3000);
+
+        // Synchronize in background
+        await loadProducts();
+      } else {
+        setDrawerFeedback({
+          type: "error",
+          message: res?.message || "Failed to upload image. Please verify image file format.",
+        });
       }
     } catch (err: any) {
-      setFeedback({ type: "error", message: err.message || "Failed to upload image." });
+      setDrawerFeedback({ type: "error", message: err.message || "Failed to upload image." });
+    } finally {
+      setIsDrawerUploading(false);
     }
   };
 
@@ -334,7 +448,7 @@ export default function AdminProductsPage() {
   const handleDeleteDrawerImage = async (imageId: string) => {
     if (!viewingProduct) return;
     if ((viewingProduct.images || []).length <= 1) {
-      alert("A garment must have at least one product photograph.");
+      setDrawerFeedback({ type: "warning", message: "A garment must have at least one product photograph." });
       return;
     }
     if (confirm("Delete this photo from the product gallery?")) {
@@ -342,15 +456,33 @@ export default function AdminProductsPage() {
         const res = await AdminService.deleteProductImage(viewingProduct.id, imageId);
         if (res.success) {
           const updated = await AdminService.getProductById(viewingProduct.id);
+          const remainingImages = (viewingProduct.images || []).filter(
+            (img) => img.id !== imageId && (img as any).url !== imageId
+          );
           if (updated) {
             setViewingProduct(updated);
-            loadProducts();
+            setProducts((prev) => prev.map((p) => (p.id === viewingProduct.id ? updated : p)));
+          } else {
+            setViewingProduct((prev) =>
+              prev ? { ...prev, images: remainingImages, thumbnail: remainingImages[0]?.url || prev.thumbnail } : null
+            );
+            setProducts((prev) =>
+              prev.map((p) =>
+                p.id === viewingProduct.id
+                  ? { ...p, images: remainingImages, thumbnail: remainingImages[0]?.url || p.thumbnail }
+                  : p
+              )
+            );
           }
+          setDrawerFeedback({ type: "success", message: "Photo removed from gallery. Catalog refreshed." });
           setFeedback({ type: "success", message: "Image removed from gallery." });
+          setTimeout(() => setDrawerFeedback(null), 3500);
           setTimeout(() => setFeedback(null), 3000);
+
+          await loadProducts();
         }
       } catch (err: any) {
-        setFeedback({ type: "error", message: err.message || "Failed to delete image." });
+        setDrawerFeedback({ type: "error", message: err.message || "Failed to delete image." });
       }
     }
   };
@@ -500,24 +632,43 @@ export default function AdminProductsPage() {
       }
 
       if (res && res.success) {
-        setIsAddModalOpen(false);
-        // Reset form
-        setFormName("");
-        setFormRegularPrice("");
-        setFormSalePrice("");
-        setFormCostPrice("");
-        setFormOfferPrice("");
-        setFormDescription("");
-        setFormImageFile(null);
-        setFormImagePreview(null);
-        setFormImageUrl("");
-        if (fileInputRef.current) fileInputRef.current.value = "";
-        setFeedback({ type: "success", message: `Garment "${formName.trim()}" published with variants!` });
-        loadProducts();
-        setTimeout(() => setFeedback(null), 3500);
+        if (res.product) {
+          setProducts((prev) => [res.product!, ...prev]);
+        }
+        setCreateModalFeedback({
+          type: "success",
+          message: `Garment "${formName.trim()}" published successfully! Refreshing catalog...`,
+        });
+        await loadProducts(); // Auto-refresh products table immediately!
+
+        setTimeout(() => {
+          setIsAddModalOpen(false);
+          setCreateModalFeedback(null);
+          // Reset form
+          setFormName("");
+          setFormRegularPrice("");
+          setFormSalePrice("");
+          setFormCostPrice("");
+          setFormOfferPrice("");
+          setFormDescription("");
+          setFormImageFile(null);
+          setFormImagePreview(null);
+          setFormImageUrl("");
+          if (fileInputRef.current) fileInputRef.current.value = "";
+          setFeedback({ type: "success", message: `Garment "${formName.trim()}" published with variants!` });
+          setTimeout(() => setFeedback(null), 3500);
+        }, 1300);
+      } else {
+        setCreateModalFeedback({
+          type: "error",
+          message: res?.message || "Failed to create product. Please verify required fields.",
+        });
       }
     } catch (err: any) {
+      setCreateModalFeedback({ type: "error", message: err.message || "Failed to create product." });
       setFeedback({ type: "error", message: err.message || "Failed to create product." });
+    } finally {
+      setIsCreatingProduct(false);
     }
   };
 
@@ -1252,6 +1403,29 @@ export default function AdminProductsPage() {
                 {/* Upload Additional Image Field (Cloudinary Integration: Mutual Exclusivity Policy) */}
                 {rbac.canWriteProducts(user?.role) && (
                   <div className="p-4 bg-slate-900/60 rounded-2xl border border-slate-800 space-y-3 text-xs">
+                    {/* In-Drawer Feedback Alert */}
+                    {drawerFeedback && (
+                      <div
+                        className={`p-3 rounded-xl border text-xs font-semibold flex items-center justify-between gap-2.5 animate-in fade-in duration-200 ${
+                          drawerFeedback.type === "success"
+                            ? "bg-emerald-950/80 border-emerald-500/50 text-emerald-300"
+                            : drawerFeedback.type === "warning"
+                            ? "bg-amber-950/80 border-amber-500/50 text-amber-300"
+                            : "bg-rose-950/80 border-rose-500/50 text-rose-300"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          {drawerFeedback.type === "success" && <Check className="w-4 h-4 text-emerald-400 shrink-0" />}
+                          {drawerFeedback.type === "warning" && <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />}
+                          {drawerFeedback.type === "error" && <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0" />}
+                          <span>{drawerFeedback.message}</span>
+                        </div>
+                        <button type="button" onClick={() => setDrawerFeedback(null)} className="text-slate-400 hover:text-white cursor-pointer">
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+
                     <div className="flex items-center justify-between">
                       <span className="text-slate-300 font-bold uppercase tracking-wider text-[11px] flex items-center gap-1.5">
                         <Upload className="w-3.5 h-3.5 text-amber-400" />
@@ -1322,10 +1496,11 @@ export default function AdminProductsPage() {
                         <button
                           type="button"
                           onClick={() => handleUploadDrawerImage()}
-                          disabled={!drawerImageFile}
-                          className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl disabled:opacity-40 cursor-pointer text-xs"
+                          disabled={!drawerImageFile || isDrawerUploading}
+                          className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl disabled:opacity-40 cursor-pointer text-xs flex items-center gap-1.5"
                         >
-                          Upload
+                          {isDrawerUploading && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                          <span>{isDrawerUploading ? "Uploading..." : "Upload"}</span>
                         </button>
                       </div>
                     ) : (
@@ -1341,10 +1516,11 @@ export default function AdminProductsPage() {
                         <button
                           type="button"
                           onClick={() => handleUploadDrawerImage()}
-                          disabled={!drawerImageUrl.trim()}
-                          className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl disabled:opacity-40 cursor-pointer text-xs"
+                          disabled={!drawerImageUrl.trim() || isDrawerUploading}
+                          className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl disabled:opacity-40 cursor-pointer text-xs flex items-center gap-1.5"
                         >
-                          Attach
+                          {isDrawerUploading && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                          <span>{isDrawerUploading ? "Attaching..." : "Attach"}</span>
                         </button>
                       </div>
                     )}
@@ -1749,20 +1925,41 @@ export default function AdminProductsPage() {
                 </p>
               </div>
 
+              {/* In-Modal Feedback Alert */}
+              {createModalFeedback && (
+                <div
+                  className={`p-3 rounded-xl border text-xs font-semibold flex items-center gap-2.5 animate-in fade-in duration-200 ${
+                    createModalFeedback.type === "success"
+                      ? "bg-emerald-950/80 border-emerald-500/50 text-emerald-300"
+                      : "bg-rose-950/80 border-rose-500/50 text-rose-300"
+                  }`}
+                >
+                  {createModalFeedback.type === "success" ? (
+                    <Check className="w-4 h-4 text-emerald-400 shrink-0 animate-bounce" />
+                  ) : (
+                    <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                  )}
+                  <span>{createModalFeedback.message}</span>
+                </div>
+              )}
+
               {/* Submit Buttons */}
               <div className="pt-4 border-t border-slate-800 flex items-center justify-end gap-3">
                 <button
                   type="button"
                   onClick={() => setIsAddModalOpen(false)}
-                  className="px-4 py-2.5 text-slate-400 hover:text-white cursor-pointer font-medium"
+                  disabled={isCreatingProduct}
+                  className="px-4 py-2.5 text-slate-400 hover:text-white cursor-pointer font-medium disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-7 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold uppercase tracking-wider rounded-xl transition-all shadow-lg cursor-pointer"
+                  disabled={isCreatingProduct}
+                  className="px-7 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold uppercase tracking-wider rounded-xl transition-all shadow-lg cursor-pointer disabled:opacity-50 flex items-center gap-2"
                 >
-                  Publish Garment
+                  {isCreatingProduct && <RefreshCw className="w-4 h-4 animate-spin text-slate-950" />}
+                  <span>{isCreatingProduct ? "Publishing..." : "Publish Garment"}</span>
                 </button>
               </div>
             </form>

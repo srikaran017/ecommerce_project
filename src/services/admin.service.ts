@@ -1353,14 +1353,25 @@ export class AdminService {
       headers.set("Authorization", `Bearer ${token}`);
     }
 
+    // Anti-caching headers to guarantee real-time updates across browsers & proxies
+    headers.set("Cache-Control", "no-cache, no-store, must-revalidate");
+    headers.set("Pragma", "no-cache");
+
     // Ensure all admin endpoints route to /api/v1/admin/* as specified by the architecture
     const cleanEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
-    const adminPath = cleanEndpoint.startsWith("/admin/")
+    let adminPath = cleanEndpoint.startsWith("/admin/")
       ? cleanEndpoint
       : `/admin${cleanEndpoint}`;
 
+    const isGetOrHead = !options.method || options.method === "GET" || options.method === "HEAD";
+    if (isGetOrHead) {
+      const sep = adminPath.includes("?") ? "&" : "?";
+      adminPath = `${adminPath}${sep}_t=${Date.now()}`;
+    }
+
     try {
       const response = await fetch(`${getBaseUrl()}${adminPath}`, {
+        cache: "no-store",
         ...options,
         headers,
       });
@@ -2261,11 +2272,72 @@ export class AdminService {
     id: string,
     status: ProductStatusToggleInput
   ): Promise<ProductStatusToggleResponse> {
-    const res = await this.request<ProductStatusToggleResponse>(`/products/${id}/status`, {
+    const statusPayload: any = { ...status };
+    if (status.isActive !== undefined) {
+      statusPayload.status = status.isActive ? "ACTIVE" : "ARCHIVED";
+      statusPayload.isActive = Boolean(status.isActive);
+    }
+    if (status.isFeatured !== undefined) {
+      statusPayload.isFeatured = Boolean(status.isFeatured);
+    }
+
+    let res = await this.request<any>(`/products/${id}/status`, {
       method: "PATCH",
-      body: JSON.stringify(status),
+      body: JSON.stringify(statusPayload),
     });
-    if (res.success && res.data) return res.data;
+
+    // Fallback: If PATCH /status is not supported (404/405), try PUT /products/:id
+    if (!res.success && (res.statusCode === 404 || res.statusCode === 405)) {
+      res = await this.request<any>(`/products/${id}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          isActive: status.isActive,
+          isFeatured: status.isFeatured,
+          status: status.isActive !== undefined ? (status.isActive ? "ACTIVE" : "ARCHIVED") : undefined,
+        }),
+      });
+    }
+
+    if (res.success) {
+      const products = this.getLocalProducts();
+      const idx = products.findIndex((p) => p.id === id);
+      if (idx !== -1) {
+        if (status.isActive !== undefined) {
+          products[idx].isActive = status.isActive;
+          products[idx].status = status.isActive ? "ACTIVE" : "ARCHIVED";
+        }
+        if (status.isFeatured !== undefined) {
+          products[idx].isFeatured = status.isFeatured;
+        }
+        setLocalData(STORAGE_KEYS.PRODUCTS, products);
+      }
+      this.logAudit(
+        "PRODUCT",
+        id,
+        `Toggled status: Active=${status.isActive}, Featured=${status.isFeatured}`
+      );
+      return {
+        success: true,
+        statusCode: res.statusCode || 200,
+        message: res.message || "Product status updated successfully",
+        data: (res.data as any)?.data || res.data || {
+          id,
+          name: "",
+          isActive: Boolean(status.isActive),
+          isFeatured: Boolean(status.isFeatured),
+          updatedAt: new Date().toISOString(),
+        },
+      };
+    }
+
+    if (res.statusCode && res.statusCode >= 400) {
+      return {
+        success: false,
+        statusCode: res.statusCode,
+        message: res.message || "Failed to update product status.",
+        data: {} as any,
+      };
+    }
 
     const products = this.getLocalProducts();
     const idx = products.findIndex((p) => p.id === id);
@@ -2316,10 +2388,19 @@ export class AdminService {
    * automatically soft-archives the garment (isActive: false) to safeguard historical invoices and receipts.
    */
   static async deleteProduct(id: string, force?: boolean): Promise<DeleteProductResponse> {
-    const res = await this.request<DeleteProductResponse>(`/products/${id}${force ? "?force=true" : ""}`, {
+    const res = await this.request<any>(`/products/${id}${force ? "?force=true" : ""}`, {
       method: "DELETE",
     });
-    if (res.success && res.data) return res.data;
+    if (res.success) {
+      const products = this.getLocalProducts().filter((p) => p.id !== id);
+      setLocalData(STORAGE_KEYS.PRODUCTS, products);
+      return {
+        success: true,
+        statusCode: res.statusCode || 200,
+        message: res.message || "Product deleted successfully",
+        data: (res.data as any)?.data || res.data || { id, name: "Product", action: force ? "DELETED" : "ARCHIVED" },
+      };
+    }
 
     const products = this.getLocalProducts();
     const product = products.find((p) => p.id === id);
@@ -2441,11 +2522,23 @@ export class AdminService {
       requestBody = JSON.stringify(images);
     }
 
-    const res = await this.request<UploadProductImagesResponse>(`/products/${id}/images`, {
+    const res = await this.request<any>(`/products/${id}/images`, {
       method: "POST",
       body: requestBody,
     });
-    if (res.success && res.data) return res.data;
+    if (res.success) {
+      const imagesArr =
+        (res.data as any)?.images ||
+        (Array.isArray(res.data) ? res.data : []) ||
+        (res as any)?.images ||
+        [];
+      return {
+        success: true,
+        statusCode: res.statusCode || 200,
+        message: res.message || "Images uploaded successfully",
+        data: { images: imagesArr },
+      };
+    }
 
     if (res.statusCode && res.statusCode >= 400) {
       return {
@@ -4888,14 +4981,23 @@ export class AdminService {
     if (params?.limit) qs.set("limit", String(params.limit));
 
     const queryStr = qs.toString();
-    const res = await this.request<AdminCategory[]>(`/categories${queryStr ? `?${queryStr}` : ""}`);
-    if (res.success && Array.isArray(res.data)) {
+    const res = await this.request<any>(`/categories${queryStr ? `?${queryStr}` : ""}`);
+    const catsArr =
+      Array.isArray(res.data)
+        ? res.data
+        : Array.isArray((res.data as any)?.categories)
+        ? (res.data as any).categories
+        : Array.isArray((res.data as any)?.data)
+        ? (res.data as any).data
+        : null;
+
+    if (res.success && catsArr) {
       return {
         success: true,
         statusCode: 200,
         message: res.message || "Categories fetched successfully",
-        data: res.data,
-        meta: (res as any).meta || { view: params?.view || "tree", totalCount: res.data.length },
+        data: catsArr,
+        meta: (res as any).meta || { view: params?.view || "tree", totalCount: catsArr.length },
         pagination: (res as any).pagination,
       };
     }
@@ -5045,21 +5147,26 @@ export class AdminService {
     error?: string;
   }> {
     const isFormData = typeof FormData !== "undefined" && input instanceof FormData;
-    const res = await this.request<{ category: AdminCategory }>("/categories", {
+    const res = await this.request<any>("/categories", {
       method: "POST",
       body: isFormData ? input : JSON.stringify(input),
     });
 
-    if (res.success && res.data?.category) {
+    const categoryObj: AdminCategory | undefined =
+      (res.data as any)?.category ||
+      (res.data as any)?.data ||
+      (res.data && (res.data as any).id ? (res.data as any) : undefined);
+
+    if (res.success && categoryObj) {
       const cats = this.getLocalCategories();
-      cats.unshift(res.data.category);
+      cats.unshift(categoryObj);
       setLocalData(STORAGE_KEYS.CATEGORIES, cats);
-      this.logAudit("CATEGORY", res.data.category.id, `Created category "${res.data.category.name}"`);
+      this.logAudit("CATEGORY", categoryObj.id, `Created category "${categoryObj.name}"`);
       return {
         success: true,
         statusCode: 201,
         message: res.message || "Category created successfully",
-        data: res.data,
+        data: { category: categoryObj },
       };
     }
 
@@ -5148,24 +5255,29 @@ export class AdminService {
     error?: string;
   }> {
     const isFormData = typeof FormData !== "undefined" && input instanceof FormData;
-    const res = await this.request<{ category: AdminCategory }>(`/categories/${id}`, {
+    const res = await this.request<any>(`/categories/${id}`, {
       method: "PUT",
       body: isFormData ? input : JSON.stringify(input),
     });
 
-    if (res.success && res.data?.category) {
+    const categoryObj: AdminCategory | undefined =
+      (res.data as any)?.category ||
+      (res.data as any)?.data ||
+      (res.data && (res.data as any).id ? (res.data as any) : undefined);
+
+    if (res.success && categoryObj) {
       const cats = this.getLocalCategories();
       const idx = cats.findIndex((c) => c.id === id);
       if (idx !== -1) {
-        cats[idx] = res.data.category;
+        cats[idx] = categoryObj;
         setLocalData(STORAGE_KEYS.CATEGORIES, cats);
       }
-      this.logAudit("CATEGORY", id, `Updated category "${res.data.category.name}"`);
+      this.logAudit("CATEGORY", id, `Updated category "${categoryObj.name}"`);
       return {
         success: true,
         statusCode: 200,
         message: res.message || "Category updated successfully",
-        data: res.data,
+        data: { category: categoryObj },
       };
     }
 
@@ -5387,18 +5499,27 @@ export class AdminService {
     if (params?.isActive !== undefined) qs.set("isActive", String(params.isActive));
 
     const queryStr = qs.toString();
-    const res = await this.request<AdminCollection[]>(`/collections${queryStr ? `?${queryStr}` : ""}`);
-    if (res.success && Array.isArray(res.data)) {
+    const res = await this.request<any>(`/collections${queryStr ? `?${queryStr}` : ""}`);
+    const colsArr =
+      Array.isArray(res.data)
+        ? res.data
+        : Array.isArray((res.data as any)?.collections)
+        ? (res.data as any).collections
+        : Array.isArray((res.data as any)?.data)
+        ? (res.data as any).data
+        : null;
+
+    if (res.success && colsArr) {
       return {
         success: true,
         statusCode: 200,
         message: res.message || "Collections fetched successfully",
-        data: res.data,
+        data: colsArr,
         pagination: (res as any).pagination || {
           page: params?.page || 1,
           limit: params?.limit || 20,
-          total: res.data.length,
-          totalPages: Math.max(1, Math.ceil(res.data.length / (params?.limit || 20))),
+          total: colsArr.length,
+          totalPages: Math.max(1, Math.ceil(colsArr.length / (params?.limit || 20))),
         },
       };
     }
@@ -5542,21 +5663,26 @@ export class AdminService {
     error?: string;
   }> {
     const isFormData = typeof FormData !== "undefined" && input instanceof FormData;
-    const res = await this.request<{ collection: AdminCollection }>("/collections", {
+    const res = await this.request<any>("/collections", {
       method: "POST",
       body: isFormData ? input : JSON.stringify(input),
     });
 
-    if (res.success && res.data?.collection) {
+    const colObj: AdminCollection | undefined =
+      (res.data as any)?.collection ||
+      (res.data as any)?.data ||
+      (res.data && (res.data as any).id ? (res.data as any) : undefined);
+
+    if (res.success && colObj) {
       const cols = this.getLocalCollections();
-      cols.unshift(res.data.collection);
+      cols.unshift(colObj);
       setLocalData(STORAGE_KEYS.COLLECTIONS, cols);
-      this.logAudit("COLLECTION", res.data.collection.id, `Created collection "${res.data.collection.name}"`);
+      this.logAudit("COLLECTION", colObj.id, `Created collection "${colObj.name}"`);
       return {
         success: true,
         statusCode: 201,
         message: res.message || "Collection created successfully",
-        data: res.data,
+        data: { collection: colObj },
       };
     }
 
@@ -5641,24 +5767,29 @@ export class AdminService {
     error?: string;
   }> {
     const isFormData = typeof FormData !== "undefined" && input instanceof FormData;
-    const res = await this.request<{ collection: AdminCollection }>(`/collections/${id}`, {
+    const res = await this.request<any>(`/collections/${id}`, {
       method: "PUT",
       body: isFormData ? input : JSON.stringify(input),
     });
 
-    if (res.success && res.data?.collection) {
+    const colObj: AdminCollection | undefined =
+      (res.data as any)?.collection ||
+      (res.data as any)?.data ||
+      (res.data && (res.data as any).id ? (res.data as any) : undefined);
+
+    if (res.success && colObj) {
       const cols = this.getLocalCollections();
       const idx = cols.findIndex((c) => c.id === id);
       if (idx !== -1) {
-        cols[idx] = res.data.collection;
+        cols[idx] = colObj;
         setLocalData(STORAGE_KEYS.COLLECTIONS, cols);
       }
-      this.logAudit("COLLECTION", id, `Updated collection "${res.data.collection.name}"`);
+      this.logAudit("COLLECTION", id, `Updated collection "${colObj.name}"`);
       return {
         success: true,
         statusCode: 200,
         message: res.message || "Collection updated successfully",
-        data: res.data,
+        data: { collection: colObj },
       };
     }
 

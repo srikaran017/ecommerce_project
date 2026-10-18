@@ -80,6 +80,7 @@ export default function AdminCategoriesPage() {
   const [imageMode, setImageMode] = useState<"upload" | "url">("upload");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [modalSuccessMessage, setModalSuccessMessage] = useState<string | null>(null);
   const categoryFileInputRef = React.useRef<HTMLInputElement>(null);
 
   // Alerts & Notifications
@@ -269,14 +270,35 @@ export default function AdminCategoriesPage() {
         return;
       }
 
+      const catObj = res.data?.category;
+      if (editingCategory) {
+        if (catObj) {
+          setFlatCategories((prev) => prev.map((c) => (c.id === editingCategory.id ? { ...c, ...catObj } : c)));
+        } else {
+          setFlatCategories((prev) =>
+            prev.map((c) => (c.id === editingCategory.id ? { ...c, ...form, sortOrder: Number(form.sortOrder) } : c))
+          );
+        }
+      } else if (catObj) {
+        setFlatCategories((prev) => [catObj, ...prev]);
+      }
+
+      setModalSuccessMessage(
+        `Category "${form.name}" ${editingCategory ? "updated" : "created"} successfully! Refreshing taxonomy...`
+      );
       showAlert(
         "success",
         editingCategory ? "Category Updated" : "Category Created",
         `"${form.name}" was ${editingCategory ? "updated" : "added to taxonomy"} successfully.`
       );
 
-      setIsCreateModalOpen(false);
+      // Auto-refresh taxonomy data from API immediately
       await loadData(true);
+
+      setTimeout(() => {
+        setIsCreateModalOpen(false);
+        setModalSuccessMessage(null);
+      }, 1200);
     } catch (err: any) {
       showAlert("error", "Unexpected Error", err.message || "An error occurred.");
     } finally {
@@ -303,6 +325,8 @@ export default function AdminCategoriesPage() {
         return;
       }
 
+      const deletedId = deleteTarget.id;
+      setFlatCategories((prev) => prev.filter((c) => c.id !== deletedId));
       showAlert("success", "Category Deleted", `"${deleteTarget.name}" has been removed.`);
       setDeleteTarget(null);
       setIsForceDelete(false);
@@ -1021,6 +1045,14 @@ export default function AdminCategoriesPage() {
                   <span>Visible to Shoppers</span>
                 </label>
               </div>
+
+              {/* In-Modal Success Alert */}
+              {modalSuccessMessage && (
+                <div className="p-3 rounded-xl bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 text-xs font-semibold flex items-center gap-2.5 animate-in fade-in duration-200">
+                  <Check className="w-4 h-4 text-emerald-400 shrink-0 animate-bounce" />
+                  <span>{modalSuccessMessage}</span>
+                </div>
+              )}
 
               {/* Modal Buttons */}
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">

@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 const TARGET_API_URL =
   process.env.BACKEND_INTERNAL_URL ||
   "https://dress-ecomm-backend.onrender.com/api/v1";
@@ -364,6 +367,7 @@ async function proxyRequest(
       headers: forwardHeaders,
       body,
       redirect: "manual",
+      cache: "no-store",
     });
 
     const responseHeaders = new Headers();
@@ -378,6 +382,11 @@ async function proxyRequest(
         responseHeaders.set(key, value);
       }
     });
+
+    // Enforce no-cache policy on proxy responses so state updates reflect immediately
+    responseHeaders.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    responseHeaders.set("Pragma", "no-cache");
+    responseHeaders.set("Expires", "0");
 
     // Forward Set-Cookie headers accurately to preserve HttpOnly refreshToken rotation
     if (typeof (response.headers as any).getSetCookie === "function") {

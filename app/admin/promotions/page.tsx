@@ -102,6 +102,7 @@ export default function AdminPromotionsPage() {
   const [promoImageMode, setPromoImageMode] = useState<"upload" | "url">("url");
   const [promoImageFile, setPromoImageFile] = useState<File | null>(null);
   const [promoImagePreview, setPromoImagePreview] = useState<string | null>(null);
+  const [modalSuccessMessage, setModalSuccessMessage] = useState<string | null>(null);
   const promoFileInputRef = React.useRef<HTMLInputElement>(null);
 
   const [formCtaText, setFormCtaText] = useState("SHOP THE SALE");
@@ -261,10 +262,15 @@ export default function AdminPromotionsPage() {
       }
 
       if (res.success && res.data) {
+        setPromotions((prev) => [res.data!, ...prev]);
+        setModalSuccessMessage(`Campaign '${formTitle.toUpperCase()}' scheduled successfully! Refreshing...`);
         showNotification("success", res.message || `Campaign '${formTitle.toUpperCase()}' scheduled`);
-        setIsCreateModalOpen(false);
         setSelectedPreviewPromo(res.data);
-        loadPromotions();
+        await loadPromotions();
+        setTimeout(() => {
+          setIsCreateModalOpen(false);
+          setModalSuccessMessage(null);
+        }, 1200);
       } else {
         showNotification("error", res.message || "Failed to create campaign");
       }
@@ -326,10 +332,15 @@ export default function AdminPromotionsPage() {
       }
 
       if (res.success && res.data) {
+        setPromotions((prev) => prev.map((p) => (p.id === editingPromotion.id ? res.data! : p)));
+        setModalSuccessMessage(`Campaign '${formTitle.toUpperCase()}' updated successfully! Refreshing...`);
         showNotification("success", res.message || `Campaign '${formTitle.toUpperCase()}' updated`);
-        setEditingPromotion(null);
         setSelectedPreviewPromo(res.data);
-        loadPromotions();
+        await loadPromotions();
+        setTimeout(() => {
+          setEditingPromotion(null);
+          setModalSuccessMessage(null);
+        }, 1200);
       } else {
         showNotification("error", res.message || "Failed to update campaign");
       }
@@ -351,6 +362,7 @@ export default function AdminPromotionsPage() {
       const nextStatus = !promo.isActive;
       const res = await AdminService.togglePromotionStatus(promo.id, nextStatus);
       if (res.success) {
+        setPromotions((prev) => prev.map((p) => (p.id === promo.id ? { ...p, isActive: nextStatus } : p)));
         showNotification(
           "success",
           `Campaign '${promo.title}' ${nextStatus ? "is now LIVE" : "paused"}`
@@ -377,11 +389,13 @@ export default function AdminPromotionsPage() {
     try {
       const res = await AdminService.deletePromotion(deletingPromotion.id);
       if (res.success) {
+        const deletedId = deletingPromotion.id;
+        setPromotions((prev) => prev.filter((p) => p.id !== deletedId));
         showNotification(
           "success",
           res.message || `Campaign '${deletingPromotion.title}' deleted successfully`
         );
-        if (selectedPreviewPromo?.id === deletingPromotion.id) {
+        if (selectedPreviewPromo?.id === deletedId) {
           setSelectedPreviewPromo(null);
         }
         setDeletingPromotion(null);
@@ -1139,6 +1153,14 @@ export default function AdminPromotionsPage() {
                   Activate campaign immediately on storefront hero carousel
                 </label>
               </div>
+
+              {/* In-Modal Success Alert */}
+              {modalSuccessMessage && (
+                <div className="p-3 rounded-xl bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 text-xs font-semibold flex items-center gap-2.5 animate-in fade-in duration-200">
+                  <Check className="w-4 h-4 text-emerald-400 shrink-0 animate-bounce" />
+                  <span>{modalSuccessMessage}</span>
+                </div>
+              )}
 
               {/* Modal Buttons */}
               <div className="pt-4 border-t border-slate-800 flex justify-end gap-3">
