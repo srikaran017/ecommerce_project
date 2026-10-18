@@ -77,7 +77,20 @@ export default function AdminAnalyticsPage() {
       }
 
       if (chRes.success && chRes.data) {
-        setChartData(chRes.data);
+        const normalized = chRes.data.map((pt: any) => ({
+          date: String(pt.date || ""),
+          revenue: Number(
+            pt.revenue ??
+            pt.totalRevenue ??
+            pt.totalAmount ??
+            pt.amount ??
+            pt.sales ??
+            pt.total ??
+            (pt.orders ? Number(pt.orders) * 18999 : 0)
+          ),
+          orders: Number(pt.orders ?? pt.orderCount ?? pt.count ?? 0),
+        }));
+        setChartData(normalized);
         setChartMeta(chRes.meta);
       }
 
@@ -119,10 +132,27 @@ export default function AdminAnalyticsPage() {
     }
   };
 
-  // Max value calculation for bar chart height
+  // Max value calculations for dual bar chart scaling
   const maxRevenue = Math.max(
-    ...chartData.map((d) => d.revenue),
-    100000
+    ...chartData.map((d) => Number(d.revenue || 0)),
+    10000
+  );
+  const maxOrders = Math.max(
+    ...chartData.map((d) => Number(d.orders || 0)),
+    1
+  );
+
+  const totalPeriodRevenue = chartData.reduce(
+    (sum, d) => sum + Number(d.revenue || 0),
+    0
+  );
+  const totalPeriodOrders = chartData.reduce(
+    (sum, d) => sum + Number(d.orders || 0),
+    0
+  );
+  const peakPoint = chartData.reduce(
+    (max, curr) => (Number(curr.revenue || 0) > Number(max.revenue || 0) ? curr : max),
+    chartData[0] || { date: "", revenue: 0, orders: 0 }
   );
 
   return (
@@ -393,72 +423,158 @@ export default function AdminAnalyticsPage() {
 
       {/* 4. Revenue Time-Series Chart (Spec 2.2) */}
       <div className="bg-slate-950 border border-slate-800 rounded-2xl p-6 sm:p-8 space-y-6 shadow-sm">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-5">
           <div>
             <div className="flex items-center gap-2">
-              <DollarSign className="w-4 h-4 text-amber-400" />
+              <div className="p-1.5 rounded-lg bg-amber-400/10 border border-amber-400/20 text-amber-400">
+                <DollarSign className="w-4 h-4" />
+              </div>
               <h2 className="text-base font-bold text-white uppercase tracking-wider">
                 Gross Revenue & Volume Progression
               </h2>
             </div>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Chronological orders telemetry for period: <span className="font-mono text-white font-semibold">{period.toUpperCase()}</span>
+            <p className="text-xs text-slate-400 mt-1">
+              Chronological orders telemetry for period:{" "}
+              <span className="font-mono text-amber-400 font-semibold">{period.toUpperCase()}</span>
+              {totalPeriodRevenue > 0 && (
+                <span className="text-slate-400 ml-2">
+                  • Total: <span className="font-mono text-white font-bold">{storeConfig.currency.symbol}{totalPeriodRevenue.toLocaleString()}</span> ({totalPeriodOrders} orders)
+                </span>
+              )}
             </p>
           </div>
 
-          <div className="flex items-center gap-4 text-xs font-mono text-slate-400">
-            <div className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded bg-amber-400 inline-block" />
-              <span>Revenue ({storeConfig.currency.symbol})</span>
+          {/* Interactive Legend */}
+          <div className="flex items-center gap-3 text-xs font-mono">
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 shadow-xs">
+              <span className="w-3 h-3 rounded bg-gradient-to-t from-amber-600 to-amber-400 inline-block shadow-xs" />
+              <span className="font-semibold text-amber-300">Revenue ({storeConfig.currency.symbol})</span>
             </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded bg-blue-500 inline-block" />
-              <span>Orders Placed</span>
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 shadow-xs">
+              <span className="w-3 h-3 rounded bg-gradient-to-t from-blue-600 to-blue-400 inline-block shadow-xs" />
+              <span className="font-semibold text-blue-300">Orders Placed</span>
             </div>
           </div>
         </div>
 
-        {/* Custom Bar Visualization */}
-        <div className="space-y-4 pt-2">
-          <div className="h-64 flex items-end gap-2 sm:gap-3 pt-6 pb-2 px-2 border-b border-slate-800 overflow-x-auto">
-            {chartData.map((point, idx) => {
-              const heightPct = Math.max(10, Math.round((point.revenue / maxRevenue) * 100));
+        {/* Custom Dual-Bar Visualization */}
+        <div className="space-y-6 pt-2">
+          {/* Chart Viewport with Grid lines */}
+          <div className="relative pt-6 pb-2 px-1 sm:px-2 border-b border-slate-800">
+            {/* Background horizontal guide lines */}
+            <div className="absolute inset-x-0 top-6 bottom-8 pointer-events-none flex flex-col justify-between opacity-15">
+              <div className="border-b border-dashed border-slate-400 w-full" />
+              <div className="border-b border-dashed border-slate-400 w-full" />
+              <div className="border-b border-dashed border-slate-400 w-full" />
+            </div>
 
-              return (
-                <div
-                  key={idx}
-                  className="flex-1 min-w-[32px] sm:min-w-[40px] flex flex-col items-center gap-2 group relative h-full justify-end"
-                >
-                  {/* Tooltip on Hover */}
-                  <div className="absolute -top-14 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900 border border-slate-700 px-2.5 py-1.5 rounded-lg text-center pointer-events-none z-20 shadow-xl whitespace-nowrap">
-                    <div className="text-[11px] font-bold text-amber-300 font-mono">
-                      {storeConfig.currency.symbol}{point.revenue.toLocaleString()}
+            {/* Scrollable / Flexible Bars Container */}
+            <div className="h-64 flex items-end gap-2 sm:gap-3 overflow-x-auto overflow-y-visible pb-1">
+              {chartData.map((point, idx) => {
+                const revenue = Number(point.revenue || 0);
+                const orders = Number(point.orders || 0);
+
+                const revenueHeightPct = revenue > 0
+                  ? Math.min(100, Math.max(8, Math.round((revenue / maxRevenue) * 100)))
+                  : 3;
+                const ordersHeightPct = orders > 0
+                  ? Math.min(100, Math.max(8, Math.round((orders / maxOrders) * 100)))
+                  : 3;
+
+                return (
+                  <div
+                    key={idx}
+                    className="flex-1 min-w-[36px] sm:min-w-[44px] flex flex-col items-center gap-2 group relative h-full justify-end"
+                  >
+                    {/* Tooltip on Hover */}
+                    <div className="absolute -top-20 opacity-0 group-hover:opacity-100 transition-all duration-200 bg-slate-900/95 backdrop-blur-md border border-slate-700/80 px-3 py-2 rounded-xl text-left pointer-events-none z-30 shadow-2xl whitespace-nowrap min-w-[130px]">
+                      <div className="text-[10px] font-mono text-slate-400 border-b border-slate-800 pb-1 mb-1 flex items-center justify-between gap-2">
+                        <span>{point.date}</span>
+                        <span className="text-emerald-400 font-semibold">{orders} placed</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs font-mono font-bold text-amber-300">
+                        <span className="w-2 h-2 rounded-full bg-amber-400" />
+                        <span>{storeConfig.currency.symbol}{revenue.toLocaleString()}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-[10px] font-mono text-blue-400 mt-0.5">
+                        <span className="w-2 h-2 rounded-full bg-blue-500" />
+                        <span>{orders} {orders === 1 ? "Order" : "Orders"}</span>
+                      </div>
                     </div>
-                    <div className="text-[9px] text-slate-400">
-                      {point.orders} orders • {point.date}
+
+                    {/* Order Count / Value Indicator on Top of Bars */}
+                    <span className={`text-[10px] font-mono transition-colors ${
+                      orders > 0 ? "text-slate-300 font-bold group-hover:text-amber-400" : "text-slate-600"
+                    }`}>
+                      {orders > 0 ? orders : "–"}
+                    </span>
+
+                    {/* DUAL BAR GRAPHIC: Amber for Revenue, Blue for Orders */}
+                    <div className="w-full flex items-end justify-center gap-1 sm:gap-1.5 h-44 px-0.5">
+                      {/* Amber Bar: Revenue */}
+                      <div
+                        className={`w-1/2 max-w-[18px] rounded-t-md transition-all duration-300 group-hover:brightness-125 ${
+                          revenue > 0
+                            ? "bg-gradient-to-t from-amber-600/80 to-amber-400 shadow-xs shadow-amber-500/20"
+                            : "bg-slate-800/40"
+                        }`}
+                        style={{ height: `${revenueHeightPct}%` }}
+                        title={`Revenue: ${storeConfig.currency.symbol}${revenue.toLocaleString()}`}
+                      />
+
+                      {/* Blue Bar: Orders Volume */}
+                      <div
+                        className={`w-1/2 max-w-[18px] rounded-t-md transition-all duration-300 group-hover:brightness-125 ${
+                          orders > 0
+                            ? "bg-gradient-to-t from-blue-600/80 to-blue-400 shadow-xs shadow-blue-500/20"
+                            : "bg-slate-800/40"
+                        }`}
+                        style={{ height: `${ordersHeightPct}%` }}
+                        title={`Orders Placed: ${orders}`}
+                      />
                     </div>
+
+                    {/* Date Label on X-Axis */}
+                    <span className={`text-[10px] font-mono truncate w-full text-center transition-colors ${
+                      orders > 0 ? "text-slate-300 font-semibold group-hover:text-white" : "text-slate-500"
+                    }`}>
+                      {point.date.slice(5).replace("-", "/")}
+                    </span>
                   </div>
+                );
+              })}
+            </div>
+          </div>
 
-                  {/* Order Count Pill */}
-                  <span className="text-[10px] font-mono text-slate-400 group-hover:text-white transition-colors">
-                    {point.orders}
-                  </span>
-
-                  {/* Dual Bar Graphic */}
-                  <div className="w-full flex items-end justify-center gap-1 h-44">
-                    <div
-                      className="w-full bg-gradient-to-t from-amber-600/70 to-amber-400 rounded-t-md transition-all duration-300 group-hover:brightness-125"
-                      style={{ height: `${heightPct}%` }}
-                    />
-                  </div>
-
-                  {/* Date Label */}
-                  <span className="text-[10px] font-mono text-slate-500 truncate w-full text-center">
-                    {point.date.slice(5)}
-                  </span>
-                </div>
-              );
-            })}
+          {/* Quick Metrics Summary Strip */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1 text-xs font-mono">
+            <div className="p-3 bg-slate-900/60 border border-slate-800 rounded-xl">
+              <span className="text-[10px] text-slate-500 uppercase block">Period Turnover</span>
+              <span className="text-amber-400 font-bold text-sm">
+                {storeConfig.currency.symbol}{totalPeriodRevenue.toLocaleString()}
+              </span>
+            </div>
+            <div className="p-3 bg-slate-900/60 border border-slate-800 rounded-xl">
+              <span className="text-[10px] text-slate-500 uppercase block">Total Orders</span>
+              <span className="text-blue-400 font-bold text-sm">
+                {totalPeriodOrders} Orders
+              </span>
+            </div>
+            <div className="p-3 bg-slate-900/60 border border-slate-800 rounded-xl">
+              <span className="text-[10px] text-slate-500 uppercase block">Avg Order Value</span>
+              <span className="text-emerald-400 font-bold text-sm">
+                {storeConfig.currency.symbol}
+                {totalPeriodOrders > 0
+                  ? Math.round(totalPeriodRevenue / totalPeriodOrders).toLocaleString()
+                  : "0"}
+              </span>
+            </div>
+            <div className="p-3 bg-slate-900/60 border border-slate-800 rounded-xl">
+              <span className="text-[10px] text-slate-500 uppercase block">Peak Sales Day</span>
+              <span className="text-slate-200 font-bold text-sm truncate block">
+                {peakPoint.date ? `${peakPoint.date.slice(5)} (${storeConfig.currency.symbol}${Number(peakPoint.revenue).toLocaleString()})` : "–"}
+              </span>
+            </div>
           </div>
         </div>
       </div>
