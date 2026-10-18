@@ -112,6 +112,7 @@ export default function AdminCustomersPage() {
   // Delete Customer Confirmation Modal State
   const [customerToDelete, setCustomerToDelete] = useState<AdminCustomerListItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [modalSuccessMessage, setModalSuccessMessage] = useState<string | null>(null);
 
   const showNotification = (type: "success" | "warning" | "error", message: string) => {
     setFeedback({ type, message });
@@ -259,9 +260,33 @@ export default function AdminCustomersPage() {
 
       const res = await AdminService.createCustomer(payload);
       if (res.success) {
+        // Immediate optimistic table update
+        const createdCust = res.data?.customer;
+        if (createdCust) {
+          setCustomers((prev) => [
+            {
+              id: createdCust.id,
+              name: createdCust.name,
+              email: createdCust.email,
+              phone: createdCust.phone || "",
+              avatarUrl: createdCust.avatarUrl,
+              isActive: createdCust.isActive ?? true,
+              ordersCount: 0,
+              totalSpent: 0,
+              averageOrderValue: 0,
+              location: createForm.city ? `${createForm.city}, ${createForm.state}` : "Direct Admin",
+              createdAt: new Date().toISOString(),
+            },
+            ...prev,
+          ]);
+        }
+        setModalSuccessMessage(`Customer account created successfully! Updating table...`);
         showNotification("success", res.message || "Customer account created successfully.");
-        setIsCreateModalOpen(false);
         loadCustomers(true);
+        setTimeout(() => {
+          setIsCreateModalOpen(false);
+          setModalSuccessMessage(null);
+        }, 1200);
       } else {
         showNotification("error", res.message || "Failed to create customer.");
       }
@@ -303,9 +328,28 @@ export default function AdminCustomersPage() {
 
       const res = await AdminService.updateCustomer(editingCustomer.id, payload);
       if (res.success) {
+        // Immediate in-place table update
+        setCustomers((prev) =>
+          prev.map((c) =>
+            c.id === editingCustomer.id
+              ? {
+                  ...c,
+                  name: editForm.name.trim() || c.name,
+                  email: editForm.email.trim().toLowerCase() || c.email,
+                  phone: editForm.phone.trim() || c.phone,
+                  isActive: editForm.isActive,
+                  avatarUrl: editForm.avatarUrl || c.avatarUrl,
+                }
+              : c
+          )
+        );
+        setModalSuccessMessage(`Customer profile updated successfully! Refreshing view...`);
         showNotification("success", res.message || "Customer profile updated successfully.");
-        setEditingCustomer(null);
         loadCustomers(true);
+        setTimeout(() => {
+          setEditingCustomer(null);
+          setModalSuccessMessage(null);
+        }, 1200);
       } else {
         showNotification("error", res.message || "Failed to update customer.");
       }
@@ -316,6 +360,37 @@ export default function AdminCustomersPage() {
     }
   };
 
+  // Quick Account Status Toggle (0ms delay)
+  const handleToggleCustomerStatus = async (customer: AdminCustomerListItem) => {
+    if (!canWrite) return;
+    const nextStatus = !customer.isActive;
+    // Optimistic UI update (0ms delay)
+    setCustomers((prev) =>
+      prev.map((c) => (c.id === customer.id ? { ...c, isActive: nextStatus } : c))
+    );
+    try {
+      const res = await AdminService.updateCustomer(customer.id, { isActive: nextStatus });
+      if (res.success) {
+        showNotification(
+          "success",
+          `Customer '${customer.name}' account is now ${nextStatus ? "Active" : "Inactive"}.`
+        );
+        loadCustomers(true);
+      } else {
+        // Revert
+        setCustomers((prev) =>
+          prev.map((c) => (c.id === customer.id ? { ...c, isActive: customer.isActive } : c))
+        );
+        showNotification("error", res.message || "Failed to update account status.");
+      }
+    } catch (err: any) {
+      setCustomers((prev) =>
+        prev.map((c) => (c.id === customer.id ? { ...c, isActive: customer.isActive } : c))
+      );
+      showNotification("error", err.message || "Failed to update status.");
+    }
+  };
+
   // Handle Delete / Deactivate Customer
   const handleDeleteConfirm = async () => {
     if (!customerToDelete) return;
@@ -323,6 +398,16 @@ export default function AdminCustomersPage() {
     try {
       const res = await AdminService.deleteCustomer(customerToDelete.id);
       if (res.success) {
+        // Immediate in-place table update
+        if (customerToDelete.ordersCount && customerToDelete.ordersCount > 0) {
+          // Soft-deactivated
+          setCustomers((prev) =>
+            prev.map((c) => (c.id === customerToDelete.id ? { ...c, isActive: false } : c))
+          );
+        } else {
+          // Hard-deleted
+          setCustomers((prev) => prev.filter((c) => c.id !== customerToDelete.id));
+        }
         showNotification("success", res.message || "Customer operation completed.");
         setCustomerToDelete(null);
         loadCustomers(true);
@@ -670,20 +755,23 @@ export default function AdminCustomersPage() {
 
                     {/* Status */}
                     <td className="py-4 px-4 text-center">
-                      <span
-                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                      <button
+                        onClick={() => handleToggleCustomerStatus(c)}
+                        disabled={!canWrite}
+                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all ${
                           c.isActive
-                            ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30"
-                            : "bg-slate-800 text-slate-400 border border-slate-700"
-                        }`}
+                            ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20"
+                            : "bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-750"
+                        } ${canWrite ? "cursor-pointer" : "cursor-default"}`}
+                        title={canWrite ? `Click to ${c.isActive ? "deactivate" : "activate"} account` : undefined}
                       >
                         <span
                           className={`w-1.5 h-1.5 rounded-full ${
-                            c.isActive ? "bg-emerald-400" : "bg-slate-500"
+                            c.isActive ? "bg-emerald-400 animate-pulse" : "bg-slate-500"
                           }`}
                         />
                         <span>{c.isActive ? "Active" : "Inactive"}</span>
-                      </span>
+                      </button>
                     </td>
 
                     {/* Actions */}
@@ -1006,6 +1094,12 @@ export default function AdminCustomersPage() {
             </div>
 
             <form onSubmit={handleCreateSubmit} className="space-y-4">
+              {modalSuccessMessage && (
+                <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-400 text-xs flex items-center gap-2 animate-in fade-in">
+                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+                  <span>{modalSuccessMessage}</span>
+                </div>
+              )}
               {/* Full Name */}
               <div className="space-y-1">
                 <label className="text-[11px] font-bold uppercase tracking-wider text-slate-300 block">
@@ -1241,6 +1335,12 @@ export default function AdminCustomersPage() {
             </div>
 
             <form onSubmit={handleEditSubmit} className="space-y-4">
+              {modalSuccessMessage && (
+                <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-400 text-xs flex items-center gap-2 animate-in fade-in">
+                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+                  <span>{modalSuccessMessage}</span>
+                </div>
+              )}
               <div className="space-y-1">
                 <label className="text-[11px] font-bold uppercase tracking-wider text-slate-300 block">
                   Full Name

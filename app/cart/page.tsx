@@ -58,13 +58,9 @@ export default function CartPage() {
     setIsMounted(true);
     if (!hasCheckedRef.current) {
       hasCheckedRef.current = true;
-      if (isAuthenticated) {
-        fetchCart().catch(() => {});
-      } else {
-        useCartStore.setState({ items: [], apiCart: null, appliedCoupon: null });
-      }
+      fetchCart().catch(() => {});
     }
-  }, [fetchCart, isAuthenticated]);
+  }, [fetchCart]);
 
   // Sync gift note from apiCart metafields if present
   useEffect(() => {
