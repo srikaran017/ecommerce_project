@@ -258,11 +258,13 @@ export function ProductCard({ product }: ProductCardProps) {
       </div>
 
       {/* Quick View Modal */}
-      <QuickViewModal
-        product={product}
-        isOpen={isQuickViewOpen}
-        onClose={() => setIsQuickViewOpen(false)}
-      />
+      {isQuickViewOpen && (
+        <QuickViewModal
+          product={product}
+          isOpen={isQuickViewOpen}
+          onClose={() => setIsQuickViewOpen(false)}
+        />
+      )}
     </>
   );
 }

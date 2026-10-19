@@ -108,7 +108,7 @@ export const useWishlistStore = create<WishlistStore>()(
       },
     }),
     {
-      name: "wardrobe_wishlist_v1",
+      name: "wardrobe_wishlist_v2",
       partialize: (state) => ({ wishlistIds: state.wishlistIds }),
     }
   )

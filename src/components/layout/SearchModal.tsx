@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { Search, X, ArrowRight, TrendingUp, Sparkles } from "lucide-react";
 import { useUIStore } from "@/stores/ui.store";
-import { FALLBACK_PRODUCTS, ProductData } from "@/data/products.data";
+import { ProductData } from "@/data/products.data";
 import { storeConfig } from "@/config/store.config";
 
 import { ProductService } from "@/services/product.service";
@@ -25,16 +25,7 @@ export function SearchModal() {
         const matched = await ProductService.getAllProducts({ search: query });
         setResults(matched.slice(0, 6));
       } catch {
-        const q = query.toLowerCase();
-        const matched = FALLBACK_PRODUCTS.filter(
-          (p) =>
-            p.name.toLowerCase().includes(q) ||
-            p.description.toLowerCase().includes(q) ||
-            p.brand.toLowerCase().includes(q) ||
-            p.categoryName.toLowerCase().includes(q) ||
-            p.tags.some((t) => t.toLowerCase().includes(q))
-        ).slice(0, 4);
-        setResults(matched);
+        setResults([]);
       }
     }, 200);
 
@@ -55,11 +46,11 @@ export function SearchModal() {
   if (!isSearchOpen) return null;
 
   const popularSearches = [
-    "Mulberry Silk Gown",
-    "Belgian Linen",
-    "Banarasi Saree",
-    "Wool Blazer",
-    "Streetwear Hoodie",
+    "Silk",
+    "Linen",
+    "Cotton",
+    "Saree",
+    "Dress",
   ];
 
   return (

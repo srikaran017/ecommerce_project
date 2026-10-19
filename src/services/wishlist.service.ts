@@ -1,7 +1,7 @@
 import { getApiBaseUrl } from "@/services/apiConfig";
 import { AuthService } from "@/services/auth.service";
 import { storeConfig } from "@/config/store.config";
-import { FALLBACK_PRODUCTS, ProductData } from "@/data/products.data";
+import { ProductData } from "@/data/products.data";
 import { ProductService } from "@/services/product.service";
 import { useCartStore } from "@/stores/cart.store";
 import {
@@ -205,9 +205,10 @@ export class WishlistService {
 
     // Local Fallback Builder
     const localIds = getLocalWishlistIds();
+    const allProducts = await ProductService.getAllProducts();
     let matchedProducts: WishlistItem[] = localIds
       .map((id) => {
-        const p = FALLBACK_PRODUCTS.find((item) => item.id === id);
+        const p = allProducts.find((item) => item.id === id);
         if (!p) return null;
 
         const regular = p.priceObject?.regular || p.compareAtPrice || p.price;
@@ -505,9 +506,7 @@ export class WishlistService {
     }
 
     // Client-side Cart Store Integration Fallback
-    const product =
-      FALLBACK_PRODUCTS.find((p) => p.id === productId) ||
-      (await ProductService.getProductById(productId));
+    const product = await ProductService.getProductById(productId);
     if (!product) {
       throw new Error("Product not found in catalog");
     }
@@ -585,16 +584,17 @@ export class WishlistService {
 
     // Telemetry Fallback
     const localIds = getLocalWishlistIds();
-    const topWishlisted = FALLBACK_PRODUCTS.slice(0, 10).map((p, idx) => ({
+    const allProducts = await ProductService.getAllProducts();
+    const topWishlisted = allProducts.slice(0, 10).map((p, idx) => ({
       productId: p.id,
-      wishlistCount: Math.max(12, 42 - idx * 3),
+      wishlistCount: Math.max(1, localIds.filter((id) => id === p.id).length),
       name: p.name,
       slug: p.slug,
       brand: p.brand || storeConfig.name,
-      category: p.categoryName || "Evening Gowns",
+      category: p.categoryName || "General",
       regularPrice: p.priceObject?.regular || p.compareAtPrice || p.price,
       salePrice: p.priceObject?.effective || p.price,
-      stockQuantity: p.stock || 24,
+      stockQuantity: p.stock || 0,
       thumbnail: p.thumbnail || p.images[0]?.url || "",
     }));
 
@@ -603,8 +603,8 @@ export class WishlistService {
       statusCode: 200,
       message: "Wishlist analytics compiled successfully",
       data: {
-        totalWishlistItems: Math.max(localIds.length, 142),
-        totalCustomersWithWishlists: 89,
+        totalWishlistItems: localIds.length,
+        totalCustomersWithWishlists: localIds.length > 0 ? 1 : 0,
         topWishlistedProducts: topWishlisted,
       },
       meta: {

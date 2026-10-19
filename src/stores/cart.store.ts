@@ -517,7 +517,7 @@ export const useCartStore = create<CartState>()(
       },
     }),
     {
-      name: "maison_cart_store",
+      name: "saayal_cart_store_v2",
       partialize: (state) => ({
         items: state.items,
         apiCart: state.apiCart,

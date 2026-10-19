@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { X, ShoppingBag, Check, ArrowRight } from "lucide-react";
@@ -17,7 +17,6 @@ interface QuickViewModalProps {
 
 export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps) {
   const router = useRouter();
-  if (!isOpen) return null;
 
   const defaultVariant = product.variants?.[0] || {
     id: "default",
@@ -36,12 +35,20 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
   );
   const [addedAnimation, setAddedAnimation] = useState(false);
   const addItem = useCartStore((state) => state.addItem);
+  const { isAuthenticated } = useAuthStore();
+
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedVariant(defaultVariant);
+      setActiveImg(product.images[0]?.url || "https://images.unsplash.com/photo-1610030469983-98e550d6193c?q=80&w=800");
+    }
+  }, [isOpen, product.id]);
 
   const availableSizes = Array.from(
-    new Set(product.variants?.map((v) => v.size) || ["S", "M", "L"])
+    new Set(product.variants?.map((v) => v.size).filter(Boolean) || ["S", "M", "L"])
   );
 
-  const { isAuthenticated } = useAuthStore();
+  if (!isOpen) return null;
 
   const handleAddToCart = () => {
     if (selectedVariant.stock <= 0) return;

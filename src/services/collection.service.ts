@@ -73,7 +73,7 @@ export class CollectionService {
       imageUrl: c.image || null,
       isFeatured: true,
       sortOrder: idx + 1,
-      productsCount: typeof c.itemCount === "number" ? c.itemCount : 4,
+      productsCount: typeof c.itemCount === "number" ? c.itemCount : 0,
     }));
   }
 
