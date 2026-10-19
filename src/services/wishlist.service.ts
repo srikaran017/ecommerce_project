@@ -2,6 +2,7 @@ import { getApiBaseUrl } from "@/services/apiConfig";
 import { AuthService } from "@/services/auth.service";
 import { storeConfig } from "@/config/store.config";
 import { FALLBACK_PRODUCTS, ProductData } from "@/data/products.data";
+import { ProductService } from "@/services/product.service";
 import { useCartStore } from "@/stores/cart.store";
 import {
   WishlistItem,
@@ -504,7 +505,9 @@ export class WishlistService {
     }
 
     // Client-side Cart Store Integration Fallback
-    const product = FALLBACK_PRODUCTS.find((p) => p.id === productId);
+    const product =
+      FALLBACK_PRODUCTS.find((p) => p.id === productId) ||
+      (await ProductService.getProductById(productId));
     if (!product) {
       throw new Error("Product not found in catalog");
     }

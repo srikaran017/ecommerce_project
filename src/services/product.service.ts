@@ -102,8 +102,44 @@ export class ProductService {
       // Silent catch -> fallback seamlessly to local products
     }
 
-    // Fallback: Local dataset filtering
-    let products = FALLBACK_PRODUCTS.map(ensureProductData);
+    // Fallback: Local dataset filtering (Includes products created dynamically via admin)
+    let localAdminProducts: ProductData[] = [];
+    if (typeof window !== "undefined") {
+      try {
+        const raw = localStorage.getItem("admin_mock_products_v2");
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            localAdminProducts = parsed.map((ap: any) => ({
+              id: ap.id,
+              name: ap.name,
+              slug: ap.slug || ap.name?.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+              description: ap.description || "",
+              shortDescription: ap.shortDescription,
+              price: Number(ap.salePrice || ap.regularPrice || 0),
+              compareAtPrice: ap.salePrice ? Number(ap.regularPrice) : null,
+              sku: ap.sku,
+              brand: ap.brand || "Saayal Stories",
+              gender: ap.gender || "WOMEN",
+              tags: Array.isArray(ap.tags) ? ap.tags : [],
+              categorySlug: ap.categorySlug || ap.category?.slug || "general",
+              categoryName: ap.categoryName || ap.category?.name || "General",
+              status: ap.status || "ACTIVE",
+              isFeatured: Boolean(ap.isFeatured),
+              isNewArrival: true,
+              isBestSeller: false,
+              stock: Number(ap.stockQuantity ?? 0),
+              stockQuantity: Number(ap.stockQuantity ?? 0),
+              inStock: Number(ap.stockQuantity ?? 0) > 0,
+              images: Array.isArray(ap.images) ? ap.images : [],
+              variants: Array.isArray(ap.variants) ? ap.variants : [],
+            }));
+          }
+        }
+      } catch {}
+    }
+
+    let products = [...localAdminProducts, ...FALLBACK_PRODUCTS].map(ensureProductData);
 
     if (filters?.category) {
       products = products.filter(
@@ -253,7 +289,11 @@ export class ProductService {
     }
 
     const fallback = FALLBACK_PRODUCTS.find((p) => p.slug === slug);
-    return fallback ? ensureProductData(fallback) : null;
+    if (fallback) return ensureProductData(fallback);
+
+    const all = await this.getAllProducts();
+    const match = all.find((p) => p.slug === slug);
+    return match ? ensureProductData(match) : null;
   }
 
   /**

@@ -151,7 +151,7 @@ const getBaseUrl = () => getApiBaseUrl();
 // ==========================================
 
 const STORAGE_KEYS = {
-  PRODUCTS: "admin_mock_products_v1",
+  PRODUCTS: "admin_mock_products_v2",
   ORDERS: "admin_mock_orders_v1",
   INVENTORY_LOGS: "admin_mock_inventory_logs_v1",
   CATEGORIES: "admin_mock_categories_v1",
@@ -909,8 +909,11 @@ export const INITIAL_STORE_SETTINGS: StoreSettings = {
 
 export const INITIAL_AUDIT_LOGS: AdminAuditLog[] = [];
 
-// Initialize seed products conforming to Module 03
+// Initialize seed products conforming to Module 03 (Starts clean & empty for testing)
 function getInitialProducts(): AdminProduct[] {
+  return [];
+}
+function _unused_getInitialProducts(): AdminProduct[] {
   return FALLBACK_PRODUCTS.map((p, pIdx) => {
     const regPrice = Number(p.compareAtPrice || p.price);
     const sPrice = p.compareAtPrice ? Number(p.price) : null;
