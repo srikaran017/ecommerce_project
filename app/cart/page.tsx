@@ -212,18 +212,43 @@ export default function CartPage() {
           </span>
         </div>
 
-        {/* Express Delivery Notice Banner */}
-        <div className="mb-8 p-4 rounded-2xl bg-[var(--muted)]/50 border border-[var(--border)] flex items-center justify-between text-xs font-semibold">
-          <span className="flex items-center gap-2.5 text-[var(--foreground)]">
-            <Truck className="w-4 h-4 text-amber-600 flex-shrink-0" />
-            <span>
-              Standard Express Courier Delivery: Flat <strong className="text-[var(--foreground)]">{storeConfig.currency.symbol}{deliveryFee}</strong> applied to all customer orders.
-            </span>
-          </span>
-          <span className="text-[11px] font-medium text-[var(--muted-foreground)] hidden sm:inline-block">
-            {storeConfig.shipping.estimatedDeliveryDays}
-          </span>
-        </div>
+        {/* Dynamic Free Shipping Progress Banner per Backend Specification */}
+        {(() => {
+          const threshold = storeConfig.shipping.freeShippingThreshold || 2999;
+          const netSubtotal = Math.max(0, subtotal + modifiersTotal - discount);
+          const remaining = Math.max(0, threshold - netSubtotal);
+          const percent = Math.min(100, Math.round((netSubtotal / threshold) * 100));
+          const isFree = netSubtotal >= threshold;
+
+          return (
+            <div className="mb-8 p-4 sm:p-5 rounded-2xl bg-[var(--muted)]/50 border border-[var(--border)] space-y-2.5">
+              <div className="flex items-center justify-between text-xs font-semibold">
+                <span className="flex items-center gap-2.5 text-[var(--foreground)]">
+                  <Truck className={`w-4 h-4 flex-shrink-0 ${isFree ? "text-emerald-600" : "text-amber-600"}`} />
+                  {isFree ? (
+                    <span className="text-emerald-700 font-bold flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-emerald-600 inline" />
+                      Complimentary White-Glove Delivery Unlocked! ✨
+                    </span>
+                  ) : (
+                    <span>
+                      Add <strong className="text-[var(--foreground)]">{storeConfig.currency.symbol}{remaining.toLocaleString()}</strong> more to enjoy <strong className="text-emerald-700">Free White-Glove Delivery!</strong>
+                    </span>
+                  )}
+                </span>
+                <span className="text-[11px] font-medium text-[var(--muted-foreground)] hidden sm:inline-block">
+                  {storeConfig.shipping.estimatedDeliveryDays}
+                </span>
+              </div>
+              <div className="w-full h-1.5 bg-neutral-200 dark:bg-neutral-800 rounded-full overflow-hidden">
+                <div
+                  className={`h-full transition-all duration-500 rounded-full ${isFree ? "bg-emerald-500" : "bg-amber-500"}`}
+                  style={{ width: `${percent}%` }}
+                />
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Grid Layout: Bag Items (8 cols) + Order Summary (4 cols) */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start">
@@ -524,7 +549,11 @@ export default function CartPage() {
                 <div className="flex justify-between text-[var(--muted-foreground)]">
                   <span>Standard Delivery Fee</span>
                   <span>
-                    {storeConfig.currency.symbol}{shipping || deliveryFee}
+                    {shipping === 0 ? (
+                      <span className="text-emerald-600 font-bold uppercase tracking-wider">FREE</span>
+                    ) : (
+                      `${storeConfig.currency.symbol}${shipping || deliveryFee}`
+                    )}
                   </span>
                 </div>
 
@@ -568,7 +597,7 @@ export default function CartPage() {
 
               {/* Payment Trust Micro-Banner */}
               <div className="pt-2 text-center text-[10px] uppercase tracking-widest text-[var(--muted-foreground)]">
-                Express Courier Delivery • Flat {storeConfig.currency.symbol}{deliveryFee} On All Orders
+                Express Courier Delivery • Complimentary White-Glove Shipping On Orders ≥ {storeConfig.currency.symbol}2,999
               </div>
 
             </div>

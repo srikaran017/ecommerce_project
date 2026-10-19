@@ -92,21 +92,34 @@ export default function CheckoutPage() {
 
   const hasCheckedCartRef = useRef(false);
 
-  // Load and listen to payment config changes in real-time
+  // Load and listen to payment config changes in real-time (with live backend synchronization)
   useEffect(() => {
     const config = getStorePaymentConfig();
     setPaymentSettings(config);
 
-    if (formData.paymentMethod === "RAZORPAY" && !config.enableRazorpay) {
-      if (config.enableUpiQr) setFormData((prev) => ({ ...prev, paymentMethod: "UPI_QR" }));
-      else if (config.enableCod) setFormData((prev) => ({ ...prev, paymentMethod: "COD" }));
-    } else if (formData.paymentMethod === "COD" && !config.enableCod) {
-      if (config.enableRazorpay) setFormData((prev) => ({ ...prev, paymentMethod: "RAZORPAY" }));
-      else if (config.enableUpiQr) setFormData((prev) => ({ ...prev, paymentMethod: "UPI_QR" }));
-    } else if (formData.paymentMethod === "UPI_QR" && !config.enableUpiQr) {
-      if (config.enableRazorpay) setFormData((prev) => ({ ...prev, paymentMethod: "RAZORPAY" }));
-      else if (config.enableCod) setFormData((prev) => ({ ...prev, paymentMethod: "COD" }));
-    }
+    // Call live endpoint GET /api/v1/settings/payment-methods per Section 3.1
+    CheckoutService.fetchPaymentMethodsConfig()
+      .then((liveConfig) => {
+        if (liveConfig) {
+          setPaymentSettings(liveConfig);
+          setFormData((prev) => {
+            if (prev.paymentMethod === "RAZORPAY" && !liveConfig.enableRazorpay) {
+              if (liveConfig.enableUpiQr) return { ...prev, paymentMethod: "UPI_QR" };
+              if (liveConfig.enableCod) return { ...prev, paymentMethod: "COD" };
+            } else if (prev.paymentMethod === "COD" && !liveConfig.enableCod) {
+              if (liveConfig.enableRazorpay) return { ...prev, paymentMethod: "RAZORPAY" };
+              if (liveConfig.enableUpiQr) return { ...prev, paymentMethod: "UPI_QR" };
+            } else if (prev.paymentMethod === "UPI_QR" && !liveConfig.enableUpiQr) {
+              if (liveConfig.enableRazorpay) return { ...prev, paymentMethod: "RAZORPAY" };
+              if (liveConfig.enableCod) return { ...prev, paymentMethod: "COD" };
+            }
+            return prev;
+          });
+        }
+      })
+      .catch((err) => {
+        console.warn("Could not fetch remote payment settings, using local fallback:", err);
+      });
 
     const handleUpdate = () => {
       const updated = getStorePaymentConfig();
@@ -394,6 +407,31 @@ export default function CheckoutPage() {
 
       if (!res.success || !res.data) {
         setIsProcessing(false);
+        const errCode = res.error?.code;
+        if (errCode === "UPI_REFERENCE_REQUIRED") {
+          setUpiRefError("Please enter your 12-digit UPI transaction UTR reference number.");
+          setGeneralError("UPI Reference / UTR Number is required for Direct UPI payments.");
+          return;
+        }
+        if (errCode === "COD_AMOUNT_EXCEEDED") {
+          setGeneralError(
+            `Cash on Delivery is only available for orders up to ${storeConfig.currency.symbol}${(paymentSettings.codMaxLimit || 25000).toLocaleString()}. Please choose UPI or Online Payment.`
+          );
+          return;
+        }
+        if (errCode === "PHONE_REQUIRED_FOR_COD") {
+          setGeneralError("A contact telephone number is mandatory for Cash on Delivery. Please enter your phone number.");
+          return;
+        }
+        if (errCode === "PAYMENT_METHOD_DISABLED") {
+          setGeneralError("The selected payment method is currently disabled. Please select an alternate payment method.");
+          CheckoutService.fetchPaymentMethodsConfig().then(setPaymentSettings).catch(() => {});
+          return;
+        }
+        if (errCode === "AUTH_RATE_LIMIT_EXCEEDED" || res.statusCode === 429) {
+          setGeneralError("Security cooldown: Too many attempts. Please wait 15 minutes before retrying.");
+          return;
+        }
         if (
           res.statusCode === 401 ||
           res.error?.code === "UNAUTHORIZED" ||
@@ -409,7 +447,9 @@ export default function CheckoutPage() {
         return;
       }
 
-      const { order, razorpay } = res.data;
+      const { order } = res.data;
+      const razorpay = res.data.paymentDetails || res.data.razorpay;
+      const rzpOrderId = razorpay?.razorpayOrderId || razorpay?.orderId || "";
 
       // Handle Cash on Delivery (COD) -> Directly redirect to confirmation screen
       if (formData.paymentMethod === "COD") {
@@ -447,7 +487,7 @@ export default function CheckoutPage() {
             name: storeConfig.name,
             description: `Order #${order.orderNumber} Atelier Checkout`,
             image: "https://images.unsplash.com/photo-1566174053879-31528523f8ae?q=80&w=200",
-            order_id: razorpay.orderId.startsWith("order_") && !razorpay.orderId.includes("mock") ? razorpay.orderId : undefined,
+            order_id: rzpOrderId.startsWith("order_") && !rzpOrderId.includes("mock") ? rzpOrderId : undefined,
             prefill: {
               name: `${formData.firstName} ${formData.lastName}`.trim(),
               email: formData.email,
@@ -466,7 +506,7 @@ export default function CheckoutPage() {
               try {
                 const verifyRes = await CheckoutService.verifyPayment({
                   orderId: order.id,
-                  razorpayOrderId: response.razorpay_order_id || razorpay.orderId,
+                  razorpayOrderId: response.razorpay_order_id || rzpOrderId,
                   razorpayPaymentId: response.razorpay_payment_id || `pay_${Date.now()}`,
                   razorpaySignature: response.razorpay_signature || "verified_sig",
                 });
@@ -494,7 +534,13 @@ export default function CheckoutPage() {
           rzp.open();
         } else {
           // Fallback Sandbox Modal if Razorpay script CDN is blocked
-          setPendingRazorpayPayload({ order, razorpay });
+          setPendingRazorpayPayload({
+            order,
+            razorpay: {
+              ...razorpay,
+              orderId: rzpOrderId,
+            },
+          });
           setShowSandboxModal(true);
           setIsProcessing(false);
         }
@@ -516,7 +562,7 @@ export default function CheckoutPage() {
     try {
       const verifyRes = await CheckoutService.verifyPayment({
         orderId: order.id,
-        razorpayOrderId: razorpay.orderId,
+        razorpayOrderId: razorpay.orderId || razorpay.razorpayOrderId || `order_${Date.now()}`,
         razorpayPaymentId: `pay_sandbox_${Date.now()}`,
         razorpaySignature: `sig_sandbox_${Date.now()}`,
       });
@@ -542,10 +588,14 @@ export default function CheckoutPage() {
   // Pricing calculations
   const displaySubtotal = summaryData?.pricing.subtotal ?? items.reduce((acc, it) => acc + (it.price * it.quantity), 0);
   const displayDiscount = summaryData?.pricing.discountAmount ?? 0;
-  const displayShipping = 150; // Statically 150 delivery charge for all customers
+  const netSubtotal = Math.max(0, displaySubtotal - displayDiscount);
+  const freeShippingThreshold = summaryData?.pricing.freeShippingThreshold ?? storeConfig.shipping.freeShippingThreshold ?? 2999;
+  const displayShipping = summaryData?.pricing.shippingAmount !== undefined
+    ? summaryData.pricing.shippingAmount
+    : (netSubtotal >= freeShippingThreshold ? 0 : 150);
   const displayTax = 0; // Tax is inclusive in product price; no additional tax charged
-  const displayTotal = summaryData?.pricing.totalAmount ?? Math.round((displaySubtotal - displayDiscount + displayShipping) * 100) / 100;
-  const isCodBlockedByCap = displayTotal > 25000;
+  const displayTotal = summaryData?.pricing.totalAmount ?? Math.round((netSubtotal + displayShipping) * 100) / 100;
+  const isCodBlockedByCap = displayTotal > (paymentSettings.codMaxLimit || 25000);
 
   if (!isMounted) {
     return (
@@ -979,7 +1029,8 @@ export default function CheckoutPage() {
                       <p className="text-[11px] text-[var(--muted-foreground)] mt-2.5">
                         {isCodBlockedByCap ? (
                           <span className="text-amber-700 font-semibold flex items-center gap-1">
-                            <Info className="w-3.5 h-3.5 inline" /> Capped at ₹{(paymentSettings.codMaxLimit || 25000).toLocaleString()}.
+                            <Info className="w-3.5 h-3.5 inline shrink-0" />
+                            <span>Cash on Delivery is only available for orders up to {storeConfig.currency.symbol}{(paymentSettings.codMaxLimit || 25000).toLocaleString()}. Please choose UPI or Online Payment.</span>
                           </span>
                         ) : (
                           "Pay upon doorstep delivery."
@@ -1010,11 +1061,28 @@ export default function CheckoutPage() {
 
                     {/* NPCI UPI URI and scannable visual layout */}
                     {(() => {
-                      const dynamicUpiUri = `upi://pay?pa=${encodeURIComponent(
-                        paymentSettings.upiId || "maison@okhdfcbank"
-                      )}&pn=${encodeURIComponent(
-                        paymentSettings.payeeName || "Maison De Élégance"
-                      )}&am=${displayTotal.toFixed(2)}&cu=INR&tn=Order%20Payment`;
+                      const generateUpiUri = ({
+                        upiId,
+                        payeeName,
+                        amount,
+                        orderRef,
+                      }: {
+                        upiId: string;
+                        payeeName: string;
+                        amount: number;
+                        orderRef?: string;
+                      }) => {
+                        const encodedName = encodeURIComponent(payeeName);
+                        const note = encodeURIComponent(`Order ${orderRef || "Payment"}`);
+                        return `upi://pay?pa=${upiId}&pn=${encodedName}&am=${amount.toFixed(2)}&cu=INR&tn=${note}`;
+                      };
+
+                      const dynamicUpiUri = generateUpiUri({
+                        upiId: paymentSettings.upiId || "maison@okhdfcbank",
+                        payeeName: paymentSettings.payeeName || "Maison De Élégance",
+                        amount: displayTotal,
+                        orderRef: "Payment",
+                      });
 
                       const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(
                         dynamicUpiUri
@@ -1130,7 +1198,12 @@ export default function CheckoutPage() {
                 variant="primary"
                 size="lg"
                 isLoading={isProcessing}
-                disabled={items.length === 0 || displayTotal === 0 || isProcessing}
+                disabled={
+                  items.length === 0 ||
+                  displayTotal === 0 ||
+                  isProcessing ||
+                  (formData.paymentMethod === "UPI_QR" && upiReference.trim().length < 6)
+                }
                 className="w-full"
                 leftIcon={<Lock className="w-4 h-4" />}
               >
@@ -1142,6 +1215,11 @@ export default function CheckoutPage() {
                   ? `CONFIRM ORDER VIA UPI • ${storeConfig.currency.symbol}${displayTotal.toLocaleString()}`
                   : `CONFIRM CASH ON DELIVERY • ${storeConfig.currency.symbol}${displayTotal.toLocaleString()}`}
               </Button>
+              {formData.paymentMethod === "UPI_QR" && upiReference.trim().length < 6 && (
+                <p className="text-[11px] text-amber-700 text-center font-medium">
+                  Enter your 12-digit UPI Reference / UTR Number (min. 6 characters) to enable order confirmation.
+                </p>
+              )}
 
               <div className="flex items-center justify-center gap-2 text-[11px] text-[var(--muted-foreground)]">
                 <ShieldCheck className="w-4 h-4 text-emerald-600" />
@@ -1261,7 +1339,11 @@ export default function CheckoutPage() {
               <div className="flex justify-between text-[var(--muted-foreground)]">
                 <span>Express Courier Delivery</span>
                 <span>
-                  {storeConfig.currency.symbol}{displayShipping}
+                  {displayShipping === 0 ? (
+                    <span className="text-emerald-600 font-bold uppercase tracking-wider">FREE</span>
+                  ) : (
+                    `${storeConfig.currency.symbol}${displayShipping}`
+                  )}
                 </span>
               </div>
 

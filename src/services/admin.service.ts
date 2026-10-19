@@ -7805,9 +7805,17 @@ export class AdminService {
   static async updateStoreSettings(
     input: UpdateStoreSettingsInput
   ): Promise<StoreSettingsResponse> {
+    const paymentMethodsMerged = input.paymentMethods || input.paymentMethodsJson;
+    const bodyPayload = {
+      ...input,
+      ...(paymentMethodsMerged && {
+        paymentMethods: paymentMethodsMerged,
+        paymentMethodsJson: paymentMethodsMerged,
+      }),
+    };
     const res = await this.request<any>("/settings", {
       method: "PUT",
-      body: JSON.stringify(input),
+      body: JSON.stringify(bodyPayload),
     });
 
     if (res.success && res.data) {
@@ -7843,7 +7851,7 @@ export class AdminService {
           returnPolicy: input.policiesJson.returnPolicy || current.policiesJson.returnPolicy,
         },
       }),
-      ...(input.paymentMethodsJson && {
+      ...((input.paymentMethodsJson || input.paymentMethods) && {
         paymentMethodsJson: {
           ...(current.paymentMethodsJson || {
             enableRazorpay: true,
@@ -7854,7 +7862,7 @@ export class AdminService {
             instructions: "Scan the QR code or tap 'Pay via UPI App', then enter your 12-digit UPI Reference / UTR Number below to confirm.",
             codMaxLimit: 25000,
           }),
-          ...input.paymentMethodsJson,
+          ...(input.paymentMethodsJson || input.paymentMethods),
         },
       }),
       updatedAt: new Date().toISOString(),

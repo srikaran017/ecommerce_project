@@ -1291,6 +1291,7 @@ export interface UpdateStoreSettingsInput {
   currencySymbol?: string;
   freeShippingThreshold?: number | string;
   flatShippingRate?: number | string;
+  paymentMethods?: Partial<PaymentMethodsSettings>;
   paymentMethodsJson?: Partial<PaymentMethodsSettings>;
   policiesJson?: Partial<StorePolicies>;
 }

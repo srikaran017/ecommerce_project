@@ -70,9 +70,9 @@ export const storeConfig: StoreConfig = {
     supportHours: "Mon - Sat: 10:00 AM - 7:00 PM IST",
     address: {
       street: "45 Fashion Boulevard, Designer District",
-      city: "Mumbai",
-      state: "Maharashtra",
-      postalCode: "400051",
+      city: "Chennai",
+      state: "TamilNadu",
+      postalCode: "600028",
       country: "India"
     }
   },
@@ -99,6 +99,7 @@ export const storeConfig: StoreConfig = {
     defaultTaxRatePercentage: 0
   },
   shipping: {
+    // freeShippingThreshold: 4999, // Complimentary delivery for orders >= ₹2,999
     freeShippingThreshold: Infinity, // Flat delivery fee applies to all customers
     flatRate: 150,
     estimatedDeliveryDays: "3 - 5 Business Days"

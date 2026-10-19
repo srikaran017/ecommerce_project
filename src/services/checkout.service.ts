@@ -3,6 +3,12 @@ import { AuthService } from "@/services/auth.service";
 import { AdminService } from "@/services/admin.service";
 import { storeConfig } from "@/config/store.config";
 import {
+  getStorePaymentConfig,
+  saveStorePaymentConfig,
+  DEFAULT_PAYMENT_METHODS,
+  PaymentMethodsConfig,
+} from "@/config/payment.config";
+import {
   ValidateCouponInput,
   ValidateCouponResponse,
   CheckoutSummaryInput,
@@ -59,6 +65,52 @@ export class CheckoutService {
       headers["Authorization"] = `Bearer ${token}`;
     }
     return headers;
+  }
+
+  // ==========================================
+  // FETCH PUBLIC STOREFRONT PAYMENT METHODS CONFIG
+  // GET /api/v1/settings/payment-methods (or /settings)
+  // ==========================================
+  static async fetchPaymentMethodsConfig(): Promise<PaymentMethodsConfig> {
+    const baseUrl = getApiBaseUrl();
+    try {
+      let res = await fetch(`${baseUrl}/settings/payment-methods`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (!res.ok && res.status === 404) {
+        res = await fetch(`${baseUrl}/settings`, {
+          method: "GET",
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      if (res.ok) {
+        const json = await res.json().catch(() => ({}));
+        const raw = json.data?.paymentMethods || json.data?.paymentMethodsJson || json.data || {};
+        if (
+          typeof raw.enableRazorpay === "boolean" ||
+          typeof raw.enableCod === "boolean" ||
+          typeof raw.enableUpiQr === "boolean"
+        ) {
+          const config: PaymentMethodsConfig = {
+            enableRazorpay: raw.enableRazorpay ?? true,
+            enableCod: raw.enableCod ?? true,
+            enableUpiQr: raw.enableUpiQr ?? true,
+            upiId: raw.upiId || DEFAULT_PAYMENT_METHODS.upiId,
+            payeeName: raw.payeeName || DEFAULT_PAYMENT_METHODS.payeeName,
+            instructions: raw.instructions || DEFAULT_PAYMENT_METHODS.instructions,
+            codMaxLimit: Number(raw.codMaxLimit || DEFAULT_PAYMENT_METHODS.codMaxLimit),
+          };
+          saveStorePaymentConfig(config);
+          return config;
+        }
+      }
+    } catch (err) {
+      console.warn("[CheckoutService] Error fetching live payment methods config, using local defaults:", err);
+    }
+    return getStorePaymentConfig();
   }
 
   // ==========================================
@@ -197,11 +249,18 @@ export class CheckoutService {
       if (res.status !== 404) {
         const json = await res.json().catch(() => ({}));
         if (json.success && json.data?.pricing) {
-          // Statically enforce 150 delivery charge and 0 extra tax for all customers
-          json.data.pricing.shippingAmount = 150;
-          json.data.pricing.taxAmount = 0;
-          const taxable = Math.max(0, json.data.pricing.subtotal - json.data.pricing.discountAmount);
-          json.data.pricing.totalAmount = Math.round((taxable + 150) * 100) / 100;
+          const p = json.data.pricing;
+          const sub = Number(p.subtotal || 0);
+          const disc = Number(p.discountAmount || 0);
+          const netSubtotal = Math.max(0, sub - disc);
+          const threshold = Number(p.freeShippingThreshold ?? 2999);
+          // If shippingAmount is provided by backend, respect it; otherwise calculate dynamically: >= 2999 is 0, else 150
+          if (typeof p.shippingAmount !== "number") {
+            p.shippingAmount = netSubtotal >= threshold ? 0 : 150;
+          }
+          p.taxAmount = 0; // Inclusive tax per backend spec
+          p.freeShippingThreshold = threshold;
+          p.totalAmount = Math.round((netSubtotal + p.shippingAmount) * 100) / 100;
         }
         return {
           success: res.ok && json.success !== false,
@@ -277,8 +336,10 @@ export class CheckoutService {
         }
       }
 
-      const shippingAmount = 150; // Statically 150 delivery charge for all customers
+      const freeShippingThreshold = 2999;
       const taxableSubtotal = Math.max(0, subtotal - discountAmount);
+      // Dynamic Free Shipping: subtotal - discountAmount >= 2999 gives 0, else flat 150
+      const shippingAmount = taxableSubtotal >= freeShippingThreshold ? 0 : 150;
       const taxAmount = 0; // Tax is inclusive in product price; no additional tax charged
       const totalAmount = Math.round((taxableSubtotal + shippingAmount) * 100) / 100;
 
@@ -292,7 +353,7 @@ export class CheckoutService {
           taxAmount,
           totalAmount,
           currency: "INR",
-          freeShippingThreshold: 0,
+          freeShippingThreshold,
         },
         appliedCoupon,
         shippingAddress: input.shippingAddress || null,
@@ -342,6 +403,28 @@ export class CheckoutService {
 
       if (res.status !== 404) {
         const json = await res.json().catch(() => ({}));
+        if (json.data) {
+          const pd = json.data.paymentDetails;
+          const rz = json.data.razorpay;
+          if (pd && !rz) {
+            json.data.razorpay = {
+              orderId: pd.razorpayOrderId || pd.orderId,
+              razorpayOrderId: pd.razorpayOrderId || pd.orderId,
+              keyId: pd.keyId,
+              amount: pd.amount,
+              currency: pd.currency,
+            };
+          }
+          if (rz && !pd) {
+            json.data.paymentDetails = {
+              razorpayOrderId: rz.razorpayOrderId || rz.orderId,
+              orderId: rz.razorpayOrderId || rz.orderId,
+              keyId: rz.keyId,
+              amount: rz.amount,
+              currency: rz.currency,
+            };
+          }
+        }
         return {
           success: res.ok && json.success !== false,
           statusCode: res.status,
@@ -504,10 +587,22 @@ export class CheckoutService {
       };
 
       if (input.paymentMethod === "RAZORPAY") {
+        const rzpOrderId = `order_rzp_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+        const rzpKeyId = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || "rzp_test_placeholder";
+        const rzpAmount = Math.round(pricing.totalAmount * 100);
+
         placeOrderData.razorpay = {
-          orderId: `order_rzp_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-          keyId: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || "rzp_test_placeholder",
-          amount: Math.round(pricing.totalAmount * 100), // amount in paise
+          orderId: rzpOrderId,
+          razorpayOrderId: rzpOrderId,
+          keyId: rzpKeyId,
+          amount: rzpAmount,
+          currency: "INR",
+        };
+        placeOrderData.paymentDetails = {
+          razorpayOrderId: rzpOrderId,
+          orderId: rzpOrderId,
+          keyId: rzpKeyId,
+          amount: rzpAmount,
           currency: "INR",
         };
 

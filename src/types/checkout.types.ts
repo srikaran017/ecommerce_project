@@ -110,7 +110,8 @@ export interface PlaceOrderInput {
 }
 
 export interface RazorpayCheckoutPayload {
-  orderId: string;
+  orderId?: string;
+  razorpayOrderId?: string;
   keyId: string;
   amount: number; // in paise (e.g. 951888 for 9518.88)
   currency: string;
@@ -120,18 +121,27 @@ export interface PlaceOrderData {
   order: {
     id: string;
     orderNumber: string;
-    status: string;
+    status?: string;
+    orderStatus?: string;
     paymentStatus: string;
     paymentMethod: "RAZORPAY" | "COD" | "UPI_QR" | string;
-    subtotal: number;
-    discountAmount: number;
-    shippingAmount: number;
-    taxAmount: number;
+    subtotal?: number;
+    discountAmount?: number;
+    shippingAmount?: number;
+    taxAmount?: number;
     totalAmount: number;
+    upiReference?: string;
     items?: any[];
     [key: string]: any;
   };
   razorpay?: RazorpayCheckoutPayload;
+  paymentDetails?: {
+    razorpayOrderId?: string;
+    orderId?: string;
+    amount: number;
+    currency: string;
+    keyId: string;
+  };
 }
 
 export interface PlaceOrderResponse {

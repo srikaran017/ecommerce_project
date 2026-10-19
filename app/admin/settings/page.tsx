@@ -264,6 +264,7 @@ export default function AdminSettingsPage() {
           shippingPolicy: formShippingPolicy.trim(),
           returnPolicy: formReturnPolicy.trim(),
         },
+        paymentMethods: paymentMethodsObj,
         paymentMethodsJson: paymentMethodsObj,
       };
 

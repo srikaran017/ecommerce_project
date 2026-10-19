@@ -456,7 +456,13 @@ export const useCartStore = create<CartState>()(
         if (!items || items.length === 0) return 0;
         const merchandise = get().getSubtotal() + get().getModifiersTotal();
         if (merchandise === 0) return 0;
-        return storeConfig.shipping.flatRate; // Statically ₹150 for all customers
+        const discount = get().getDiscountAmount();
+        const netSubtotal = Math.max(0, merchandise - discount);
+        const freeShippingThreshold = storeConfig.shipping.freeShippingThreshold || 2999;
+        if (netSubtotal >= freeShippingThreshold) {
+          return 0; // Complimentary delivery for orders >= ₹2,999
+        }
+        return storeConfig.shipping.flatRate || 150;
       },
 
       getTaxAmount: () => {
