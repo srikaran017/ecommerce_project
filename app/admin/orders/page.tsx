@@ -346,6 +346,31 @@ export default function AdminOrdersPage() {
     }
   };
 
+  // Verify Direct UPI Payment
+  const handleVerifyUpiPayment = async (order: AdminOrder) => {
+    if (!rbac.canWriteOrders(user?.role)) {
+      showNotification("error", "Permission denied: orders:write permission required.");
+      return;
+    }
+
+    try {
+      const res = await AdminService.recordPaymentCollection(order.id, {
+        paymentStatus: "COMPLETED",
+        transactionId: order.upiReference || `upi_${Date.now()}`,
+        comment: `UPI payment verified by admin (UTR: ${order.upiReference || 'N/A'})`,
+      });
+
+      if (res.success) {
+        showNotification("success", `Payment for order #${order.orderNumber} marked as verified & completed.`);
+        await loadOrders();
+      } else {
+        showNotification("error", res.message || "Failed to mark payment as completed.");
+      }
+    } catch (err: any) {
+      showNotification("error", err.message || "Error updating payment status.");
+    }
+  };
+
   // 3. Cancel Order with Double-Entry Restitution
   const handleOpenCancelModal = (order: AdminOrder) => {
     if (!rbac.canCancelOrders(user?.role)) {
@@ -570,6 +595,7 @@ export default function AdminOrdersPage() {
             >
               <option value="ALL">All Gateways</option>
               <option value="RAZORPAY">Razorpay</option>
+              <option value="UPI_QR">Direct UPI QR</option>
               <option value="STRIPE">Stripe</option>
               <option value="COD">Cash on Delivery</option>
             </select>
@@ -723,7 +749,7 @@ export default function AdminOrdersPage() {
                       {/* Payment */}
                       <td className="py-4 px-6">
                         <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-slate-900 text-slate-200 border border-slate-700">
-                          <span>{ord.paymentMethod}</span>
+                          <span>{ord.paymentMethod === "UPI_QR" ? "UPI QR" : ord.paymentMethod}</span>
                           <span className="text-slate-500">•</span>
                           <span
                             className={
@@ -737,6 +763,25 @@ export default function AdminOrdersPage() {
                             {ord.paymentStatus}
                           </span>
                         </div>
+                        {ord.upiReference && (
+                          <div className="mt-1 text-[10px] text-amber-300 font-mono flex items-center gap-1">
+                            <span>UTR:</span>
+                            <span className="font-bold text-white bg-slate-900 px-1 py-0.5 rounded border border-slate-800">
+                              {ord.upiReference}
+                            </span>
+                          </div>
+                        )}
+                        {ord.paymentMethod === "UPI_QR" && ord.paymentStatus === "PENDING" && rbac.canWriteOrders(user?.role) && (
+                          <button
+                            type="button"
+                            onClick={() => handleVerifyUpiPayment(ord)}
+                            className="mt-1.5 inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 px-2 py-0.5 rounded border border-emerald-500/30 transition-colors cursor-pointer"
+                            title="Verify UTR and Mark Payment Completed"
+                          >
+                            <CheckCircle2 className="w-2.5 h-2.5" />
+                            <span>Mark Paid</span>
+                          </button>
+                        )}
                       </td>
 
                       {/* Status & Badge */}

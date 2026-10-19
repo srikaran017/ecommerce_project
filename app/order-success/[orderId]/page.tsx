@@ -57,6 +57,8 @@ export default function OrderSuccessPage() {
   }, [orderId]);
 
   const isCod = (confirmation?.paymentMethod === "COD") || queryMethod.toLowerCase() === "cod";
+  const isUpiQr = (confirmation?.paymentMethod === "UPI_QR") || queryMethod.toLowerCase() === "upi_qr";
+  const utrNumber = searchParams.get("utr") || (confirmation as any)?.upiReference || "";
   const customerEmail = confirmation?.customerEmail || queryEmail || "client@maison.com";
   const customerPhone = confirmation?.customerPhone || queryPhone || "+91 98765 43210";
   const totalAmount = confirmation?.pricing.totalAmount ?? (queryAmount ? Number(queryAmount) : 0);
@@ -71,6 +73,8 @@ export default function OrderSuccessPage() {
           <div className="inline-flex p-4 rounded-full bg-emerald-50 text-emerald-600 mb-2 border border-emerald-200">
             {isCod ? (
               <Clock className="w-12 h-12 text-amber-600" />
+            ) : isUpiQr ? (
+              <CheckCircle2 className="w-12 h-12 text-amber-500" />
             ) : (
               <CheckCircle2 className="w-12 h-12 text-emerald-600" />
             )}
@@ -78,10 +82,18 @@ export default function OrderSuccessPage() {
 
           <div className="space-y-2">
             <span className="text-[11px] font-bold uppercase tracking-[0.3em] text-[var(--secondary)]">
-              {isCod ? "ORDER SUBMITTED • AWAITING ATELIER APPROVAL" : "ORDER CONFIRMED & SECURED"}
+              {isCod
+                ? "ORDER SUBMITTED • AWAITING ATELIER APPROVAL"
+                : isUpiQr
+                ? "ORDER SUBMITTED • AWAITING UPI VERIFICATION"
+                : "ORDER CONFIRMED & SECURED"}
             </span>
             <h1 className="font-heading text-3xl sm:text-4xl font-bold uppercase tracking-tight text-[var(--foreground)]">
-              {isCod ? "THANK YOU FOR YOUR COD ORDER" : "THANK YOU FOR YOUR PURCHASE"}
+              {isCod
+                ? "THANK YOU FOR YOUR COD ORDER"
+                : isUpiQr
+                ? "THANK YOU FOR YOUR UPI ORDER"
+                : "THANK YOU FOR YOUR PURCHASE"}
             </h1>
             <p className="text-sm text-[var(--muted-foreground)] max-w-xl mx-auto">
               An electronic invoice and purchase receipt has been dispatched to{" "}
@@ -102,6 +114,27 @@ export default function OrderSuccessPage() {
             </div>
           )}
 
+          {/* UPI QR Notice Banner */}
+          {isUpiQr && (
+            <div className="max-w-xl mx-auto p-4 bg-amber-500/10 border border-amber-500/30 rounded-[var(--radius)] text-left flex items-start gap-3">
+              <CheckCircle2 className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+              <div className="space-y-1 text-xs text-amber-900 dark:text-amber-200">
+                <p className="font-bold uppercase tracking-wider text-amber-800 dark:text-amber-300">
+                  Direct UPI Payment Verification Pending
+                </p>
+                <p>
+                  {utrNumber ? (
+                    <>
+                      Your 12-digit UPI UTR reference <strong>{utrNumber}</strong> has been logged. Our accounts team will verify the bank credit and confirm fulfillment.
+                    </>
+                  ) : (
+                    "Your UPI payment order has been submitted. Our accounts team will verify the payment and confirm fulfillment shortly."
+                  )}
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Order Details Header Chip */}
           <div className="bg-[var(--muted)] p-5 rounded-[var(--radius)] border border-[var(--border)] inline-block text-left text-xs space-y-2 max-w-md w-full">
             <div className="flex justify-between border-b border-[var(--border)] pb-2">
@@ -111,13 +144,33 @@ export default function OrderSuccessPage() {
             <div className="flex justify-between border-b border-[var(--border)] pb-2">
               <span className="text-[var(--muted-foreground)]">Payment Method:</span>
               <span className="font-semibold text-[var(--foreground)]">
-                {isCod ? "Cash on Delivery (COD)" : "Online Card / UPI (Razorpay)"}
+                {isCod
+                  ? "Cash on Delivery (COD)"
+                  : isUpiQr
+                  ? "Direct UPI / Dynamic QR"
+                  : "Online Card / UPI (Razorpay)"}
               </span>
             </div>
+            {isUpiQr && utrNumber && (
+              <div className="flex justify-between border-b border-[var(--border)] pb-2">
+                <span className="text-[var(--muted-foreground)]">UPI UTR / Ref:</span>
+                <span className="font-mono font-bold text-amber-600 dark:text-amber-400">
+                  {utrNumber}
+                </span>
+              </div>
+            )}
             <div className="flex justify-between border-b border-[var(--border)] pb-2">
               <span className="text-[var(--muted-foreground)]">Payment Status:</span>
-              <span className={`font-semibold ${isCod ? "text-amber-700" : "text-emerald-700"}`}>
-                {isCod ? "Pending Doorstep Collection" : "Completed & Verified"}
+              <span
+                className={`font-semibold ${
+                  isCod || isUpiQr ? "text-amber-700 dark:text-amber-400" : "text-emerald-700"
+                }`}
+              >
+                {isCod
+                  ? "Pending Doorstep Collection"
+                  : isUpiQr
+                  ? "Awaiting Admin Verification"
+                  : "Completed & Verified"}
               </span>
             </div>
             <div className="flex justify-between pt-1">

@@ -103,7 +103,8 @@ export interface PlaceOrderInput {
   shippingAddress?: CheckoutAddress;
   billingAddressSameAsShipping?: boolean;
   billingAddress?: CheckoutAddress;
-  paymentMethod: "RAZORPAY" | "COD";
+  paymentMethod: "RAZORPAY" | "COD" | "UPI_QR";
+  upiReference?: string;
   couponCode?: string;
   customerNotes?: string;
 }
@@ -121,7 +122,7 @@ export interface PlaceOrderData {
     orderNumber: string;
     status: string;
     paymentStatus: string;
-    paymentMethod: "RAZORPAY" | "COD";
+    paymentMethod: "RAZORPAY" | "COD" | "UPI_QR" | string;
     subtotal: number;
     discountAmount: number;
     shippingAmount: number;
@@ -198,7 +199,8 @@ export interface OrderConfirmationData {
   orderNumber: string;
   status: string;
   paymentStatus: string;
-  paymentMethod: "RAZORPAY" | "COD";
+  paymentMethod: "RAZORPAY" | "COD" | "UPI_QR" | string;
+  upiReference?: string;
   customerName: string;
   customerEmail: string;
   customerPhone?: string;

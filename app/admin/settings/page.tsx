@@ -27,13 +27,21 @@ import {
   Wand2,
   Ruler,
   Navigation,
-  Check,
   AlertTriangle,
   Info,
   ExternalLink,
+  QrCode,
+  Smartphone,
+  Copy,
+  Check,
 } from "lucide-react";
 import { featureConfig } from "@/config/feature.config";
 import { PRESET_THEMES, ThemeConfig } from "@/config/theme.config";
+import {
+  getStorePaymentConfig,
+  saveStorePaymentConfig,
+  PaymentMethodsConfig,
+} from "@/config/payment.config";
 import { useUIStore } from "@/stores/ui.store";
 import { useAuthStore } from "@/stores/auth.store";
 import { rbac } from "@/lib/rbac";
@@ -153,6 +161,18 @@ export default function AdminSettingsPage() {
   const [formShippingPolicy, setFormShippingPolicy] = useState("");
   const [formReturnPolicy, setFormReturnPolicy] = useState("");
 
+  // Payment Gateways & UPI QR Configuration State
+  const [formEnableRazorpay, setFormEnableRazorpay] = useState(true);
+  const [formEnableCod, setFormEnableCod] = useState(true);
+  const [formEnableUpiQr, setFormEnableUpiQr] = useState(true);
+  const [formUpiId, setFormUpiId] = useState("maison@okhdfcbank");
+  const [formPayeeName, setFormPayeeName] = useState("Maison De Élégance");
+  const [formUpiInstructions, setFormUpiInstructions] = useState(
+    "Scan the QR code or tap 'Pay via UPI App', then enter your 12-digit UPI Reference / UTR Number below to confirm."
+  );
+  const [formCodMaxLimit, setFormCodMaxLimit] = useState("25000");
+  const [copiedUpi, setCopiedUpi] = useState(false);
+
   // Load Settings
   const loadSettings = async () => {
     try {
@@ -170,6 +190,16 @@ export default function AdminSettingsPage() {
         setFormFlatShippingRate(String(res.data.flatShippingRate));
         setFormShippingPolicy(res.data.policiesJson?.shippingPolicy || "");
         setFormReturnPolicy(res.data.policiesJson?.returnPolicy || "");
+
+        // Load Payment Methods Config
+        const pConfig = res.data.paymentMethodsJson || getStorePaymentConfig();
+        setFormEnableRazorpay(pConfig.enableRazorpay ?? true);
+        setFormEnableCod(pConfig.enableCod ?? true);
+        setFormEnableUpiQr(pConfig.enableUpiQr ?? true);
+        setFormUpiId(pConfig.upiId || "maison@okhdfcbank");
+        setFormPayeeName(pConfig.payeeName || "Maison De Élégance");
+        setFormUpiInstructions(pConfig.instructions || "Scan the QR code or tap 'Pay via UPI App', then enter your 12-digit UPI Reference / UTR Number below to confirm.");
+        setFormCodMaxLimit(String(pConfig.codMaxLimit || 25000));
 
         // Sync UI theme store if needed
         if (res.data.activeTheme && currentUITheme.id !== res.data.activeTheme) {
@@ -200,8 +230,27 @@ export default function AdminSettingsPage() {
       return;
     }
 
+    // Safety: at least one payment method must remain active
+    if (!formEnableRazorpay && !formEnableCod && !formEnableUpiQr) {
+      showNotification("error", "Validation error: At least one payment method (Razorpay, COD, or UPI QR) must be enabled.");
+      return;
+    }
+
     setIsSaving(true);
     try {
+      const paymentMethodsObj: PaymentMethodsConfig = {
+        enableRazorpay: formEnableRazorpay,
+        enableCod: formEnableCod,
+        enableUpiQr: formEnableUpiQr,
+        upiId: formUpiId.trim() || "maison@okhdfcbank",
+        payeeName: formPayeeName.trim() || "Maison De Élégance",
+        instructions: formUpiInstructions.trim(),
+        codMaxLimit: Number(formCodMaxLimit) || 25000,
+      };
+
+      // Persist to local reactive store
+      saveStorePaymentConfig(paymentMethodsObj);
+
       const payload: UpdateStoreSettingsInput = {
         storeName: formStoreName.trim(),
         tagline: formTagline.trim(),
@@ -215,12 +264,13 @@ export default function AdminSettingsPage() {
           shippingPolicy: formShippingPolicy.trim(),
           returnPolicy: formReturnPolicy.trim(),
         },
+        paymentMethodsJson: paymentMethodsObj,
       };
 
       const res = await AdminService.updateStoreSettings(payload);
       if (res.success) {
         setSettings(res.data);
-        showNotification("success", "Store configuration updated successfully");
+        showNotification("success", "Store configuration & payment methods updated successfully");
       } else {
         showNotification("error", res.message || "Failed to update settings");
       }
@@ -512,6 +562,301 @@ export default function AdminSettingsPage() {
               />
             </div>
           </div>
+        </div>
+
+        {/* 3. Payment Gateways & Payment Methods Engine */}
+        <div className="bg-slate-950 border border-slate-800 rounded-2xl p-6 sm:p-8 space-y-6 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-4">
+            <div>
+              <h2 className="text-base font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                <CreditCard className="w-5 h-5 text-amber-400" />
+                <span>Payment Gateways & Customer Payment Methods</span>
+              </h2>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Toggle active payment options for storefront checkout. Choose between Razorpay, Cash on Delivery (COD), and Direct UPI QR payments.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] uppercase font-bold text-slate-400">Active Methods:</span>
+              <span className="text-xs font-mono font-bold text-amber-300 bg-amber-500/10 px-2.5 py-1 rounded border border-amber-500/20">
+                {[formEnableRazorpay && "Razorpay", formEnableCod && "COD", formEnableUpiQr && "UPI QR"].filter(Boolean).join(" • ") || "None"}
+              </span>
+            </div>
+          </div>
+
+          {/* Payment Method Toggle Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* 1. Razorpay Gateway Card */}
+            <div
+              className={`p-4 rounded-xl border transition-all ${
+                formEnableRazorpay
+                  ? "bg-slate-900 border-amber-500/40 shadow-sm"
+                  : "bg-slate-900/40 border-slate-800 opacity-75"
+              }`}
+            >
+              <div className="flex items-start justify-between gap-3 mb-3">
+                <div className="p-2 bg-slate-800 rounded-lg text-amber-400 shrink-0">
+                  <CreditCard className="w-5 h-5" />
+                </div>
+                <button
+                  type="button"
+                  disabled={!canManage}
+                  onClick={() => setFormEnableRazorpay(!formEnableRazorpay)}
+                  className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-50 ${
+                    formEnableRazorpay ? "bg-amber-500" : "bg-slate-700"
+                  }`}
+                  title={formEnableRazorpay ? "Disable Razorpay" : "Enable Razorpay"}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      formEnableRazorpay ? "translate-x-5" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-white uppercase tracking-wider">
+                    Razorpay Gateway
+                  </span>
+                  <span className="text-[9px] font-bold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
+                    Online
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400 line-clamp-2">
+                  Accept Credit/Debit Cards, NetBanking, and Digital Wallets via secure Razorpay checkout modal.
+                </p>
+              </div>
+            </div>
+
+            {/* 2. Cash on Delivery (COD) Card */}
+            <div
+              className={`p-4 rounded-xl border transition-all ${
+                formEnableCod
+                  ? "bg-slate-900 border-amber-500/40 shadow-sm"
+                  : "bg-slate-900/40 border-slate-800 opacity-75"
+              }`}
+            >
+              <div className="flex items-start justify-between gap-3 mb-3">
+                <div className="p-2 bg-slate-800 rounded-lg text-amber-400 shrink-0">
+                  <Banknote className="w-5 h-5" />
+                </div>
+                <button
+                  type="button"
+                  disabled={!canManage}
+                  onClick={() => setFormEnableCod(!formEnableCod)}
+                  className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-50 ${
+                    formEnableCod ? "bg-amber-500" : "bg-slate-700"
+                  }`}
+                  title={formEnableCod ? "Disable COD" : "Enable COD"}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      formEnableCod ? "translate-x-5" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-white uppercase tracking-wider">
+                    Cash on Delivery
+                  </span>
+                  <span className="text-[9px] font-bold text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                    COD
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400 line-clamp-2">
+                  Customers pay physical cash directly to the courier upon doorstep delivery of parcel.
+                </p>
+              </div>
+
+              {formEnableCod && (
+                <div className="mt-3 pt-3 border-t border-slate-800/80">
+                  <label className="text-[10px] font-bold uppercase text-slate-400 block mb-1">
+                    Max COD Limit ({formCurrencySymbol})
+                  </label>
+                  <input
+                    type="number"
+                    disabled={!canManage}
+                    value={formCodMaxLimit}
+                    onChange={(e) => setFormCodMaxLimit(e.target.value)}
+                    className="w-full px-2.5 py-1.5 bg-slate-950 text-white font-mono text-xs border border-slate-800 rounded focus:border-amber-400 focus:outline-none"
+                    placeholder="25000"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* 3. Direct UPI & QR Code Card */}
+            <div
+              className={`p-4 rounded-xl border transition-all ${
+                formEnableUpiQr
+                  ? "bg-slate-900 border-amber-500/40 shadow-sm ring-1 ring-amber-500/20"
+                  : "bg-slate-900/40 border-slate-800 opacity-75"
+              }`}
+            >
+              <div className="flex items-start justify-between gap-3 mb-3">
+                <div className="p-2 bg-slate-800 rounded-lg text-amber-400 shrink-0">
+                  <QrCode className="w-5 h-5" />
+                </div>
+                <button
+                  type="button"
+                  disabled={!canManage}
+                  onClick={() => setFormEnableUpiQr(!formEnableUpiQr)}
+                  className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-50 ${
+                    formEnableUpiQr ? "bg-amber-500" : "bg-slate-700"
+                  }`}
+                  title={formEnableUpiQr ? "Disable UPI QR" : "Enable UPI QR"}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      formEnableUpiQr ? "translate-x-5" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-white uppercase tracking-wider">
+                    Direct UPI & QR Code
+                  </span>
+                  <span className="text-[9px] font-bold text-sky-400 bg-sky-500/10 px-1.5 py-0.5 rounded border border-sky-500/20">
+                    0% Gateway Fee
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400 line-clamp-2">
+                  Direct bank settlement. Displays scannable dynamic QR on desktop and 1-tap app payment on mobile.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Expanded Direct UPI Details & Live QR Preview */}
+          {formEnableUpiQr && (
+            <div className="mt-6 pt-6 border-t border-slate-800 grid grid-cols-1 lg:grid-cols-12 gap-6 bg-slate-900/30 p-5 rounded-xl border border-slate-800/80">
+              <div className="lg:col-span-7 space-y-4 text-xs">
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-2">
+                    <QrCode className="w-4 h-4" />
+                    <span>UPI Bank & Merchant Profile</span>
+                  </h3>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Provide your official merchant Virtual Private Address (VPA) and registered legal name.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="font-bold uppercase text-slate-300 block mb-1">
+                      Merchant UPI ID / VPA <span className="text-rose-400">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required={formEnableUpiQr}
+                      disabled={!canManage}
+                      value={formUpiId}
+                      onChange={(e) => setFormUpiId(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-900 text-white font-mono border border-slate-800 rounded-lg focus:border-amber-400 focus:outline-none"
+                      placeholder="e.g. maison@okhdfcbank"
+                    />
+                    <span className="text-[10px] text-slate-500 mt-1 block">
+                      Compatible with Google Pay, PhonePe, Paytm, and BHIM UPI.
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="font-bold uppercase text-slate-300 block mb-1">
+                      Payee / Legal Name <span className="text-rose-400">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required={formEnableUpiQr}
+                      disabled={!canManage}
+                      value={formPayeeName}
+                      onChange={(e) => setFormPayeeName(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-900 text-white border border-slate-800 rounded-lg focus:border-amber-400 focus:outline-none"
+                      placeholder="e.g. Maison De Élégance"
+                    />
+                    <span className="text-[10px] text-slate-500 mt-1 block">
+                      Name that appears in the customer&apos;s banking app.
+                    </span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="font-bold uppercase text-slate-300 block mb-1">
+                    Customer Payment Instructions
+                  </label>
+                  <textarea
+                    rows={2}
+                    disabled={!canManage}
+                    value={formUpiInstructions}
+                    onChange={(e) => setFormUpiInstructions(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-900 text-white border border-slate-800 rounded-lg focus:border-amber-400 focus:outline-none"
+                    placeholder="Scan the QR code or tap 'Pay via UPI App', then enter your 12-digit UPI Reference / UTR Number below to confirm."
+                  />
+                  <span className="text-[10px] text-slate-500 mt-1 block">
+                    Displayed above the QR code and UTR input field on checkout.
+                  </span>
+                </div>
+              </div>
+
+              {/* Live Scannable Preview Widget */}
+              <div className="lg:col-span-5 bg-slate-950 border border-slate-800 rounded-xl p-4 flex flex-col items-center justify-center text-center">
+                <div className="flex items-center gap-1.5 text-[10px] uppercase font-bold text-slate-400 mb-2">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Interactive Live QR Preview</span>
+                </div>
+
+                {/* Scannable QR Code */}
+                <div className="bg-white p-2.5 rounded-xl shadow-md border border-slate-200">
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(
+                      `upi://pay?pa=${formUpiId || "maison@okhdfcbank"}&pn=${encodeURIComponent(
+                        formPayeeName || "Maison"
+                      )}&am=1500.00&cu=INR&tn=Sample%20Checkout%20Verification`
+                    )}&margin=4`}
+                    alt="Sample UPI QR"
+                    className="w-32 h-32 object-contain"
+                  />
+                </div>
+
+                <div className="mt-3 space-y-1">
+                  <div className="text-xs font-bold text-white">
+                    {formPayeeName || "Maison De Élégance"}
+                  </div>
+                  <div className="flex items-center justify-center gap-2 text-xs font-mono text-amber-400">
+                    <span>{formUpiId || "maison@okhdfcbank"}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (typeof navigator !== "undefined" && navigator.clipboard) {
+                          navigator.clipboard.writeText(formUpiId);
+                          setCopiedUpi(true);
+                          setTimeout(() => setCopiedUpi(false), 2000);
+                        }
+                      }}
+                      className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white transition-colors cursor-pointer"
+                      title="Copy UPI ID"
+                    >
+                      {copiedUpi ? (
+                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      ) : (
+                        <Copy className="w-3.5 h-3.5" />
+                      )}
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-slate-400 max-w-xs mt-1">
+                    At checkout, the QR code automatically encodes the shopper&apos;s exact order total and allows 1-tap mobile payment without taking screenshots.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {canManage && (
             <div className="pt-4 border-t border-slate-800 flex justify-end">
@@ -521,7 +866,7 @@ export default function AdminSettingsPage() {
                 className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs uppercase tracking-wider rounded-lg transition-colors cursor-pointer shadow-sm hover:shadow-amber-500/20"
               >
                 <Save className="w-4 h-4" />
-                <span>{isSaving ? "Saving..." : "Save Store Configuration"}</span>
+                <span>{isSaving ? "Saving..." : "Save Store Configuration & Payment Settings"}</span>
               </button>
             </div>
           )}

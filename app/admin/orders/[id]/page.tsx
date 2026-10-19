@@ -782,7 +782,9 @@ export default function OrderDetailsPage() {
             <div className="space-y-2">
               <div className="flex justify-between text-slate-400">
                 <span>Method</span>
-                <span className="font-bold text-white">{order.paymentMethod}</span>
+                <span className="font-bold text-white">
+                  {order.paymentMethod === "UPI_QR" ? "Direct UPI & QR Code" : order.paymentMethod}
+                </span>
               </div>
               <div className="flex justify-between text-slate-400">
                 <span>Status</span>
@@ -796,6 +798,12 @@ export default function OrderDetailsPage() {
                   {order.paymentStatus}
                 </span>
               </div>
+              {order.upiReference && (
+                <div className="flex justify-between text-slate-400 pt-1 border-t border-slate-800">
+                  <span>UPI Ref / UTR</span>
+                  <span className="font-mono font-bold text-amber-300">{order.upiReference}</span>
+                </div>
+              )}
               {order.payments && order.payments.length > 0 && (
                 <div className="pt-2 border-t border-slate-800 space-y-1">
                   <span className="text-[10px] text-slate-500 block uppercase font-semibold">
@@ -812,7 +820,7 @@ export default function OrderDetailsPage() {
                 <button
                   onClick={() => {
                     setPaymentAmount(Number(order.totalAmount ?? order.total ?? 0));
-                    setPaymentTransactionId(order.paymentMethod === "COD" ? `COD-CASH-REC-${Date.now().toString().slice(-4)}` : "");
+                    setPaymentTransactionId(order.upiReference || (order.paymentMethod === "COD" ? `COD-CASH-REC-${Date.now().toString().slice(-4)}` : ""));
                     setIsPaymentModalOpen(true);
                   }}
                   className="mt-3 w-full px-3 py-2 bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border border-emerald-700/80 rounded-xl font-bold uppercase tracking-wider text-[11px] transition-colors flex items-center justify-center gap-1.5 cursor-pointer"

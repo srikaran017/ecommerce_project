@@ -17,12 +17,17 @@ import {
   Plus,
   Info,
   ArrowRight,
+  QrCode,
+  Smartphone,
+  Copy,
+  Check,
+  ExternalLink,
 } from "lucide-react";
 import { useCartStore } from "@/stores/cart.store";
 import { useAuthStore } from "@/stores/auth.store";
 import { storeConfig } from "@/config/store.config";
 import { featureConfig } from "@/config/feature.config";
-import { paymentConfig } from "@/config/payment.config";
+import { paymentConfig, getStorePaymentConfig, PaymentMethodsConfig } from "@/config/payment.config";
 import { CustomerService, CustomerAddress } from "@/services/customer.service";
 import { CheckoutService, loadRazorpayScript } from "@/services/checkout.service";
 import { CheckoutSummaryData } from "@/types/checkout.types";
@@ -43,6 +48,12 @@ export default function CheckoutPage() {
   const [isOrderPlaced, setIsOrderPlaced] = useState(false);
   const [generalError, setGeneralError] = useState<string | null>(null);
 
+  // Dynamic Payment Gateways Configuration State
+  const [paymentSettings, setPaymentSettings] = useState<PaymentMethodsConfig>(getStorePaymentConfig());
+  const [upiReference, setUpiReference] = useState("");
+  const [upiRefError, setUpiRefError] = useState("");
+  const [copiedUpi, setCopiedUpi] = useState(false);
+
   // Saved Addresses State
   const [savedAddresses, setSavedAddresses] = useState<CustomerAddress[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string | "new">("new");
@@ -61,7 +72,7 @@ export default function CheckoutPage() {
     state: "",
     postalCode: "",
     country: "India",
-    paymentMethod: "RAZORPAY" as "RAZORPAY" | "COD",
+    paymentMethod: "RAZORPAY" as "RAZORPAY" | "COD" | "UPI_QR",
     customerNotes: "",
   });
 
@@ -80,6 +91,35 @@ export default function CheckoutPage() {
   const [pendingRazorpayPayload, setPendingRazorpayPayload] = useState<any>(null);
 
   const hasCheckedCartRef = useRef(false);
+
+  // Load and listen to payment config changes in real-time
+  useEffect(() => {
+    const config = getStorePaymentConfig();
+    setPaymentSettings(config);
+
+    if (formData.paymentMethod === "RAZORPAY" && !config.enableRazorpay) {
+      if (config.enableUpiQr) setFormData((prev) => ({ ...prev, paymentMethod: "UPI_QR" }));
+      else if (config.enableCod) setFormData((prev) => ({ ...prev, paymentMethod: "COD" }));
+    } else if (formData.paymentMethod === "COD" && !config.enableCod) {
+      if (config.enableRazorpay) setFormData((prev) => ({ ...prev, paymentMethod: "RAZORPAY" }));
+      else if (config.enableUpiQr) setFormData((prev) => ({ ...prev, paymentMethod: "UPI_QR" }));
+    } else if (formData.paymentMethod === "UPI_QR" && !config.enableUpiQr) {
+      if (config.enableRazorpay) setFormData((prev) => ({ ...prev, paymentMethod: "RAZORPAY" }));
+      else if (config.enableCod) setFormData((prev) => ({ ...prev, paymentMethod: "COD" }));
+    }
+
+    const handleUpdate = () => {
+      const updated = getStorePaymentConfig();
+      setPaymentSettings(updated);
+    };
+
+    window.addEventListener("payment-config-updated", handleUpdate);
+    window.addEventListener("storage", handleUpdate);
+    return () => {
+      window.removeEventListener("payment-config-updated", handleUpdate);
+      window.removeEventListener("storage", handleUpdate);
+    };
+  }, []);
 
   // Initialize page & sync user data
   useEffect(() => {
@@ -296,13 +336,28 @@ export default function CheckoutPage() {
       return;
     }
 
-    // Cash on Delivery is capped at ₹25,000
+    // Cash on Delivery is capped at configured limit
     const currentTotal = summaryData?.pricing.totalAmount ?? 0;
-    if (formData.paymentMethod === "COD" && currentTotal > 25000) {
+    const codLimit = paymentSettings.codMaxLimit || 25000;
+    if (formData.paymentMethod === "COD" && currentTotal > codLimit) {
       setGeneralError(
-        `Cash on Delivery (COD) orders are capped at ${storeConfig.currency.symbol}25,000. Your order total is ${storeConfig.currency.symbol}${currentTotal.toLocaleString()}. Please select Online Payment via Razorpay.`
+        `Cash on Delivery (COD) orders are capped at ${storeConfig.currency.symbol}${codLimit.toLocaleString()}. Your order total is ${storeConfig.currency.symbol}${currentTotal.toLocaleString()}. Please select Online Payment via Razorpay or UPI QR.`
       );
       return;
+    }
+
+    // UPI Reference is mandatory for Direct UPI QR payments
+    if (formData.paymentMethod === "UPI_QR") {
+      const cleanRef = upiReference.trim();
+      if (!cleanRef) {
+        setUpiRefError("Please enter your 12-digit UPI Reference / UTR Number after completing payment.");
+        setGeneralError("UPI Reference / UTR Number is required to confirm your UPI payment.");
+        return;
+      }
+      if (cleanRef.length < 6) {
+        setUpiRefError("Please enter a valid reference number (at least 6 digits).");
+        return;
+      }
     }
 
     setIsProcessing(true);
@@ -327,6 +382,7 @@ export default function CheckoutPage() {
         couponCode: appliedCouponCode || undefined,
         customerNotes: formData.customerNotes?.trim() || undefined,
         customerEmail: formData.email.trim(),
+        upiReference: formData.paymentMethod === "UPI_QR" ? upiReference.trim() : undefined,
       };
 
       if (selectedAddressId !== "new") {
@@ -363,6 +419,18 @@ export default function CheckoutPage() {
           `/order-success/${order.orderNumber}?method=cod&amount=${order.totalAmount}&email=${encodeURIComponent(
             formData.email
           )}&phone=${encodeURIComponent(formData.phone)}`
+        );
+        return;
+      }
+
+      // Handle Direct UPI QR Payment -> Redirect to confirmation screen with UTR
+      if (formData.paymentMethod === "UPI_QR") {
+        setIsOrderPlaced(true);
+        await clearCart();
+        router.replace(
+          `/order-success/${order.orderNumber}?method=upi_qr&amount=${order.totalAmount}&email=${encodeURIComponent(
+            formData.email
+          )}&phone=${encodeURIComponent(formData.phone)}&utr=${encodeURIComponent(upiReference.trim())}`
         );
         return;
       }
@@ -812,12 +880,12 @@ export default function CheckoutPage() {
                   </h2>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   
-                  {/* Online Payment (Razorpay / Cards / UPI) */}
-                  {paymentConfig.onlinePaymentEnabled && (
+                  {/* 1. Online Payment (Razorpay / Cards / Wallets) */}
+                  {paymentSettings.enableRazorpay && (
                     <label
-                      className={`p-5 rounded-[var(--radius)] border cursor-pointer flex flex-col justify-between transition-all ${
+                      className={`p-4 rounded-[var(--radius)] border cursor-pointer flex flex-col justify-between transition-all ${
                         formData.paymentMethod === "RAZORPAY"
                           ? "border-[var(--foreground)] bg-[var(--muted)] ring-1 ring-[var(--foreground)]"
                           : "border-[var(--border)] hover:border-[var(--foreground)]"
@@ -825,9 +893,9 @@ export default function CheckoutPage() {
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex items-center gap-2">
-                          <CreditCard className="w-5 h-5 text-[var(--foreground)]" />
+                          <CreditCard className="w-4 h-4 text-[var(--foreground)]" />
                           <span className="text-xs font-bold uppercase tracking-wider text-[var(--foreground)]">
-                            Online Payment
+                            Razorpay
                           </span>
                         </div>
                         <input
@@ -839,16 +907,47 @@ export default function CheckoutPage() {
                           className="accent-[var(--foreground)]"
                         />
                       </div>
-                      <p className="text-[11px] text-[var(--muted-foreground)] mt-3">
-                        Cards, UPI, NetBanking via Razorpay 256-bit Encrypted Gateway.
+                      <p className="text-[11px] text-[var(--muted-foreground)] mt-2.5">
+                        Cards, UPI, NetBanking via Razorpay Gateway.
                       </p>
                     </label>
                   )}
 
-                  {/* Cash On Delivery (Respecting feature flag & ₹25k limit) */}
-                  {featureConfig.cashOnDelivery && paymentConfig.codEnabled && (
+                  {/* 2. Direct UPI & QR Code Payment */}
+                  {paymentSettings.enableUpiQr && (
                     <label
-                      className={`p-5 rounded-[var(--radius)] border transition-all ${
+                      className={`p-4 rounded-[var(--radius)] border cursor-pointer flex flex-col justify-between transition-all ${
+                        formData.paymentMethod === "UPI_QR"
+                          ? "border-[var(--foreground)] bg-[var(--muted)] ring-1 ring-[var(--foreground)]"
+                          : "border-[var(--border)] hover:border-[var(--foreground)]"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-2">
+                          <QrCode className="w-4 h-4 text-amber-500" />
+                          <span className="text-xs font-bold uppercase tracking-wider text-[var(--foreground)]">
+                            UPI QR Code
+                          </span>
+                        </div>
+                        <input
+                          type="radio"
+                          name="paymentMethod"
+                          value="UPI_QR"
+                          checked={formData.paymentMethod === "UPI_QR"}
+                          onChange={() => setFormData({ ...formData, paymentMethod: "UPI_QR" })}
+                          className="accent-[var(--foreground)]"
+                        />
+                      </div>
+                      <p className="text-[11px] text-[var(--muted-foreground)] mt-2.5">
+                        Dynamic QR + 1-Tap GPay / PhonePe / Paytm.
+                      </p>
+                    </label>
+                  )}
+
+                  {/* 3. Cash On Delivery (COD) */}
+                  {paymentSettings.enableCod && featureConfig.cashOnDelivery && (
+                    <label
+                      className={`p-4 rounded-[var(--radius)] border transition-all ${
                         isCodBlockedByCap
                           ? "opacity-60 cursor-not-allowed border-dashed bg-neutral-50 dark:bg-neutral-900/40"
                           : formData.paymentMethod === "COD"
@@ -858,7 +957,7 @@ export default function CheckoutPage() {
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex items-center gap-2">
-                          <Banknote className="w-5 h-5 text-[var(--foreground)]" />
+                          <Banknote className="w-4 h-4 text-[var(--foreground)]" />
                           <span className="text-xs font-bold uppercase tracking-wider text-[var(--foreground)]">
                             Cash On Delivery
                           </span>
@@ -877,19 +976,152 @@ export default function CheckoutPage() {
                           className="accent-[var(--foreground)]"
                         />
                       </div>
-                      <p className="text-[11px] text-[var(--muted-foreground)] mt-3">
+                      <p className="text-[11px] text-[var(--muted-foreground)] mt-2.5">
                         {isCodBlockedByCap ? (
                           <span className="text-amber-700 font-semibold flex items-center gap-1">
-                            <Info className="w-3.5 h-3.5 inline" /> Capped at ₹25,000. Please choose Online Payment.
+                            <Info className="w-3.5 h-3.5 inline" /> Capped at ₹{(paymentSettings.codMaxLimit || 25000).toLocaleString()}.
                           </span>
                         ) : (
-                          "Pay upon doorstep delivery. Phone verification required."
+                          "Pay upon doorstep delivery."
                         )}
                       </p>
                     </label>
                   )}
 
                 </div>
+
+                {/* Direct UPI Dynamic QR Drawer */}
+                {formData.paymentMethod === "UPI_QR" && (
+                  <div className="mt-4 p-5 sm:p-6 rounded-[var(--radius)] border border-amber-500/40 bg-amber-500/5 space-y-5 animate-in fade-in duration-200">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--foreground)] flex items-center gap-2">
+                          <QrCode className="w-4 h-4 text-amber-500" />
+                          <span>Direct UPI Instant Payment</span>
+                          <span className="text-[9px] font-bold text-emerald-600 bg-emerald-100 dark:bg-emerald-950/60 dark:text-emerald-400 px-1.5 py-0.5 rounded">
+                            0% Fee
+                          </span>
+                        </h3>
+                        <p className="text-[11px] text-[var(--muted-foreground)] mt-0.5">
+                          {paymentSettings.instructions || "Scan the QR code or tap 'Pay via UPI App', then enter your 12-digit UPI Reference / UTR Number below to confirm."}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* NPCI UPI URI and scannable visual layout */}
+                    {(() => {
+                      const dynamicUpiUri = `upi://pay?pa=${encodeURIComponent(
+                        paymentSettings.upiId || "maison@okhdfcbank"
+                      )}&pn=${encodeURIComponent(
+                        paymentSettings.payeeName || "Maison De Élégance"
+                      )}&am=${displayTotal.toFixed(2)}&cu=INR&tn=Order%20Payment`;
+
+                      const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(
+                        dynamicUpiUri
+                      )}&margin=6`;
+
+                      return (
+                        <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-center">
+                          {/* Desktop QR Display */}
+                          <div className="md:col-span-5 flex flex-col items-center justify-center p-3 bg-white rounded-xl border border-slate-200 shadow-sm mx-auto w-fit">
+                            <img
+                              src={qrCodeUrl}
+                              alt="Order UPI QR Code"
+                              className="w-40 h-40 object-contain"
+                            />
+                            <span className="text-[10px] font-mono font-bold text-slate-800 mt-2">
+                              Scan to pay {storeConfig.currency.symbol}{displayTotal.toLocaleString()}
+                            </span>
+                          </div>
+
+                          {/* Mobile 1-Tap Payment & Details */}
+                          <div className="md:col-span-7 space-y-3.5">
+                            {/* 1-Tap App Trigger (Mobile Friendly, No Screenshot Required) */}
+                            <div>
+                              <a
+                                href={dynamicUpiUri}
+                                className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs uppercase tracking-wider rounded-[var(--radius)] shadow-md transition-all active:scale-[0.99] text-center"
+                              >
+                                <Smartphone className="w-4 h-4" />
+                                <span>Pay {storeConfig.currency.symbol}{displayTotal.toLocaleString()} via UPI App</span>
+                                <ExternalLink className="w-3.5 h-3.5 opacity-80" />
+                              </a>
+                              <p className="text-[10px] text-[var(--muted-foreground)] mt-1.5 flex items-center gap-1.5">
+                                <span className="text-amber-500 font-bold">●</span>
+                                <span>Tap button above to open GPay, PhonePe, Paytm, or BHIM directly without taking screenshots.</span>
+                              </p>
+                            </div>
+
+                            {/* VPA Details Box */}
+                            <div className="p-3 bg-[var(--background)] border border-[var(--border)] rounded-[var(--radius)] text-xs space-y-1.5">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[var(--muted-foreground)] text-[11px]">Payee Name:</span>
+                                <span className="font-bold text-[var(--foreground)]">{paymentSettings.payeeName}</span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-[var(--muted-foreground)] text-[11px]">Merchant UPI ID:</span>
+                                <div className="flex items-center gap-1.5 font-mono font-bold text-[var(--foreground)]">
+                                  <span>{paymentSettings.upiId}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (typeof navigator !== "undefined" && navigator.clipboard) {
+                                        navigator.clipboard.writeText(paymentSettings.upiId);
+                                        setCopiedUpi(true);
+                                        setTimeout(() => setCopiedUpi(false), 2000);
+                                      }
+                                    }}
+                                    className="p-1 hover:bg-[var(--muted)] rounded text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors cursor-pointer"
+                                    title="Copy UPI ID"
+                                  >
+                                    {copiedUpi ? (
+                                      <Check className="w-3 h-3 text-emerald-500" />
+                                    ) : (
+                                      <Copy className="w-3 h-3" />
+                                    )}
+                                  </button>
+                                </div>
+                              </div>
+                              <div className="flex justify-between border-t border-[var(--border)] pt-1">
+                                <span className="text-[var(--muted-foreground)] text-[11px]">Amount:</span>
+                                <strong className="font-mono text-amber-500">{storeConfig.currency.symbol}{displayTotal.toLocaleString()}</strong>
+                              </div>
+                            </div>
+
+                            {/* 12-Digit UTR Entry Field */}
+                            <div className="space-y-1 pt-1">
+                              <label className="text-xs font-bold uppercase tracking-wider text-[var(--foreground)] flex items-center justify-between">
+                                <span>
+                                  12-Digit UPI Reference / UTR Number <span className="text-rose-500">*</span>
+                                </span>
+                                <span className="text-[10px] text-[var(--muted-foreground)] font-normal">
+                                  From UPI payment receipt
+                                </span>
+                              </label>
+                              <input
+                                type="text"
+                                required
+                                value={upiReference}
+                                onChange={(e) => {
+                                  setUpiReference(e.target.value);
+                                  if (upiRefError) setUpiRefError("");
+                                }}
+                                placeholder="e.g. 428901234567"
+                                className="w-full px-3.5 py-2.5 text-xs font-mono bg-[var(--background)] text-[var(--foreground)] border border-[var(--border)] rounded-[var(--radius)] focus:outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)]"
+                              />
+                              {upiRefError && (
+                                <p className="text-[11px] text-rose-600 font-medium flex items-center gap-1 mt-1">
+                                  <AlertCircle className="w-3.5 h-3.5 inline shrink-0" />
+                                  <span>{upiRefError}</span>
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
               </div>
 
               {/* Submit CTA */}
@@ -906,6 +1138,8 @@ export default function CheckoutPage() {
                   ? "PROCESSING TRANSACTION..."
                   : formData.paymentMethod === "RAZORPAY"
                   ? `PAY VIA RAZORPAY • ${storeConfig.currency.symbol}${displayTotal.toLocaleString()}`
+                  : formData.paymentMethod === "UPI_QR"
+                  ? `CONFIRM ORDER VIA UPI • ${storeConfig.currency.symbol}${displayTotal.toLocaleString()}`
                   : `CONFIRM CASH ON DELIVERY • ${storeConfig.currency.symbol}${displayTotal.toLocaleString()}`}
               </Button>
 

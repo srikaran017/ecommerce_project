@@ -473,16 +473,18 @@ export class CheckoutService {
         discountAmount: pricing.discountAmount,
         totalAmount: pricing.totalAmount,
         paymentMethod: input.paymentMethod,
-        paymentStatus: input.paymentMethod === "COD" ? "PENDING" : "PENDING",
+        paymentStatus: "PENDING",
+        upiReference: input.upiReference,
         couponCode: input.couponCode,
       });
 
       const orderPayload: any = {
         id: orderId,
         orderNumber,
-        status: "PENDING",
+        status: "CONFIRMED",
         paymentStatus: "PENDING",
         paymentMethod: input.paymentMethod,
+        upiReference: input.upiReference,
         subtotal: pricing.subtotal,
         discountAmount: pricing.discountAmount,
         shippingAmount: pricing.shippingAmount,
@@ -513,6 +515,15 @@ export class CheckoutService {
           success: true,
           statusCode: 201,
           message: "Order created successfully. Please complete payment via Razorpay.",
+          data: placeOrderData,
+        };
+      }
+
+      if (input.paymentMethod === "UPI_QR") {
+        return {
+          success: true,
+          statusCode: 201,
+          message: "Order placed successfully via Direct UPI / QR Payment. Admin will verify your transaction reference.",
           data: placeOrderData,
         };
       }

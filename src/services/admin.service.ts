@@ -888,6 +888,16 @@ export const INITIAL_STORE_SETTINGS: StoreSettings = {
     recommendations: true,
     sizeChart: true,
     orderTracking: true,
+    upiQrPayment: true,
+  },
+  paymentMethodsJson: {
+    enableRazorpay: true,
+    enableCod: true,
+    enableUpiQr: true,
+    upiId: "maison@okhdfcbank",
+    payeeName: "Maison De Élégance",
+    instructions: "Scan the QR code or tap 'Pay via UPI App', then enter your 12-digit UPI Reference / UTR Number below to confirm.",
+    codMaxLimit: 25000,
   },
   policiesJson: {
     shippingPolicy: "Complimentary white-glove express delivery on luxury orders above ₹2,999.",
@@ -7833,6 +7843,20 @@ export class AdminService {
           returnPolicy: input.policiesJson.returnPolicy || current.policiesJson.returnPolicy,
         },
       }),
+      ...(input.paymentMethodsJson && {
+        paymentMethodsJson: {
+          ...(current.paymentMethodsJson || {
+            enableRazorpay: true,
+            enableCod: true,
+            enableUpiQr: true,
+            upiId: "maison@okhdfcbank",
+            payeeName: "Maison De Élégance",
+            instructions: "Scan the QR code or tap 'Pay via UPI App', then enter your 12-digit UPI Reference / UTR Number below to confirm.",
+            codMaxLimit: 25000,
+          }),
+          ...input.paymentMethodsJson,
+        },
+      }),
       updatedAt: new Date().toISOString(),
     };
 
@@ -8614,8 +8638,9 @@ export class AdminService {
     shippingAmount: number;
     discountAmount: number;
     totalAmount: number;
-    paymentMethod: "RAZORPAY" | "COD" | "STRIPE" | "UPI";
+    paymentMethod: "RAZORPAY" | "COD" | "STRIPE" | "UPI" | "UPI_QR" | string;
     paymentStatus?: "PENDING" | "COMPLETED" | "FAILED";
+    upiReference?: string;
     couponCode?: string;
     notes?: string;
   }): Promise<AdminOrder> {
@@ -8640,15 +8665,18 @@ export class AdminService {
       totalAmount: input.totalAmount,
       total: input.totalAmount,
       status: "CONFIRMED",
-      paymentStatus: input.paymentStatus || (input.paymentMethod === "COD" ? "PENDING" : "COMPLETED"),
+      paymentStatus: input.paymentStatus || (input.paymentMethod === "COD" || input.paymentMethod === "UPI_QR" ? "PENDING" : "COMPLETED"),
       paymentMethod: input.paymentMethod,
-      notes: input.notes || (input.couponCode ? `Coupon applied: ${input.couponCode}` : null),
+      upiReference: input.upiReference || null,
+      notes: input.notes || (input.upiReference ? `UPI UTR / Ref: ${input.upiReference}${input.couponCode ? ` | Coupon: ${input.couponCode}` : ''}` : (input.couponCode ? `Coupon applied: ${input.couponCode}` : null)),
       statusHistory: [
         {
           id: `hist_${Date.now()}`,
           previousStatus: null,
           newStatus: "CONFIRMED",
-          comment: `Order successfully placed via luxury storefront (${input.paymentMethod})`,
+          comment: input.paymentMethod === "UPI_QR"
+            ? `Order submitted via Direct UPI QR Payment (UTR: ${input.upiReference || 'Pending verification'})`
+            : `Order successfully placed via luxury storefront (${input.paymentMethod})`,
           createdAt: nowIso,
           changedBy: {
             id: "customer",

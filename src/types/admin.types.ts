@@ -783,6 +783,7 @@ export interface AdminOrder {
   itemsCount?: number;
   items: AdminOrderItem[];
   payments?: AdminOrderPayment[];
+  upiReference?: string | null;
   statusHistory?: OrderStatusHistoryEntry[];
   notes?: string | null;
   internalAdminNotes?: string | null;
@@ -1238,7 +1239,18 @@ export interface StoreFeatureFlags {
   recommendations: boolean;
   sizeChart: boolean;
   orderTracking: boolean;
+  upiQrPayment?: boolean;
   [key: string]: boolean | undefined;
+}
+
+export interface PaymentMethodsSettings {
+  enableRazorpay: boolean;
+  enableCod: boolean;
+  enableUpiQr: boolean;
+  upiId: string;
+  payeeName: string;
+  instructions?: string;
+  codMaxLimit?: number;
 }
 
 export interface StorePolicies {
@@ -1265,6 +1277,7 @@ export interface StoreSettings {
   freeShippingThreshold: string | number;
   flatShippingRate: string | number;
   featuresJson: StoreFeatureFlags;
+  paymentMethodsJson?: PaymentMethodsSettings;
   policiesJson: StorePolicies;
   updatedAt: string;
 }
@@ -1278,6 +1291,7 @@ export interface UpdateStoreSettingsInput {
   currencySymbol?: string;
   freeShippingThreshold?: number | string;
   flatShippingRate?: number | string;
+  paymentMethodsJson?: Partial<PaymentMethodsSettings>;
   policiesJson?: Partial<StorePolicies>;
 }
 
