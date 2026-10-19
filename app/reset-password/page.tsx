@@ -176,7 +176,7 @@ function ResetPasswordForm() {
             <img
               src={storeConfig.logo.dark}
               alt={storeConfig.name}
-              className="h-14 w-auto max-w-[220px] object-contain transition-transform group-hover:scale-105"
+              className="h-16 sm:h-20 w-auto max-w-[260px] object-contain transition-transform group-hover:scale-105"
             />
           )}
           <span className="font-heading text-xl sm:text-2xl font-bold tracking-widest text-neutral-900 uppercase">

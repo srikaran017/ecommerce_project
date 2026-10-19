@@ -47,7 +47,7 @@ export function Footer() {
                 <img
                   src={storeConfig.logo.light || storeConfig.logo.dark}
                   alt={storeConfig.logo.alt || storeConfig.name}
-                  className="h-11 sm:h-12 w-auto object-contain"
+                  className="h-14 sm:h-16 w-auto max-w-[220px] object-contain"
                 />
               )}
               <h3 className="font-heading text-xl font-bold tracking-widest uppercase">
