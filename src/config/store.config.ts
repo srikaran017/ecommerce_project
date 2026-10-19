@@ -93,12 +93,12 @@ export const storeConfig: StoreConfig = {
   },
   favicon: "/favicon.ico",
   contact: {
-    email: "subashini.official@gmail.com",
+    email: "subashini.official07@gmail.com",
     phone: "+91 91597 89485",
     whatsapp: "+91 91597 89485",
     supportHours: "Mon - Sat: 10:00 AM - 7:00 PM IST",
     address: {
-      street: "Mugappair",
+      street: "Mogappair",
       city: "Chennai",
       state: "TamilNadu",
       postalCode: "600101",
