@@ -169,7 +169,7 @@ export default function AdminLayout({
                 <img
                   src={storeConfig.logo.light || storeConfig.logo.dark}
                   alt={storeConfig.name}
-                  className="h-9 w-auto max-w-[140px] object-contain"
+                  className="h-11 sm:h-12 w-auto max-w-[170px] object-contain"
                 />
               ) : (
                 <Store className="w-5 h-5" />

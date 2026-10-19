@@ -225,7 +225,7 @@ export function Navbar() {
                 <img
                   src={storeConfig.logo.dark}
                   alt={storeConfig.logo.alt || storeConfig.name}
-                  className="h-14 sm:h-16 md:h-[68px] w-auto max-w-[220px] sm:max-w-[280px] md:max-w-[320px] object-contain transition-transform group-hover:scale-105"
+                  className="h-16 sm:h-20 md:h-[78px] w-auto max-w-[260px] sm:max-w-[340px] md:max-w-[400px] object-contain transition-transform group-hover:scale-105"
                 />
               ) : null}
               {(!storeConfig.logo?.dark || storeConfig.logo?.showTextAlongsideLogo) && (
@@ -306,7 +306,7 @@ export function Navbar() {
               <img
                 src={storeConfig.logo.dark}
                 alt={storeConfig.logo.alt || storeConfig.name}
-                className="h-12 w-auto max-w-[160px] object-contain"
+                className="h-14 sm:h-16 w-auto max-w-[200px] object-contain"
               />
             ) : null}
             <span className="font-heading text-sm font-bold uppercase tracking-wider text-[var(--foreground)]">

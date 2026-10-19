@@ -115,7 +115,7 @@ function SignupForm() {
               <img
                 src={storeConfig.logo.dark}
                 alt={storeConfig.name}
-                className="h-16 sm:h-20 w-auto max-w-[260px] object-contain transition-transform group-hover:scale-105"
+                className="h-24 sm:h-28 md:h-32 w-auto max-w-[300px] sm:max-w-[380px] object-contain transition-transform group-hover:scale-105"
               />
             )}
             <span className="font-heading text-xl sm:text-2xl font-bold tracking-widest text-neutral-900 uppercase">
