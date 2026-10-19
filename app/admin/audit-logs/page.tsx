@@ -33,6 +33,7 @@ import {
   AuditLogListQueryParams,
 } from "@/types/admin.types";
 import { useAuthStore } from "@/stores/auth.store";
+import { storeConfig } from "@/config/store.config";
 import { rbac } from "@/lib/rbac";
 
 export default function AdminAuditLogsPage() {
@@ -424,7 +425,7 @@ export default function AdminAuditLogsPage() {
                               {log.user?.name || log.adminName || "Store Admin"}
                             </div>
                             <div className="text-[10px] text-slate-400 truncate max-w-[140px]">
-                              {log.user?.email || log.adminEmail || "admin@maison.com"}
+                              {log.user?.email || log.adminEmail || storeConfig.contact.email}
                             </div>
                             <span className="inline-block px-1.5 py-0.2 rounded text-[9px] font-mono font-bold uppercase tracking-wider bg-purple-500/10 text-purple-300 border border-purple-500/20">
                               {log.user?.role || "ADMIN"}

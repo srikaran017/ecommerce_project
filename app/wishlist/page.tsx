@@ -1,10 +1,11 @@
 import React, { Suspense } from "react";
 import { featureConfig } from "@/config/feature.config";
+import { storeConfig } from "@/config/store.config";
 import { notFound } from "next/navigation";
 import { WishlistClient } from "./WishlistClient";
 
 export const metadata = {
-  title: "My Saved Wishlist | Maison De Élégance",
+  title: `My Saved Wishlist | ${storeConfig.name}`,
   description: "View your saved luxury garments, check stock availability, and move garments to your cart.",
 };
 

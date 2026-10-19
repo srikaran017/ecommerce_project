@@ -68,10 +68,18 @@ export default function ForgotPasswordPage() {
           <div className="text-center space-y-2">
             <Link
               href="/"
-              className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.25em] text-amber-800 bg-amber-50 border border-amber-200/70 px-3.5 py-1 rounded-full mb-3 shadow-2xs hover:bg-amber-100 transition-colors"
+              className="inline-flex flex-col items-center gap-2 group mb-2"
             >
-              <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-              <span>{storeConfig.name}</span>
+              {storeConfig.logo?.dark && (
+                <img
+                  src={storeConfig.logo.dark}
+                  alt={storeConfig.name}
+                  className="h-14 w-auto max-w-[220px] object-contain transition-transform group-hover:scale-105"
+                />
+              )}
+              <span className="font-heading text-xl sm:text-2xl font-bold tracking-widest text-neutral-900 uppercase">
+                {storeConfig.name}
+              </span>
             </Link>
 
             <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-900 border border-amber-200/80 flex items-center justify-center mx-auto shadow-2xs">

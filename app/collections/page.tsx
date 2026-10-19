@@ -2,9 +2,10 @@ import React from "react";
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 import { ProductService } from "@/services/product.service";
+import { storeConfig } from "@/config/store.config";
 
 export const metadata = {
-  title: "Curated Seasonal Collections | Maison De Élégance",
+  title: `Curated Seasonal Collections | ${storeConfig.name}`,
   description: "Explore our limited edition seasonal lookbooks and curated capsule collections.",
 };
 

@@ -59,8 +59,8 @@ export default function OrderSuccessPage() {
   const isCod = (confirmation?.paymentMethod === "COD") || queryMethod.toLowerCase() === "cod";
   const isUpiQr = (confirmation?.paymentMethod === "UPI_QR") || queryMethod.toLowerCase() === "upi_qr";
   const utrNumber = searchParams.get("utr") || (confirmation as any)?.upiReference || "";
-  const customerEmail = confirmation?.customerEmail || queryEmail || "client@maison.com";
-  const customerPhone = confirmation?.customerPhone || queryPhone || "+91 98765 43210";
+  const customerEmail = confirmation?.customerEmail || queryEmail || storeConfig.contact.email;
+  const customerPhone = confirmation?.customerPhone || queryPhone || storeConfig.contact.phone;
   const totalAmount = confirmation?.pricing.totalAmount ?? (queryAmount ? Number(queryAmount) : 0);
 
   return (

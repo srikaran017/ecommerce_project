@@ -1,3 +1,5 @@
+import { storeConfig } from "@/config/store.config";
+
 export interface ProductVariantData {
   id: string;
   sku: string;
@@ -164,7 +166,7 @@ export const FALLBACK_PRODUCTS: ProductData[] = [
       discountPercentage: 32,
     },
     sku: "MDE-EVE-001",
-    brand: "Maison De Élégance",
+    brand: storeConfig.name,
     gender: "WOMEN",
     tags: ["Evening", "Gown", "Silk", "Mulberry", "Couture"],
     categorySlug: "evening-gowns",
@@ -242,7 +244,7 @@ export const FALLBACK_PRODUCTS: ProductData[] = [
       discountPercentage: 20,
     },
     sku: "MDE-SAR-002",
-    brand: "Maison De Élégance",
+    brand: storeConfig.name,
     gender: "WOMEN",
     tags: ["Saree", "Velvet", "Wedding", "Festive", "Zardozi"],
     categorySlug: "sarees",
@@ -414,7 +416,7 @@ export const FALLBACK_PRODUCTS: ProductData[] = [
       discountPercentage: 17,
     },
     sku: "BN-SAR-001",
-    brand: "Maison De Élégance",
+    brand: storeConfig.name,
     productType: "Sarees",
     gender: "WOMEN",
     tags: ["Saree", "Silk", "Banarasi", "Zari", "Wedding", "Festive"],

@@ -1,5 +1,6 @@
 import { getApiBaseUrl } from "@/services/apiConfig";
 import { AuthService } from "@/services/auth.service";
+import { storeConfig } from "@/config/store.config";
 import { FALLBACK_PRODUCTS, ProductData } from "@/data/products.data";
 import { useCartStore } from "@/stores/cart.store";
 import {
@@ -222,7 +223,7 @@ export class WishlistService {
           addedAt: new Date().toISOString(),
           name: p.name,
           slug: p.slug,
-          brand: p.brand || "Maison De Élégance",
+          brand: p.brand || storeConfig.name,
           sku: p.sku || `MDE-${p.id.slice(0, 6)}`,
           thumbnail: p.thumbnail || p.images[0]?.url || "",
           images: p.images.map((img, i) => ({
@@ -586,7 +587,7 @@ export class WishlistService {
       wishlistCount: Math.max(12, 42 - idx * 3),
       name: p.name,
       slug: p.slug,
-      brand: p.brand || "Maison De Élégance",
+      brand: p.brand || storeConfig.name,
       category: p.categoryName || "Evening Gowns",
       regularPrice: p.priceObject?.regular || p.compareAtPrice || p.price,
       salePrice: p.priceObject?.effective || p.price,

@@ -114,7 +114,14 @@ function LoginForm() {
         
         {/* Header */}
         <div className="text-center space-y-2">
-          <Link href="/" className="inline-block">
+          <Link href="/" className="inline-flex flex-col items-center gap-2 group">
+            {storeConfig.logo?.dark && (
+              <img
+                src={storeConfig.logo.dark}
+                alt={storeConfig.name}
+                className="h-14 w-auto max-w-[220px] object-contain transition-transform group-hover:scale-105"
+              />
+            )}
             <span className="font-heading text-xl sm:text-2xl font-bold tracking-widest text-neutral-900 uppercase">
               {storeConfig.name}
             </span>

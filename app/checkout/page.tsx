@@ -858,7 +858,7 @@ export default function CheckoutPage() {
                         name="company"
                         value={formData.company}
                         onChange={handleInputChange}
-                        placeholder="e.g. Maison Atelier"
+                        placeholder={`e.g. ${storeConfig.name}`}
                       />
                     </div>
                     <div className="sm:col-span-2">
@@ -1078,8 +1078,8 @@ export default function CheckoutPage() {
                       };
 
                       const dynamicUpiUri = generateUpiUri({
-                        upiId: paymentSettings.upiId || "maison@okhdfcbank",
-                        payeeName: paymentSettings.payeeName || "Maison De Élégance",
+                        upiId: paymentSettings.upiId || storeConfig.payment.upiId,
+                        payeeName: paymentSettings.payeeName || storeConfig.payment.payeeName || storeConfig.name,
                         amount: displayTotal,
                         orderRef: "Payment",
                       });

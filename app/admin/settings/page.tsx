@@ -36,6 +36,7 @@ import {
   Check,
 } from "lucide-react";
 import { featureConfig } from "@/config/feature.config";
+import { storeConfig } from "@/config/store.config";
 import { PRESET_THEMES, ThemeConfig } from "@/config/theme.config";
 import {
   getStorePaymentConfig,
@@ -150,12 +151,12 @@ export default function AdminSettingsPage() {
   } | null>(null);
 
   // Form Fields
-  const [formStoreName, setFormStoreName] = useState("");
-  const [formTagline, setFormTagline] = useState("");
-  const [formCurrency, setFormCurrency] = useState("INR");
-  const [formCurrencySymbol, setFormCurrencySymbol] = useState("₹");
-  const [formSupportEmail, setFormSupportEmail] = useState("");
-  const [formSupportPhone, setFormSupportPhone] = useState("");
+  const [formStoreName, setFormStoreName] = useState(storeConfig.name);
+  const [formTagline, setFormTagline] = useState(storeConfig.tagline);
+  const [formCurrency, setFormCurrency] = useState(storeConfig.currency.code || "INR");
+  const [formCurrencySymbol, setFormCurrencySymbol] = useState(storeConfig.currency.symbol || "₹");
+  const [formSupportEmail, setFormSupportEmail] = useState(storeConfig.contact.email);
+  const [formSupportPhone, setFormSupportPhone] = useState(storeConfig.contact.phone);
   const [formFreeShippingThreshold, setFormFreeShippingThreshold] = useState("2999.00");
   const [formFlatShippingRate, setFormFlatShippingRate] = useState("150.00");
   const [formShippingPolicy, setFormShippingPolicy] = useState("");
@@ -165,12 +166,12 @@ export default function AdminSettingsPage() {
   const [formEnableRazorpay, setFormEnableRazorpay] = useState(true);
   const [formEnableCod, setFormEnableCod] = useState(true);
   const [formEnableUpiQr, setFormEnableUpiQr] = useState(true);
-  const [formUpiId, setFormUpiId] = useState("maison@okhdfcbank");
-  const [formPayeeName, setFormPayeeName] = useState("Maison De Élégance");
+  const [formUpiId, setFormUpiId] = useState(storeConfig.payment.upiId);
+  const [formPayeeName, setFormPayeeName] = useState(storeConfig.name);
   const [formUpiInstructions, setFormUpiInstructions] = useState(
-    "Scan the QR code or tap 'Pay via UPI App', then enter your 12-digit UPI Reference / UTR Number below to confirm."
+    storeConfig.payment.instructions
   );
-  const [formCodMaxLimit, setFormCodMaxLimit] = useState("25000");
+  const [formCodMaxLimit, setFormCodMaxLimit] = useState(String(storeConfig.payment.codMaxLimit));
   const [copiedUpi, setCopiedUpi] = useState(false);
 
   // Load Settings
@@ -196,10 +197,10 @@ export default function AdminSettingsPage() {
         setFormEnableRazorpay(pConfig.enableRazorpay ?? true);
         setFormEnableCod(pConfig.enableCod ?? true);
         setFormEnableUpiQr(pConfig.enableUpiQr ?? true);
-        setFormUpiId(pConfig.upiId || "maison@okhdfcbank");
-        setFormPayeeName(pConfig.payeeName || "Maison De Élégance");
-        setFormUpiInstructions(pConfig.instructions || "Scan the QR code or tap 'Pay via UPI App', then enter your 12-digit UPI Reference / UTR Number below to confirm.");
-        setFormCodMaxLimit(String(pConfig.codMaxLimit || 25000));
+        setFormUpiId(pConfig.upiId || storeConfig.payment.upiId);
+        setFormPayeeName(pConfig.payeeName || storeConfig.name);
+        setFormUpiInstructions(pConfig.instructions || storeConfig.payment.instructions);
+        setFormCodMaxLimit(String(pConfig.codMaxLimit || storeConfig.payment.codMaxLimit));
 
         // Sync UI theme store if needed
         if (res.data.activeTheme && currentUITheme.id !== res.data.activeTheme) {
@@ -242,10 +243,10 @@ export default function AdminSettingsPage() {
         enableRazorpay: formEnableRazorpay,
         enableCod: formEnableCod,
         enableUpiQr: formEnableUpiQr,
-        upiId: formUpiId.trim() || "maison@okhdfcbank",
-        payeeName: formPayeeName.trim() || "Maison De Élégance",
+        upiId: formUpiId.trim() || storeConfig.payment.upiId,
+        payeeName: formPayeeName.trim() || storeConfig.name,
         instructions: formUpiInstructions.trim(),
-        codMaxLimit: Number(formCodMaxLimit) || 25000,
+        codMaxLimit: Number(formCodMaxLimit) || storeConfig.payment.codMaxLimit,
       };
 
       // Persist to local reactive store
@@ -762,7 +763,7 @@ export default function AdminSettingsPage() {
                       value={formUpiId}
                       onChange={(e) => setFormUpiId(e.target.value)}
                       className="w-full px-3 py-2 bg-slate-900 text-white font-mono border border-slate-800 rounded-lg focus:border-amber-400 focus:outline-none"
-                      placeholder="e.g. maison@okhdfcbank"
+                      placeholder={`e.g. ${storeConfig.payment.upiId}`}
                     />
                     <span className="text-[10px] text-slate-500 mt-1 block">
                       Compatible with Google Pay, PhonePe, Paytm, and BHIM UPI.
@@ -780,7 +781,7 @@ export default function AdminSettingsPage() {
                       value={formPayeeName}
                       onChange={(e) => setFormPayeeName(e.target.value)}
                       className="w-full px-3 py-2 bg-slate-900 text-white border border-slate-800 rounded-lg focus:border-amber-400 focus:outline-none"
-                      placeholder="e.g. Maison De Élégance"
+                      placeholder={`e.g. ${storeConfig.name}`}
                     />
                     <span className="text-[10px] text-slate-500 mt-1 block">
                       Name that appears in the customer&apos;s banking app.
@@ -817,8 +818,8 @@ export default function AdminSettingsPage() {
                 <div className="bg-white p-2.5 rounded-xl shadow-md border border-slate-200">
                   <img
                     src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(
-                      `upi://pay?pa=${formUpiId || "maison@okhdfcbank"}&pn=${encodeURIComponent(
-                        formPayeeName || "Maison"
+                      `upi://pay?pa=${formUpiId || storeConfig.payment.upiId}&pn=${encodeURIComponent(
+                        formPayeeName || storeConfig.name
                       )}&am=1500.00&cu=INR&tn=Sample%20Checkout%20Verification`
                     )}&margin=4`}
                     alt="Sample UPI QR"
@@ -828,10 +829,10 @@ export default function AdminSettingsPage() {
 
                 <div className="mt-3 space-y-1">
                   <div className="text-xs font-bold text-white">
-                    {formPayeeName || "Maison De Élégance"}
+                    {formPayeeName || storeConfig.name}
                   </div>
                   <div className="flex items-center justify-center gap-2 text-xs font-mono text-amber-400">
-                    <span>{formUpiId || "maison@okhdfcbank"}</span>
+                    <span>{formUpiId || storeConfig.payment.upiId}</span>
                     <button
                       type="button"
                       onClick={() => {

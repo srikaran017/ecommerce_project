@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { CustomerService, CustomerPreferences } from "@/services/customer.service";
+import { storeConfig } from "@/config/store.config";
 import {
   Bell,
   MessageSquare,
@@ -46,7 +47,7 @@ export function PreferencesTab({ onShowToast }: PreferencesTabProps) {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(preferences, null, 2));
     const downloadAnchor = document.createElement("a");
     downloadAnchor.setAttribute("href", dataStr);
-    downloadAnchor.setAttribute("download", `maison_client_data_${Date.now()}.json`);
+    downloadAnchor.setAttribute("download", `${storeConfig.id}_client_data_${Date.now()}.json`);
     document.body.appendChild(downloadAnchor);
     downloadAnchor.click();
     downloadAnchor.remove();
@@ -151,7 +152,7 @@ export function PreferencesTab({ onShowToast }: PreferencesTabProps) {
                 </div>
                 <div>
                   <p className="text-xs font-bold text-neutral-900">
-                    Maison Editorial Newsletter
+                    {storeConfig.name} Editorial Newsletter
                   </p>
                   <p className="text-xs text-neutral-500 mt-0.5">
                     Curated styling guides, seasonal color forecasts, and textile craftsmanship essays.

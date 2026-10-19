@@ -1,9 +1,10 @@
 import React from "react";
 import { ProductService } from "@/services/product.service";
+import { storeConfig } from "@/config/store.config";
 import { ProductsCatalogClient } from "./ProductsCatalogClient";
 
 export const metadata = {
-  title: "Atelier Catalogue & Collections | Maison De Élégance",
+  title: `Atelier Catalogue & Collections | ${storeConfig.name}`,
   description: "Browse our complete catalog of handcrafted luxury apparel and bespoke accessories.",
 };
 

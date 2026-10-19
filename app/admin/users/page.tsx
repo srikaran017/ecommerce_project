@@ -36,6 +36,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/auth.store";
+import { storeConfig } from "@/config/store.config";
 import { AdminService } from "@/services/admin.service";
 import {
   AdminManagedUser,
@@ -1044,7 +1045,7 @@ export default function AdminUsersPage() {
                     required
                     value={createForm.email}
                     onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })}
-                    placeholder="e.g. priya.staff@maison.com"
+                    placeholder={`e.g. staff@${storeConfig.contact.email.split("@")[1] || "store.com"}`}
                     className={`w-full px-3.5 py-2.5 bg-slate-950 border rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none focus:border-amber-400 ${
                       createErrors.email ? "border-rose-500" : "border-slate-800"
                     }`}

@@ -79,7 +79,7 @@ export default function AdminProductsPage() {
 
   // Add Product Form State
   const [formName, setFormName] = useState("");
-  const [formBrand, setFormBrand] = useState("Maison De Élégance");
+  const [formBrand, setFormBrand] = useState(storeConfig.name);
   const [formCategory, setFormCategory] = useState("");
   const [formRegularPrice, setFormRegularPrice] = useState("");
   const [formSalePrice, setFormSalePrice] = useState("");
@@ -575,7 +575,7 @@ export default function AdminProductsPage() {
         // MODE A: File Upload (multipart/form-data) -> Never send images URL array
         const formData = new FormData();
         formData.append("name", formName.trim());
-        formData.append("brand", formBrand.trim() || "Maison De Élégance");
+        formData.append("brand", formBrand.trim() || storeConfig.name);
         formData.append(
           "description",
           formDescription.trim() || `${formName.trim()} crafted with exquisite pure fabric and signature couture tailoring.`
@@ -601,7 +601,7 @@ export default function AdminProductsPage() {
           formImageUrl.trim() || "https://images.unsplash.com/photo-1566174053879-31528523f8ae?w=800";
         const input: CreateProductInput = {
           name: formName.trim(),
-          brand: formBrand.trim() || "Maison De Élégance",
+          brand: formBrand.trim() || storeConfig.name,
           description:
             formDescription.trim() || `${formName.trim()} crafted with exquisite pure fabric and signature couture tailoring.`,
           shortDescription: `Handcrafted ${selectedCatObj?.name || "garment"} silhouette.`,
@@ -1676,7 +1676,7 @@ export default function AdminProductsPage() {
                   <input
                     type="text"
                     required
-                    placeholder="Maison De Élégance"
+                    placeholder={storeConfig.name}
                     value={formBrand}
                     onChange={(e) => setFormBrand(e.target.value)}
                     className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-white focus:border-amber-400 focus:outline-none"

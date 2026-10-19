@@ -1,3 +1,5 @@
+import { storeConfig } from "@/config/store.config";
+
 export type PaymentGatewayType = "razorpay" | "stripe" | "cod" | "upi_qr";
 
 export interface PaymentMethodsConfig {
@@ -14,10 +16,10 @@ export const DEFAULT_PAYMENT_METHODS: PaymentMethodsConfig = {
   enableRazorpay: true,
   enableCod: true,
   enableUpiQr: true,
-  upiId: "maison@okhdfcbank",
-  payeeName: "Maison De Élégance",
-  instructions: "Scan the QR code or tap 'Pay via UPI App', then enter your 12-digit UPI Reference / UTR Number below to confirm.",
-  codMaxLimit: 25000,
+  upiId: storeConfig.payment.upiId,
+  payeeName: storeConfig.payment.payeeName || storeConfig.name,
+  instructions: storeConfig.payment.instructions,
+  codMaxLimit: storeConfig.payment.codMaxLimit || 10000,
 };
 
 const PAYMENT_STORAGE_KEY = "wardrobe_payment_methods_config_v1";
@@ -107,7 +109,7 @@ export const paymentConfig: PaymentConfig = {
       enabled: true,
       keyId: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || "rzp_test_sample_key",
       keySecret: process.env.RAZORPAY_KEY_SECRET || "sample_secret_key",
-      merchantName: "MAISON DE ÉLÉGANCE",
+      merchantName: storeConfig.name,
     },
     stripe: {
       enabled: false,
@@ -116,13 +118,13 @@ export const paymentConfig: PaymentConfig = {
     },
     cod: {
       enabled: true,
-      maxOrderLimit: 25000,
+      maxOrderLimit: storeConfig.payment.codMaxLimit || 10000,
     },
     upiQr: {
       enabled: true,
-      upiId: "maison@okhdfcbank",
-      payeeName: "Maison De Élégance",
-      instructions: "Scan the QR code or tap 'Pay via UPI App', then enter your 12-digit UPI Reference / UTR Number below to confirm.",
+      upiId: storeConfig.payment.upiId,
+      payeeName: storeConfig.payment.payeeName || storeConfig.name,
+      instructions: storeConfig.payment.instructions,
     },
   },
 };

@@ -1,3 +1,24 @@
+/**
+ * =========================================================================
+ * STORE WHITE-LABEL CONFIGURATION (SINGLE SOURCE OF TRUTH)
+ * =========================================================================
+ * To customize this application for any client:
+ * 1. Change `storeConfig.name` below to update the shop name everywhere.
+ * 2. Put the client's logo in `public/images/logo.jpg` and update `storeConfig.logo`.
+ * 3. Update contact information, address, and social links.
+ *
+ * This SINGLE FILE dynamically powers:
+ * - Header / Navbar (brand logo image, alt text, and shop name)
+ * - Mobile navigation drawer
+ * - Footer (brand logo, shop description, copyright, and social links)
+ * - Admin Panel (sidebar brand header and order CSV exports)
+ * - Login, Signup, and Password Reset screens
+ * - Checkout screen & Razorpay modal merchant name
+ * - Order confirmation emails & Order Tracking Modal (Tax invoices)
+ * - Dynamic SEO meta tags, OpenGraph previews, and browser tab titles
+ * =========================================================================
+ */
+
 export interface StoreConfig {
   id: string;
   name: string;
@@ -7,6 +28,7 @@ export interface StoreConfig {
     dark: string;
     light: string;
     alt: string;
+    showTextAlongsideLogo?: boolean; // Set to true to show text beside logo image; false shows logo cleanly
   };
   favicon: string;
   contact: {
@@ -50,37 +72,44 @@ export interface StoreConfig {
     flatRate: number;
     estimatedDeliveryDays: string;
   };
+  payment: {
+    upiId: string;
+    payeeName: string;
+    codMaxLimit: number;
+    instructions: string;
+  };
 }
 
 export const storeConfig: StoreConfig = {
-  id: "store_luxe_couture_01",
-  name: "MAISON DE ÉLÉGANCE",
-  tagline: "Contemporary Haute Couture & Everyday Luxury",
-  description: "Curated collection of handcrafted apparel, luxury silhouettes, and premium contemporary fashion for the modern aesthetic.",
+  id: "store_saayal_stories_01",
+  name: "SAAYAL STORIES",
+  tagline: "Contemporary Haute Couture, Festive Silks & Curated Stories",
+  description: "Curated collection of handcrafted apparel, luxury silhouettes, and festive ethnic couture by Saayal Stories.",
   logo: {
-    dark: "/images/logo-dark.png",
+    dark: "/images/logo.png",
     light: "/images/logo-light.png",
-    alt: "Maison De Élégance Logo"
+    alt: "Saayal Stories Logo",
+    showTextAlongsideLogo: false, // The logo image features elegant cursive script; set true if you want name text alongside
   },
   favicon: "/favicon.ico",
   contact: {
-    email: "concierge@maison-elegance.com",
-    phone: "+91 98765 43210",
-    whatsapp: "+91 98765 43210",
+    email: "subashini.official@gmail.com",
+    phone: "+91 91597 89485",
+    whatsapp: "+91 91597 89485",
     supportHours: "Mon - Sat: 10:00 AM - 7:00 PM IST",
     address: {
-      street: "45 Fashion Boulevard, Designer District",
+      street: "Mugappair",
       city: "Chennai",
       state: "TamilNadu",
-      postalCode: "600028",
+      postalCode: "600101",
       country: "India"
     }
   },
   social: {
-    instagram: "https://instagram.com/maison_elegance",
-    facebook: "https://facebook.com/maisonelegance",
-    pinterest: "https://pinterest.com/maisonelegance",
-    youtube: "https://youtube.com/@maisonelegance"
+    instagram: "https://www.instagram.com/saayal_stories",
+    facebook: "https://facebook.com/saayal_stories",
+    pinterest: "https://pinterest.com/saayal_stories",
+    youtube: "https://youtube.com/@subashini0702"
   },
   currency: {
     code: "INR",
@@ -88,11 +117,11 @@ export const storeConfig: StoreConfig = {
     format: "{symbol}{amount}"
   },
   seo: {
-    defaultTitle: "Maison De Élégance | Luxury Apparel & Designer Fashion",
-    titleTemplate: "%s | Maison De Élégance",
-    defaultDescription: "Discover luxury dresses, shirts, tailored suits, and ethnic couture. Handcrafted with ultra-premium fabrics.",
-    keywords: ["Luxury Clothing", "Designer Fashion", "Haute Couture", "Silk Dresses", "Tailored Apparel"],
-    ogImage: "/images/og-banner.jpg"
+    defaultTitle: "Saayal Stories | Luxury Apparel & Designer Fashion",
+    titleTemplate: "%s | Saayal Stories",
+    defaultDescription: "Discover luxury dresses, handcrafted silks, festive sarees, and bespoke couture at Saayal Stories.",
+    keywords: ["Saayal Stories", "Luxury Clothing", "Designer Fashion", "Haute Couture", "Silk Dresses", "Festive Ensembles"],
+    ogImage: "/images/logo.png"
   },
   tax: {
     includedInPrice: true,
@@ -103,5 +132,17 @@ export const storeConfig: StoreConfig = {
     freeShippingThreshold: Infinity, // Flat delivery fee applies to all customers
     flatRate: 150,
     estimatedDeliveryDays: "3 - 5 Business Days"
+  },
+  payment: {
+    upiId: "subashini9333-3@okhdfcbank", // Client's single authoritative UPI ID
+    payeeName: "SAAYAL STORIES",
+    codMaxLimit: 10000, // COD Limit
+    instructions: "Scan the QR code or tap 'Pay via UPI App', then enter your 12-digit UPI Reference / UTR Number below to confirm.",
   }
 };
+
+/**
+ * Single authoritative variable for the client's store UPI ID.
+ * Changing `storeConfig.payment.upiId` above automatically updates this across all pages and services.
+ */
+export const STORE_UPI_ID = storeConfig.payment.upiId;

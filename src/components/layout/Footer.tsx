@@ -42,9 +42,18 @@ export function Footer() {
           
           {/* Column 1: Brand Atelier */}
           <div className="space-y-4">
-            <h3 className="font-heading text-xl font-bold tracking-widest uppercase">
-              {storeConfig.name}
-            </h3>
+            <div className="flex items-center gap-3">
+              {(storeConfig.logo?.light || storeConfig.logo?.dark) && (
+                <img
+                  src={storeConfig.logo.light || storeConfig.logo.dark}
+                  alt={storeConfig.logo.alt || storeConfig.name}
+                  className="h-11 sm:h-12 w-auto object-contain"
+                />
+              )}
+              <h3 className="font-heading text-xl font-bold tracking-widest uppercase">
+                {storeConfig.name}
+              </h3>
+            </div>
             <p className="text-xs leading-relaxed opacity-80 max-w-sm">
               {storeConfig.description}
             </p>

@@ -220,10 +220,19 @@ export function Navbar() {
 
           {/* Center Brand Logo */}
           <div className="flex-1 lg:flex-none text-center">
-            <Link href="/" className="inline-block">
-              <span className="font-heading text-xl sm:text-2xl font-bold tracking-widest text-[var(--foreground)] uppercase">
-                {storeConfig.name}
-              </span>
+            <Link href="/" className="inline-flex items-center justify-center gap-2.5 group py-1">
+              {storeConfig.logo?.dark ? (
+                <img
+                  src={storeConfig.logo.dark}
+                  alt={storeConfig.logo.alt || storeConfig.name}
+                  className="h-11 sm:h-14 w-auto max-w-[190px] sm:max-w-[240px] object-contain transition-transform group-hover:scale-105"
+                />
+              ) : null}
+              {(!storeConfig.logo?.dark || storeConfig.logo?.showTextAlongsideLogo) && (
+                <span className="font-heading text-lg sm:text-2xl font-bold tracking-widest text-[var(--foreground)] uppercase">
+                  {storeConfig.name}
+                </span>
+              )}
             </Link>
           </div>
 
@@ -291,6 +300,20 @@ export function Navbar() {
       {/* Mobile Drawer Menu - Clean, Intuitive & Spacious */}
       {isMobileMenuOpen && (
         <div className="lg:hidden bg-[var(--background)] border-b border-[var(--border)] px-6 py-6 space-y-4 animate-in slide-in-from-top-2">
+          {/* Mobile Drawer Brand Header */}
+          <div className="flex items-center gap-3 pb-4 border-b border-[var(--border)]">
+            {storeConfig.logo?.dark ? (
+              <img
+                src={storeConfig.logo.dark}
+                alt={storeConfig.logo.alt || storeConfig.name}
+                className="h-10 w-auto object-contain rounded-lg"
+              />
+            ) : null}
+            <span className="font-heading text-sm font-bold uppercase tracking-wider text-[var(--foreground)]">
+              {storeConfig.name}
+            </span>
+          </div>
+
           <Link
             href="/categories/womens-couture"
             onClick={closeMobileMenu}

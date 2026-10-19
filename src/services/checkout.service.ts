@@ -523,7 +523,7 @@ export class CheckoutService {
       }
 
       const customerName = `${shippingAddr.firstName} ${shippingAddr.lastName}`.trim();
-      const customerEmail = (input as any).customerEmail || "client@maison.com";
+      const customerEmail = (input as any).customerEmail || storeConfig.contact.email;
 
       // Register order with administrative fulfillment engine
       await AdminService.createOrderFromCheckout({

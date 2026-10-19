@@ -266,7 +266,7 @@ export function OrderTrackingModal({ order, onClose, onShowToast }: OrderTrackin
             <div className="p-5 rounded-2xl border border-neutral-200 bg-white space-y-3 animate-fade-in shadow-inner">
               <div className="flex items-center justify-between border-b border-neutral-100 pb-2">
                 <span className="text-xs font-bold uppercase tracking-widest text-neutral-900">
-                  Tax Invoice • Maison De Élégance
+                  Tax Invoice • {storeConfig.name}
                 </span>
                 <span className="text-[11px] font-mono text-neutral-500">
                   INV-{order.orderNumber || order.id.slice(0, 8)}
@@ -302,7 +302,7 @@ export function OrderTrackingModal({ order, onClose, onShowToast }: OrderTrackin
             <button
               onClick={() => {
                 onShowToast("Connecting to live Atelier concierge...");
-                window.open("mailto:concierge@maison-elegance.com?subject=Inquiry for " + tracking.orderNumber, "_blank");
+                window.open(`mailto:${storeConfig.contact.email}?subject=Inquiry for ${tracking.orderNumber}`, "_blank");
               }}
               className="flex-1 sm:flex-none px-4 py-2.5 bg-neutral-900 hover:bg-amber-600 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-md"
             >

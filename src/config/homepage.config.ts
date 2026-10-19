@@ -1,3 +1,5 @@
+import { storeConfig } from "./store.config";
+
 export interface HomepageConfig {
   hero: boolean;
   categories: boolean;
@@ -69,7 +71,7 @@ export const homepageConfig: HomepageConfig = {
   brandStoryContent: {
     title: "CRAFTED WITH INTENTION",
     subtitle: "A modern atelier rooted in heritage craftsmanship.",
-    description: "Every Maison garment is crafted from ethically sourced pure organic cotton, mulberry silk, and handloom linen. We fuse old-world tailoring techniques with modern minimalist cuts to create garments designed to endure for generations.",
+    description: `Every ${storeConfig.name} garment is crafted from ethically sourced pure organic cotton, mulberry silk, and handloom linen. We fuse old-world tailoring techniques with modern minimalist cuts to create garments designed to endure for generations.`,
     image: "https://images.unsplash.com/photo-1537832816519-689ad163238b?q=80&w=1200&auto=format&fit=crop",
     highlights: [
       { label: "100% Organic", detail: "Pure natural fibers sourced directly from sustainable looms." },

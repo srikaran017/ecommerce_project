@@ -133,7 +133,8 @@ import {
 import { FALLBACK_PRODUCTS } from "@/data/products.data";
 import { storeConfig } from "@/config/store.config";
 import { useAuthStore } from "@/stores/auth.store";
-import { getDelegatablePermissions as getDelegatablePermsHelper,
+import {
+  getDelegatablePermissions as getDelegatablePermsHelper,
   canCreateRole,
   canManageUser,
   canDeactivateUser,
@@ -255,7 +256,7 @@ export const INITIAL_SAMPLE_ORDERS: AdminOrder[] = [
           id: "04de36fe-1b09-4c27-a793-5bf9c9ff0412",
           name: "Mulberry Silk Draped Evening Gown",
           slug: "mulberry-silk-draped-evening-gown",
-          brand: "Maison De Élégance",
+          brand: storeConfig.name,
         },
         variant: {
           id: "04de36fe-1b09-4c27-a793-5bf9c9ff0412-s",
@@ -530,7 +531,7 @@ export const INITIAL_SAMPLE_ORDERS: AdminOrder[] = [
           id: "prod_uuid_blazer_02",
           name: "Tailored Double-Breasted Wool Blazer",
           slug: "tailored-double-breasted-wool-blazer",
-          brand: "Maison De Élégance",
+          brand: storeConfig.name,
         },
         variant: {
           id: "var_uuid_blazer_m",
@@ -866,14 +867,14 @@ export const INITIAL_PROMOTIONS: AdminPromotion[] = [
 
 export const INITIAL_STORE_SETTINGS: StoreSettings = {
   id: "default_store_config",
-  storeName: "Maison De Élégance",
-  tagline: "Haute Couture & Bespoke Eveningwear",
-  currency: "INR",
-  currencySymbol: "₹",
-  supportEmail: "concierge@maisondeelegance.com",
-  supportPhone: "+91 98765 43210",
+  storeName: storeConfig.name,
+  tagline: storeConfig.tagline,
+  currency: storeConfig.currency.code,
+  currencySymbol: storeConfig.currency.symbol,
+  supportEmail: storeConfig.contact.email,
+  supportPhone: storeConfig.contact.phone,
   activeTheme: "luxury-fashion",
-  freeShippingThreshold: "2999.00",
+  freeShippingThreshold: "4999.00",
   flatShippingRate: "150.00",
   featuresJson: {
     wishlist: true,
@@ -894,10 +895,10 @@ export const INITIAL_STORE_SETTINGS: StoreSettings = {
     enableRazorpay: true,
     enableCod: true,
     enableUpiQr: true,
-    upiId: "maison@okhdfcbank",
-    payeeName: "Maison De Élégance",
-    instructions: "Scan the QR code or tap 'Pay via UPI App', then enter your 12-digit UPI Reference / UTR Number below to confirm.",
-    codMaxLimit: 25000,
+    upiId: storeConfig.payment.upiId,
+    payeeName: storeConfig.payment.payeeName || storeConfig.name,
+    instructions: storeConfig.payment.instructions,
+    codMaxLimit: storeConfig.payment.codMaxLimit,
   },
   policiesJson: {
     shippingPolicy: "Complimentary white-glove express delivery on luxury orders above ₹2,999.",
@@ -916,7 +917,7 @@ function getInitialProducts(): AdminProduct[] {
     const cPrice = Math.round(Number(p.price) * 0.45);
     const categorySlug = p.categorySlug || "evening-gowns";
     const categoryName = p.categoryName || "Evening Gowns";
-    const brandName = p.brand || "Maison De Élégance";
+    const brandName = p.brand || storeConfig.name;
     const skuCode = p.sku || `MSG-${String(pIdx + 1).padStart(3, "0")}`;
 
     const variants: AdminProductVariant[] = (p.variants || []).map((v, vIdx) => {
@@ -1850,7 +1851,7 @@ export class AdminService {
 
       const cleanPayload: CreateProductInput = {
         name: String(formData.get("name") || "").trim(),
-        brand: String(formData.get("brand") || "Maison De Élégance").trim(),
+        brand: String(formData.get("brand") || storeConfig.name).trim(),
         description: String(formData.get("description") || "").trim(),
         shortDescription: formData.get("shortDescription") ? String(formData.get("shortDescription")) : undefined,
         categoryId: String(formData.get("categoryId") || ""),
@@ -1903,7 +1904,7 @@ export class AdminService {
       if (typeof cleanInput.variants === "string") {
         try {
           cleanInput.variants = JSON.parse(cleanInput.variants as any);
-        } catch {}
+        } catch { }
       }
       if (typeof cleanInput.regularPrice === "string") {
         cleanInput.regularPrice = Number(cleanInput.regularPrice);
@@ -1930,19 +1931,19 @@ export class AdminService {
     // Fallback local save
     const parsedInput: CreateProductInput = isFormData
       ? {
-          name: String((input as FormData).get("name") || "Untitled Garment"),
-          brand: String((input as FormData).get("brand") || "Maison De Élégance"),
-          categoryId: String((input as FormData).get("categoryId") || ""),
-          regularPrice: Number((input as FormData).get("regularPrice") || 0),
-          salePrice: (input as FormData).get("salePrice") ? Number((input as FormData).get("salePrice")) : null,
-          costPrice: (input as FormData).get("costPrice") ? Number((input as FormData).get("costPrice")) : null,
-          description: String((input as FormData).get("description") || ""),
-          variants: (input as FormData).get("variants") ? JSON.parse(String((input as FormData).get("variants"))) : [],
-          images: [],
-          isActive: (input as FormData).get("isActive") !== "false",
-          tags: ["Apparel", "Luxury"],
-          gender: ((input as FormData).get("gender") as any) || "WOMEN",
-        }
+        name: String((input as FormData).get("name") || "Untitled Garment"),
+        brand: String((input as FormData).get("brand") || storeConfig.name),
+        categoryId: String((input as FormData).get("categoryId") || ""),
+        regularPrice: Number((input as FormData).get("regularPrice") || 0),
+        salePrice: (input as FormData).get("salePrice") ? Number((input as FormData).get("salePrice")) : null,
+        costPrice: (input as FormData).get("costPrice") ? Number((input as FormData).get("costPrice")) : null,
+        description: String((input as FormData).get("description") || ""),
+        variants: (input as FormData).get("variants") ? JSON.parse(String((input as FormData).get("variants"))) : [],
+        images: [],
+        isActive: (input as FormData).get("isActive") !== "false",
+        tags: ["Apparel", "Luxury"],
+        gender: ((input as FormData).get("gender") as any) || "WOMEN",
+      }
       : (input as CreateProductInput);
 
     const products = this.getLocalProducts();
@@ -2067,7 +2068,7 @@ export class AdminService {
       slug: uniqueSlug,
       description: parsedInput.description,
       shortDescription: parsedInput.shortDescription,
-      brand: parsedInput.brand || "Maison De Élégance",
+      brand: parsedInput.brand || storeConfig.name,
       sku: parsedInput.sku || `SKU-${Date.now().toString().slice(-6)}`,
       regularPrice: regPrice.toFixed(2),
       salePrice: sPrice != null ? sPrice.toFixed(2) : null,
@@ -2180,7 +2181,7 @@ export class AdminService {
       if (typeof cleanInput.variants === "string") {
         try {
           cleanInput.variants = JSON.parse(cleanInput.variants as any);
-        } catch {}
+        } catch { }
       }
       if (typeof cleanInput.regularPrice === "string") {
         cleanInput.regularPrice = Number(cleanInput.regularPrice);
@@ -2209,16 +2210,16 @@ export class AdminService {
 
     const parsedInput: UpdateProductInput = isFormData
       ? {
-          name: (input as FormData).get("name") ? String((input as FormData).get("name")) : undefined,
-          brand: (input as FormData).get("brand") ? String((input as FormData).get("brand")) : undefined,
-          categoryId: (input as FormData).get("categoryId") ? String((input as FormData).get("categoryId")) : undefined,
-          regularPrice: (input as FormData).get("regularPrice") ? Number((input as FormData).get("regularPrice")) : undefined,
-          salePrice: (input as FormData).get("salePrice") !== null && (input as FormData).get("salePrice") !== undefined ? Number((input as FormData).get("salePrice")) : undefined,
-          costPrice: (input as FormData).get("costPrice") ? Number((input as FormData).get("costPrice")) : undefined,
-          description: (input as FormData).get("description") ? String((input as FormData).get("description")) : undefined,
-          variants: (input as FormData).get("variants") ? JSON.parse(String((input as FormData).get("variants"))) : undefined,
-          isActive: (input as FormData).get("isActive") ? (input as FormData).get("isActive") !== "false" : undefined,
-        }
+        name: (input as FormData).get("name") ? String((input as FormData).get("name")) : undefined,
+        brand: (input as FormData).get("brand") ? String((input as FormData).get("brand")) : undefined,
+        categoryId: (input as FormData).get("categoryId") ? String((input as FormData).get("categoryId")) : undefined,
+        regularPrice: (input as FormData).get("regularPrice") ? Number((input as FormData).get("regularPrice")) : undefined,
+        salePrice: (input as FormData).get("salePrice") !== null && (input as FormData).get("salePrice") !== undefined ? Number((input as FormData).get("salePrice")) : undefined,
+        costPrice: (input as FormData).get("costPrice") ? Number((input as FormData).get("costPrice")) : undefined,
+        description: (input as FormData).get("description") ? String((input as FormData).get("description")) : undefined,
+        variants: (input as FormData).get("variants") ? JSON.parse(String((input as FormData).get("variants"))) : undefined,
+        isActive: (input as FormData).get("isActive") ? (input as FormData).get("isActive") !== "false" : undefined,
+      }
       : (input as UpdateProductInput);
 
     // Update variants if passed
@@ -2453,7 +2454,7 @@ export class AdminService {
               variantIds.has(item.variantId || item.id)
           );
         }
-      } catch {}
+      } catch { }
     }
 
     if (!isInCartOrOrders) {
@@ -2662,10 +2663,10 @@ export class AdminService {
       const categoryRef: InventoryItemCategoryRef = p.category
         ? { id: p.category.id, name: p.category.name, slug: p.category.slug }
         : {
-            id: p.categorySlug || "evening-gowns",
-            name: p.categoryName || "Evening Gowns",
-            slug: p.categorySlug || "evening-gowns",
-          };
+          id: p.categorySlug || "evening-gowns",
+          name: p.categoryName || "Evening Gowns",
+          slug: p.categorySlug || "evening-gowns",
+        };
 
       if (p.variants && p.variants.length > 0) {
         p.variants.forEach((v) => {
@@ -2684,7 +2685,7 @@ export class AdminService {
             variantId: v.id,
             productId: p.id,
             productName: p.name,
-            brand: p.brand || "Maison De Élégance",
+            brand: p.brand || storeConfig.name,
             sku: v.sku,
             variantName: v.name || `Size ${v.size} / ${v.colorName || v.color || "Standard"}`,
             size: v.size,
@@ -2724,7 +2725,7 @@ export class AdminService {
           id: p.id,
           productId: p.id,
           productName: p.name,
-          brand: p.brand || "Maison De Élégance",
+          brand: p.brand || storeConfig.name,
           sku: p.sku,
           variantName: "Standard",
           size: "Free Size",
@@ -3054,10 +3055,10 @@ export class AdminService {
       createdAt: new Date().toISOString(),
       variant: targetVariant
         ? {
-            id: targetVariant.id,
-            sku: targetVariant.sku,
-            name: targetVariant.name || `Size ${targetVariant.size} / ${targetVariant.colorName}`,
-          }
+          id: targetVariant.id,
+          sku: targetVariant.sku,
+          name: targetVariant.name || `Size ${targetVariant.size} / ${targetVariant.colorName}`,
+        }
         : undefined,
       product: {
         id: targetProduct.id,
@@ -3418,7 +3419,7 @@ export class AdminService {
           role: (storeUser.role as string) || "SUPER_ADMIN",
         };
       }
-    } catch {}
+    } catch { }
 
     return {
       id: "admin_uuid_1",
@@ -4533,7 +4534,7 @@ export class AdminService {
       if (res.ok) {
         return await res.text();
       }
-    } catch {}
+    } catch { }
 
     // Fallback: Generate CSV client-side from orders
     const orders = this.getLocalOrders();
@@ -4698,19 +4699,19 @@ export class AdminService {
     if (fd) {
       const pRaw = fd.get("permissions");
       if (typeof pRaw === "string") {
-        try { perms = JSON.parse(pRaw); } catch {}
+        try { perms = JSON.parse(pRaw); } catch { }
       }
     }
     const parsedInput: CreateSubordinateUserInput = fd
       ? {
-          name: String(fd.get("name") || ""),
-          email: String(fd.get("email") || ""),
-          password: String(fd.get("password") || ""),
-          role: (fd.get("role") as any) || "STAFF",
-          phone: fd.get("phone") ? String(fd.get("phone")) : undefined,
-          permissions: perms,
-          avatarUrl: fd.get("avatarUrl") ? String(fd.get("avatarUrl")) : undefined,
-        }
+        name: String(fd.get("name") || ""),
+        email: String(fd.get("email") || ""),
+        password: String(fd.get("password") || ""),
+        role: (fd.get("role") as any) || "STAFF",
+        phone: fd.get("phone") ? String(fd.get("phone")) : undefined,
+        permissions: perms,
+        avatarUrl: fd.get("avatarUrl") ? String(fd.get("avatarUrl")) : undefined,
+      }
       : (input as CreateSubordinateUserInput);
 
     // Business Guard: Check role hierarchy
@@ -4760,10 +4761,10 @@ export class AdminService {
       createdById: currentUser?.id || "admin_super",
       creator: currentUser
         ? {
-            id: currentUser.id,
-            name: currentUser.name || "Administrator",
-            role: (currentUser.role || "SUPER_ADMIN") as AdminRole,
-          }
+          id: currentUser.id,
+          name: currentUser.name || "Administrator",
+          role: (currentUser.role || "SUPER_ADMIN") as AdminRole,
+        }
         : undefined,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -4999,17 +5000,17 @@ export class AdminService {
     if (fd) {
       const pRaw = fd.get("permissions");
       if (typeof pRaw === "string") {
-        try { perms = JSON.parse(pRaw); } catch {}
+        try { perms = JSON.parse(pRaw); } catch { }
       }
     }
     const parsedInput: UpdateSubordinateUserInput = fd
       ? {
-          name: fd.get("name") ? String(fd.get("name")) : undefined,
-          phone: fd.get("phone") ? String(fd.get("phone")) : undefined,
-          permissions: perms,
-          isActive: fd.get("isActive") !== null ? fd.get("isActive") !== "false" : undefined,
-          avatarUrl: fd.get("avatarUrl") ? String(fd.get("avatarUrl")) : undefined,
-        }
+        name: fd.get("name") ? String(fd.get("name")) : undefined,
+        phone: fd.get("phone") ? String(fd.get("phone")) : undefined,
+        permissions: perms,
+        isActive: fd.get("isActive") !== null ? fd.get("isActive") !== "false" : undefined,
+        avatarUrl: fd.get("avatarUrl") ? String(fd.get("avatarUrl")) : undefined,
+      }
       : (input as UpdateSubordinateUserInput);
 
     // Business Guard: Permission delegation
@@ -5707,12 +5708,12 @@ export class AdminService {
     const fd = isFormData ? (input as FormData) : null;
     const parsed: UpdateCustomerInput = fd
       ? {
-          name: fd.get("name") ? String(fd.get("name")) : undefined,
-          email: fd.get("email") ? String(fd.get("email")) : undefined,
-          phone: fd.get("phone") ? String(fd.get("phone")) : undefined,
-          isActive: fd.get("isActive") !== null ? fd.get("isActive") !== "false" : undefined,
-          avatarUrl: fd.get("avatarUrl") ? String(fd.get("avatarUrl")) : undefined,
-        }
+        name: fd.get("name") ? String(fd.get("name")) : undefined,
+        email: fd.get("email") ? String(fd.get("email")) : undefined,
+        phone: fd.get("phone") ? String(fd.get("phone")) : undefined,
+        isActive: fd.get("isActive") !== null ? fd.get("isActive") !== "false" : undefined,
+        avatarUrl: fd.get("avatarUrl") ? String(fd.get("avatarUrl")) : undefined,
+      }
       : (input as UpdateCustomerInput);
 
     const target = customers[idx];
@@ -5899,10 +5900,10 @@ export class AdminService {
       Array.isArray(res.data)
         ? res.data
         : Array.isArray((res.data as any)?.categories)
-        ? (res.data as any).categories
-        : Array.isArray((res.data as any)?.data)
-        ? (res.data as any).data
-        : null;
+          ? (res.data as any).categories
+          : Array.isArray((res.data as any)?.data)
+            ? (res.data as any).data
+            : null;
 
     if (res.success && catsArr) {
       return {
@@ -6095,15 +6096,15 @@ export class AdminService {
     const fd = typeof FormData !== "undefined" && input instanceof FormData ? (input as FormData) : null;
     const parsedInput: CreateCategoryInput = fd
       ? {
-          name: String(fd.get("name") || "Untitled Category"),
-          slug: fd.get("slug") ? String(fd.get("slug")) : undefined,
-          description: fd.get("description") ? String(fd.get("description")) : undefined,
-          imageUrl: fd.get("imageUrl") ? String(fd.get("imageUrl")) : (fd.get("image") ? URL.createObjectURL(fd.get("image") as File) : null),
-          parentId: fd.get("parentId") ? String(fd.get("parentId")) : null,
-          sortOrder: fd.get("sortOrder") ? Number(fd.get("sortOrder")) : 0,
-          isFeatured: fd.get("isFeatured") === "true",
-          isActive: fd.get("isActive") !== "false",
-        }
+        name: String(fd.get("name") || "Untitled Category"),
+        slug: fd.get("slug") ? String(fd.get("slug")) : undefined,
+        description: fd.get("description") ? String(fd.get("description")) : undefined,
+        imageUrl: fd.get("imageUrl") ? String(fd.get("imageUrl")) : (fd.get("image") ? URL.createObjectURL(fd.get("image") as File) : null),
+        parentId: fd.get("parentId") ? String(fd.get("parentId")) : null,
+        sortOrder: fd.get("sortOrder") ? Number(fd.get("sortOrder")) : 0,
+        isFeatured: fd.get("isFeatured") === "true",
+        isActive: fd.get("isActive") !== "false",
+      }
       : (input as CreateCategoryInput);
 
     // Smart Local Fallback
@@ -6219,15 +6220,15 @@ export class AdminService {
     const fd = typeof FormData !== "undefined" && input instanceof FormData ? (input as FormData) : null;
     const parsedInput: UpdateCategoryInput = fd
       ? {
-          name: fd.get("name") ? String(fd.get("name")) : undefined,
-          slug: fd.get("slug") ? String(fd.get("slug")) : undefined,
-          description: fd.get("description") ? String(fd.get("description")) : undefined,
-          imageUrl: fd.get("imageUrl") ? String(fd.get("imageUrl")) : (fd.get("image") ? URL.createObjectURL(fd.get("image") as File) : undefined),
-          parentId: fd.get("parentId") ? String(fd.get("parentId")) : (fd.has("parentId") ? null : undefined),
-          sortOrder: fd.get("sortOrder") ? Number(fd.get("sortOrder")) : undefined,
-          isFeatured: fd.get("isFeatured") !== null ? fd.get("isFeatured") === "true" : undefined,
-          isActive: fd.get("isActive") !== null ? fd.get("isActive") !== "false" : undefined,
-        }
+        name: fd.get("name") ? String(fd.get("name")) : undefined,
+        slug: fd.get("slug") ? String(fd.get("slug")) : undefined,
+        description: fd.get("description") ? String(fd.get("description")) : undefined,
+        imageUrl: fd.get("imageUrl") ? String(fd.get("imageUrl")) : (fd.get("image") ? URL.createObjectURL(fd.get("image") as File) : undefined),
+        parentId: fd.get("parentId") ? String(fd.get("parentId")) : (fd.has("parentId") ? null : undefined),
+        sortOrder: fd.get("sortOrder") ? Number(fd.get("sortOrder")) : undefined,
+        isFeatured: fd.get("isFeatured") !== null ? fd.get("isFeatured") === "true" : undefined,
+        isActive: fd.get("isActive") !== null ? fd.get("isActive") !== "false" : undefined,
+      }
       : (input as UpdateCategoryInput);
 
     // Circular Hierarchy Guard: Cannot select self as parent
@@ -6417,10 +6418,10 @@ export class AdminService {
       Array.isArray(res.data)
         ? res.data
         : Array.isArray((res.data as any)?.collections)
-        ? (res.data as any).collections
-        : Array.isArray((res.data as any)?.data)
-        ? (res.data as any).data
-        : null;
+          ? (res.data as any).collections
+          : Array.isArray((res.data as any)?.data)
+            ? (res.data as any).data
+            : null;
 
     if (res.success && colsArr) {
       return {
@@ -6615,22 +6616,22 @@ export class AdminService {
     if (fd) {
       const pRaw = fd.get("productIds");
       if (typeof pRaw === "string") {
-        try { parsedProductIds = JSON.parse(pRaw); } catch {}
+        try { parsedProductIds = JSON.parse(pRaw); } catch { }
       }
     }
 
     const parsedInput: CreateCollectionInput = fd
       ? {
-          name: (fd.get("name") as string) || "Untitled Collection",
-          title: (fd.get("name") as string) || "Untitled Collection",
-          slug: (fd.get("slug") as string) || undefined,
-          description: (fd.get("description") as string) || undefined,
-          imageUrl: (fd.get("imageUrl") as string) || (fd.get("image") ? URL.createObjectURL(fd.get("image") as File) : undefined),
-          isFeatured: fd.get("isFeatured") === "true",
-          sortOrder: fd.get("sortOrder") ? Number(fd.get("sortOrder")) : cols.length,
-          isActive: fd.get("isActive") !== "false",
-          productIds: parsedProductIds,
-        }
+        name: (fd.get("name") as string) || "Untitled Collection",
+        title: (fd.get("name") as string) || "Untitled Collection",
+        slug: (fd.get("slug") as string) || undefined,
+        description: (fd.get("description") as string) || undefined,
+        imageUrl: (fd.get("imageUrl") as string) || (fd.get("image") ? URL.createObjectURL(fd.get("image") as File) : undefined),
+        isFeatured: fd.get("isFeatured") === "true",
+        sortOrder: fd.get("sortOrder") ? Number(fd.get("sortOrder")) : cols.length,
+        isActive: fd.get("isActive") !== "false",
+        productIds: parsedProductIds,
+      }
       : (input as CreateCollectionInput);
 
     const name = (parsedInput.name || parsedInput.title || "").trim();
@@ -6733,21 +6734,21 @@ export class AdminService {
     if (fd) {
       const pRaw = fd.get("productIds");
       if (typeof pRaw === "string") {
-        try { parsedProductIds = JSON.parse(pRaw); } catch {}
+        try { parsedProductIds = JSON.parse(pRaw); } catch { }
       }
     }
 
     const parsedInput: UpdateCollectionInput = fd
       ? {
-          name: (fd.get("name") as string) || undefined,
-          slug: (fd.get("slug") as string) || undefined,
-          description: (fd.get("description") as string) || undefined,
-          imageUrl: (fd.get("imageUrl") as string) || (fd.get("image") ? URL.createObjectURL(fd.get("image") as File) : undefined),
-          isFeatured: fd.get("isFeatured") !== null ? fd.get("isFeatured") === "true" : undefined,
-          sortOrder: fd.get("sortOrder") ? Number(fd.get("sortOrder")) : undefined,
-          isActive: fd.get("isActive") !== null ? fd.get("isActive") !== "false" : undefined,
-          productIds: parsedProductIds,
-        }
+        name: (fd.get("name") as string) || undefined,
+        slug: (fd.get("slug") as string) || undefined,
+        description: (fd.get("description") as string) || undefined,
+        imageUrl: (fd.get("imageUrl") as string) || (fd.get("image") ? URL.createObjectURL(fd.get("image") as File) : undefined),
+        isFeatured: fd.get("isFeatured") !== null ? fd.get("isFeatured") === "true" : undefined,
+        sortOrder: fd.get("sortOrder") ? Number(fd.get("sortOrder")) : undefined,
+        isActive: fd.get("isActive") !== null ? fd.get("isActive") !== "false" : undefined,
+        productIds: parsedProductIds,
+      }
       : (input as UpdateCollectionInput);
 
     const name = parsedInput.name !== undefined ? parsedInput.name.trim() : (parsedInput as any).title !== undefined ? (parsedInput as any).title.trim() : current.name;
@@ -7551,19 +7552,19 @@ export class AdminService {
     const fd = typeof FormData !== "undefined" && input instanceof FormData ? (input as FormData) : null;
     const parsedInput: CreatePromotionInput = fd
       ? {
-          title: String(fd.get("title") || "SPECIAL SALE"),
-          subtitle: fd.get("subtitle") ? String(fd.get("subtitle")) : "",
-          badge: fd.get("badge") ? String(fd.get("badge")) : "SPECIAL PROMO",
-          discountPercentage: fd.get("discountPercentage") ? Number(fd.get("discountPercentage")) : 20,
-          couponCode: fd.get("couponCode") ? String(fd.get("couponCode")) : undefined,
-          startDate: fd.get("startDate") ? String(fd.get("startDate")) : now,
-          endDate: fd.get("endDate") ? String(fd.get("endDate")) : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
-          backgroundImage: fd.get("backgroundImage") ? (typeof fd.get("backgroundImage") === "string" ? String(fd.get("backgroundImage")) : "https://images.unsplash.com/photo-1610030469983-98e550d6193c?q=80&w=1200") : "https://images.unsplash.com/photo-1610030469983-98e550d6193c?q=80&w=1200",
-          ctaText: fd.get("ctaText") ? String(fd.get("ctaText")) : "SHOP THE SALE",
-          ctaLink: fd.get("ctaLink") ? String(fd.get("ctaLink")) : "/products",
-          sortOrder: fd.get("sortOrder") ? Number(fd.get("sortOrder")) : promotions.length + 1,
-          isActive: fd.get("isActive") !== "false",
-        }
+        title: String(fd.get("title") || "SPECIAL SALE"),
+        subtitle: fd.get("subtitle") ? String(fd.get("subtitle")) : "",
+        badge: fd.get("badge") ? String(fd.get("badge")) : "SPECIAL PROMO",
+        discountPercentage: fd.get("discountPercentage") ? Number(fd.get("discountPercentage")) : 20,
+        couponCode: fd.get("couponCode") ? String(fd.get("couponCode")) : undefined,
+        startDate: fd.get("startDate") ? String(fd.get("startDate")) : now,
+        endDate: fd.get("endDate") ? String(fd.get("endDate")) : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+        backgroundImage: fd.get("backgroundImage") ? (typeof fd.get("backgroundImage") === "string" ? String(fd.get("backgroundImage")) : "https://images.unsplash.com/photo-1610030469983-98e550d6193c?q=80&w=1200") : "https://images.unsplash.com/photo-1610030469983-98e550d6193c?q=80&w=1200",
+        ctaText: fd.get("ctaText") ? String(fd.get("ctaText")) : "SHOP THE SALE",
+        ctaLink: fd.get("ctaLink") ? String(fd.get("ctaLink")) : "/products",
+        sortOrder: fd.get("sortOrder") ? Number(fd.get("sortOrder")) : promotions.length + 1,
+        isActive: fd.get("isActive") !== "false",
+      }
       : (input as CreatePromotionInput);
 
     const newPromo: AdminPromotion = {
@@ -7634,19 +7635,19 @@ export class AdminService {
     const updateFd = typeof FormData !== "undefined" && input instanceof FormData ? (input as FormData) : null;
     const parsedInput: UpdatePromotionInput = updateFd
       ? {
-          title: updateFd.get("title") ? String(updateFd.get("title")) : undefined,
-          subtitle: updateFd.get("subtitle") ? String(updateFd.get("subtitle")) : undefined,
-          badge: updateFd.get("badge") ? String(updateFd.get("badge")) : undefined,
-          discountPercentage: updateFd.get("discountPercentage") ? Number(updateFd.get("discountPercentage")) : undefined,
-          couponCode: updateFd.get("couponCode") ? String(updateFd.get("couponCode")) : undefined,
-          startDate: updateFd.get("startDate") ? String(updateFd.get("startDate")) : undefined,
-          endDate: updateFd.get("endDate") ? String(updateFd.get("endDate")) : undefined,
-          backgroundImage: updateFd.get("backgroundImage") ? String(updateFd.get("backgroundImage")) : undefined,
-          ctaText: updateFd.get("ctaText") ? String(updateFd.get("ctaText")) : undefined,
-          ctaLink: updateFd.get("ctaLink") ? String(updateFd.get("ctaLink")) : undefined,
-          sortOrder: updateFd.get("sortOrder") ? Number(updateFd.get("sortOrder")) : undefined,
-          isActive: updateFd.get("isActive") !== null ? updateFd.get("isActive") !== "false" : undefined,
-        }
+        title: updateFd.get("title") ? String(updateFd.get("title")) : undefined,
+        subtitle: updateFd.get("subtitle") ? String(updateFd.get("subtitle")) : undefined,
+        badge: updateFd.get("badge") ? String(updateFd.get("badge")) : undefined,
+        discountPercentage: updateFd.get("discountPercentage") ? Number(updateFd.get("discountPercentage")) : undefined,
+        couponCode: updateFd.get("couponCode") ? String(updateFd.get("couponCode")) : undefined,
+        startDate: updateFd.get("startDate") ? String(updateFd.get("startDate")) : undefined,
+        endDate: updateFd.get("endDate") ? String(updateFd.get("endDate")) : undefined,
+        backgroundImage: updateFd.get("backgroundImage") ? String(updateFd.get("backgroundImage")) : undefined,
+        ctaText: updateFd.get("ctaText") ? String(updateFd.get("ctaText")) : undefined,
+        ctaLink: updateFd.get("ctaLink") ? String(updateFd.get("ctaLink")) : undefined,
+        sortOrder: updateFd.get("sortOrder") ? Number(updateFd.get("sortOrder")) : undefined,
+        isActive: updateFd.get("isActive") !== null ? updateFd.get("isActive") !== "false" : undefined,
+      }
       : (input as UpdatePromotionInput);
 
     const updated: AdminPromotion = {
@@ -7857,10 +7858,10 @@ export class AdminService {
             enableRazorpay: true,
             enableCod: true,
             enableUpiQr: true,
-            upiId: "maison@okhdfcbank",
-            payeeName: "Maison De Élégance",
-            instructions: "Scan the QR code or tap 'Pay via UPI App', then enter your 12-digit UPI Reference / UTR Number below to confirm.",
-            codMaxLimit: 25000,
+            upiId: storeConfig.payment.upiId,
+            payeeName: storeConfig.payment.payeeName || storeConfig.name,
+            instructions: storeConfig.payment.instructions,
+            codMaxLimit: storeConfig.payment.codMaxLimit,
           }),
           ...(input.paymentMethodsJson || input.paymentMethods),
         },
@@ -8260,8 +8261,8 @@ export class AdminService {
       const rawPoints = Array.isArray(res.data)
         ? res.data
         : Array.isArray((res.data as any).data)
-        ? (res.data as any).data
-        : null;
+          ? (res.data as any).data
+          : null;
 
       if (rawPoints && rawPoints.length > 0) {
         const localOrders = this.getLocalOrders();
@@ -8451,7 +8452,7 @@ export class AdminService {
       {
         productId: products[0]?.id || "prod_uuid_101",
         name: products[0]?.name || "Mulberry Silk Draped Evening Gown",
-        brand: products[0]?.brand || "Maison De Élégance",
+        brand: products[0]?.brand || storeConfig.name,
         slug: products[0]?.slug || "mulberry-silk-draped-evening-gown",
         thumbnail: products[0]?.thumbnail || "https://images.unsplash.com/photo-1566174053879-31528523f8ae?w=800",
         unitsSold: 38,
@@ -8460,7 +8461,7 @@ export class AdminService {
       {
         productId: products[1]?.id || "prod_uuid_102",
         name: products[1]?.name || "Tailored Double-Breasted Wool Blazer",
-        brand: products[1]?.brand || "Maison De Élégance",
+        brand: products[1]?.brand || storeConfig.name,
         slug: products[1]?.slug || "tailored-double-breasted-wool-blazer",
         thumbnail: products[1]?.thumbnail || "https://images.unsplash.com/photo-1594938298603-c8148c4dae35?w=800",
         unitsSold: 24,
@@ -8469,7 +8470,7 @@ export class AdminService {
       {
         productId: products[2]?.id || "prod_uuid_103",
         name: products[2]?.name || "Banarasi Brocade Royal Anarkali Set",
-        brand: products[2]?.brand || "Maison De Élégance",
+        brand: products[2]?.brand || storeConfig.name,
         slug: products[2]?.slug || "banarasi-brocade-royal-anarkali-set",
         thumbnail: products[2]?.thumbnail || "https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=800",
         unitsSold: 19,
@@ -8478,7 +8479,7 @@ export class AdminService {
       {
         productId: products[3]?.id || "prod_uuid_104",
         name: products[3]?.name || "Hand-Embroidered Chiffon Saree",
-        brand: products[3]?.brand || "Maison De Élégance",
+        brand: products[3]?.brand || storeConfig.name,
         slug: products[3]?.slug || "hand-embroidered-chiffon-saree",
         thumbnail: products[3]?.thumbnail || "https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?w=800",
         unitsSold: 14,
@@ -8487,7 +8488,7 @@ export class AdminService {
       {
         productId: products[4]?.id || "prod_uuid_105",
         name: products[4]?.name || "Crimson Velvet Gala Cocktail Dress",
-        brand: products[4]?.brand || "Maison De Élégance",
+        brand: products[4]?.brand || storeConfig.name,
         slug: products[4]?.slug || "crimson-velvet-gala-cocktail-dress",
         thumbnail: products[4]?.thumbnail || "https://images.unsplash.com/photo-1518049362265-d5b2a6467637?w=800",
         unitsSold: 11,
@@ -8704,7 +8705,7 @@ export class AdminService {
         method: "POST",
         body: JSON.stringify(newOrder),
       });
-    } catch {}
+    } catch { }
 
     // Persist into order ledger
     const orders = this.getLocalOrders();

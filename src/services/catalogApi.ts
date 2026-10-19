@@ -5,6 +5,7 @@
 
 import { AuthService } from "@/services/auth.service";
 import { getApiBaseUrl } from "@/services/apiConfig";
+import { storeConfig } from "@/config/store.config";
 
 const getBaseUrl = getApiBaseUrl;
 
@@ -325,7 +326,7 @@ export function transformApiCardToProduct(card: ApiProductCard): any {
     name: card.name,
     slug: card.slug,
     description: card.name,
-    brand: card.brand || "Maison De Élégance",
+    brand: card.brand || storeConfig.name,
     price: effective,
     compareAtPrice: regular > effective ? regular : null,
     priceObject: card.price,

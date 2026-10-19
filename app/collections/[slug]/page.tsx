@@ -15,15 +15,15 @@ export async function generateMetadata({ params }: PageProps) {
 
   if (!collection) {
     return {
-      title: "Collection Not Found | Maison De Élégance",
+      title: `Collection Not Found | ${storeConfig.name}`,
     };
   }
 
   return {
-    title: `${collection.name} | Curated Lookbook | Maison De Élégance`,
+    title: `${collection.name} | Curated Lookbook | ${storeConfig.name}`,
     description:
       collection.description ||
-      `Explore ${collection.name} curated seasonal capsule lookbook at Maison De Élégance.`,
+      `Explore ${collection.name} curated seasonal capsule lookbook at ${storeConfig.name}.`,
   };
 }
 

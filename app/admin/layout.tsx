@@ -165,8 +165,16 @@ export default function AdminLayout({
           {/* Brand header */}
           <div className="space-y-1">
             <div className="flex items-center gap-2 text-amber-400">
-              <Store className="w-5 h-5" />
-              <span className="text-[11px] font-bold uppercase tracking-wider">Fashion Admin Pro</span>
+              {(storeConfig.logo?.light || storeConfig.logo?.dark) ? (
+                <img
+                  src={storeConfig.logo.light || storeConfig.logo.dark}
+                  alt={storeConfig.name}
+                  className="h-7 w-auto max-w-[120px] object-contain"
+                />
+              ) : (
+                <Store className="w-5 h-5" />
+              )}
+              <span className="text-[11px] font-bold uppercase tracking-wider">Store Admin Pro</span>
             </div>
             <h2 className="text-base font-bold tracking-tight text-white truncate">
               {storeConfig.name}

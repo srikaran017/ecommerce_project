@@ -31,7 +31,7 @@ export default function NewProductPage() {
 
   // Form State
   const [name, setName] = useState("");
-  const [brand, setBrand] = useState("Maison De Élégance");
+  const [brand, setBrand] = useState(storeConfig.name);
   const [categoryId, setCategoryId] = useState("");
   const [regularPrice, setRegularPrice] = useState("24999");
   const [salePrice, setSalePrice] = useState("19999");
@@ -199,7 +199,7 @@ export default function NewProductPage() {
         // Strict Mutual Exclusivity: Send multipart/form-data with binary files. DO NOT send images as URL array!
         const formData = new FormData();
         formData.append("name", name.trim());
-        formData.append("brand", brand.trim() || "Maison De Élégance");
+        formData.append("brand", brand.trim() || storeConfig.name);
         formData.append("description", description.trim());
         formData.append("shortDescription", `Handcrafted ${selectedCat?.name || "garment"} silhouette.`);
         formData.append("categoryId", categoryId);
@@ -223,7 +223,7 @@ export default function NewProductPage() {
         // Strict Mutual Exclusivity: Pass HTTPS image URL in JSON array. DO NOT send files!
         const input: CreateProductInput = {
           name: name.trim(),
-          brand: brand.trim() || "Maison De Élégance",
+          brand: brand.trim() || storeConfig.name,
           description: description.trim(),
           shortDescription: `Handcrafted ${selectedCat?.name || "garment"} silhouette.`,
           categoryId,
@@ -333,7 +333,7 @@ export default function NewProductPage() {
             <input
               type="text"
               required
-              placeholder="Maison De Élégance"
+              placeholder={storeConfig.name}
               value={brand}
               onChange={(e) => setBrand(e.target.value)}
               className="w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-2xl text-white font-medium focus:border-amber-400 focus:outline-none"
