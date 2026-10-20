@@ -25,10 +25,10 @@ export function ProductCard({ product }: ProductCardProps) {
   }, []);
 
   const primaryImg =
-    product.images[0]?.url ||
+    product.images?.[0]?.url ||
     product.thumbnail ||
-    "https://images.unsplash.com/photo-1610030469983-98e550d6193c?q=80&w=800";
-  const hoverImg = product.images[1]?.url || primaryImg;
+    null;
+  const hoverImg = product.images?.[1]?.url || primaryImg;
 
   const defaultVariant = product.variants?.[0] || {
     id: "default",
@@ -89,7 +89,7 @@ export function ProductCard({ product }: ProductCardProps) {
       size: selectedVariant.size,
       colorName: selectedVariant.colorName,
       colorHex: selectedVariant.colorHex,
-      imageUrl: primaryImg,
+      imageUrl: primaryImg || undefined,
       sku: selectedVariant.sku,
       quantity: 1,
       maxStock: selectedVariant.stock,
@@ -125,11 +125,19 @@ export function ProductCard({ product }: ProductCardProps) {
         {/* Curvy Rounded Image Container */}
         <div className="relative aspect-[3/4] bg-neutral-100 rounded-2xl overflow-hidden">
           <Link href={`/products/${product.slug}`} className="block w-full h-full">
-            <img
-              src={primaryImg}
-              alt={product.name}
-              className="w-full h-full object-cover object-top transition-transform duration-500 group-hover:scale-105"
-            />
+            {primaryImg ? (
+              <img
+                src={primaryImg}
+                alt={product.name}
+                className="w-full h-full object-cover object-top transition-transform duration-500 group-hover:scale-105"
+              />
+            ) : (
+              <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-b from-neutral-50 to-neutral-200/80 p-4 text-center">
+                <Sparkles className="w-6 h-6 mb-2 text-amber-600/60" />
+                <span className="text-[10px] uppercase font-bold tracking-widest text-neutral-500">{product.brand || "Atelier"}</span>
+                <span className="text-xs font-heading font-medium text-neutral-800 line-clamp-2 mt-1">{product.name}</span>
+              </div>
+            )}
           </Link>
 
           {/* Badges: Special Offer or Discount */}

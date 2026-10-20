@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { X, ShoppingBag, Check, ArrowRight } from "lucide-react";
+import { X, ShoppingBag, Check, ArrowRight, Sparkles } from "lucide-react";
 import { storeConfig } from "@/config/store.config";
 import { useCartStore } from "@/stores/cart.store";
 import { useAuthStore } from "@/stores/auth.store";
@@ -31,7 +31,7 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
 
   const [selectedVariant, setSelectedVariant] = useState<ProductVariantData>(defaultVariant);
   const [activeImg, setActiveImg] = useState(
-    product.images[0]?.url || "https://images.unsplash.com/photo-1610030469983-98e550d6193c?q=80&w=800"
+    product.images?.[0]?.url || product.thumbnail || ""
   );
   const [addedAnimation, setAddedAnimation] = useState(false);
   const addItem = useCartStore((state) => state.addItem);
@@ -40,7 +40,7 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
   useEffect(() => {
     if (isOpen) {
       setSelectedVariant(defaultVariant);
-      setActiveImg(product.images[0]?.url || "https://images.unsplash.com/photo-1610030469983-98e550d6193c?q=80&w=800");
+      setActiveImg(product.images?.[0]?.url || product.thumbnail || "");
     }
   }, [isOpen, product.id]);
 
@@ -98,11 +98,19 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
           
           {/* Left Curvy Photo */}
           <div className="aspect-[3/4] bg-neutral-100 rounded-2xl overflow-hidden shadow-inner">
-            <img
-              src={activeImg}
-              alt={product.name}
-              className="w-full h-full object-cover object-top"
-            />
+            {activeImg ? (
+              <img
+                src={activeImg}
+                alt={product.name}
+                className="w-full h-full object-cover object-top"
+              />
+            ) : (
+              <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-b from-neutral-50 to-neutral-200/80 p-4 text-center">
+                <Sparkles className="w-8 h-8 mb-2 text-amber-600/60" />
+                <span className="text-[10px] uppercase font-bold tracking-widest text-neutral-500">{product.brand || "Maison"}</span>
+                <span className="text-sm font-heading font-medium text-neutral-800 line-clamp-2 mt-1">{product.name}</span>
+              </div>
+            )}
           </div>
 
           {/* Right Product Details */}

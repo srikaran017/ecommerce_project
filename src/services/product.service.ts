@@ -78,7 +78,13 @@ export class ProductService {
       if (filters?.limit) apiParams.limit = filters.limit;
 
       const mappedSort = mapSortToApi(filters?.sort);
-      if (mappedSort) apiParams.sort = mappedSort;
+      if (mappedSort) {
+        apiParams.sort = mappedSort;
+      } else if (filters?.newArrivals) {
+        apiParams.sort = "newest";
+      } else if (filters?.bestSellers) {
+        apiParams.sort = "bestselling";
+      }
 
       // Dynamic attribute filters supported by backend
       if (filters?.color) apiParams.color = filters.color;
@@ -88,7 +94,7 @@ export class ProductService {
 
       const { products } = await fetchProducts(apiParams);
 
-      if (products && products.length > 0) {
+      if (products) {
         let transformed = products.map(transformApiCardToProduct);
 
         // Apply client-side filters if needed (e.g. inStockOnly, collection)
@@ -98,139 +104,11 @@ export class ProductService {
 
         return transformed;
       }
+      return [];
     } catch {
-      // Silent catch -> fallback seamlessly to local products
+      // Live database data only — do not inject hardcoded mock products for showcase
+      return [];
     }
-
-    // Fallback: Local dataset filtering (Includes products created dynamically via admin)
-    let localAdminProducts: ProductData[] = [];
-    if (typeof window !== "undefined") {
-      try {
-        const raw = localStorage.getItem("admin_mock_products_v2");
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (Array.isArray(parsed)) {
-            localAdminProducts = parsed.map((ap: any) => ({
-              id: ap.id,
-              name: ap.name,
-              slug: ap.slug || ap.name?.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
-              description: ap.description || "",
-              shortDescription: ap.shortDescription,
-              price: Number(ap.salePrice || ap.regularPrice || 0),
-              compareAtPrice: ap.salePrice ? Number(ap.regularPrice) : null,
-              sku: ap.sku,
-              brand: ap.brand || "Saayal Stories",
-              gender: ap.gender || "WOMEN",
-              tags: Array.isArray(ap.tags) ? ap.tags : [],
-              categorySlug: ap.categorySlug || ap.category?.slug || "general",
-              categoryName: ap.categoryName || ap.category?.name || "General",
-              status: ap.status || "ACTIVE",
-              isFeatured: Boolean(ap.isFeatured),
-              isNewArrival: true,
-              isBestSeller: false,
-              stock: Number(ap.stockQuantity ?? 0),
-              stockQuantity: Number(ap.stockQuantity ?? 0),
-              inStock: Number(ap.stockQuantity ?? 0) > 0,
-              images: Array.isArray(ap.images) ? ap.images : [],
-              variants: Array.isArray(ap.variants) ? ap.variants : [],
-            }));
-          }
-        }
-      } catch {}
-    }
-
-    let products = [...localAdminProducts, ...FALLBACK_PRODUCTS].map(ensureProductData);
-
-    if (filters?.category) {
-      products = products.filter(
-        (p) =>
-          p.categorySlug === filters.category ||
-          p.categoryName.toLowerCase() === filters.category?.toLowerCase()
-      );
-    }
-    if (filters?.gender) {
-      products = products.filter(
-        (p) => p.gender.toLowerCase() === filters.gender?.toLowerCase() || p.gender === "UNISEX"
-      );
-    }
-    if (filters?.collection) {
-      products = products.filter(
-        (p) => p.collectionSlugs && p.collectionSlugs.includes(filters.collection!)
-      );
-    }
-    if (filters?.occasion) {
-      products = products.filter(
-        (p) => p.occasionSlugs && p.occasionSlugs.includes(filters.occasion!)
-      );
-    }
-    if (filters?.fabric) {
-      products = products.filter(
-        (p) => p.fabric && p.fabric.toLowerCase().includes(filters.fabric!.toLowerCase())
-      );
-    }
-    if (filters?.size) {
-      products = products.filter((p) =>
-        p.variants.some((v) => v.size.toLowerCase() === filters.size?.toLowerCase())
-      );
-    }
-    if (filters?.color) {
-      products = products.filter((p) =>
-        p.variants.some((v) => v.colorName.toLowerCase().includes(filters.color!.toLowerCase()))
-      );
-    }
-    if (filters?.minPrice !== undefined) {
-      products = products.filter((p) => p.price >= filters.minPrice!);
-    }
-    if (filters?.maxPrice !== undefined) {
-      products = products.filter((p) => p.price <= filters.maxPrice!);
-    }
-    if (filters?.inStockOnly) {
-      products = products.filter((p) => p.variants.some((v) => v.stock > 0));
-    }
-    if (filters?.featured) {
-      products = products.filter((p) => p.isFeatured);
-    }
-    if (filters?.newArrivals) {
-      products = products.filter((p) => p.isNewArrival);
-    }
-    if (filters?.bestSellers) {
-      products = products.filter((p) => p.isBestSeller);
-    }
-    if (filters?.search) {
-      const q = filters.search.toLowerCase();
-      products = products.filter(
-        (p) =>
-          p.name.toLowerCase().includes(q) ||
-          p.description.toLowerCase().includes(q) ||
-          p.brand.toLowerCase().includes(q) ||
-          p.tags.some((t) => t.toLowerCase().includes(q)) ||
-          p.categoryName.toLowerCase().includes(q)
-      );
-    }
-
-    // Sorting
-    const s = filters?.sort;
-    if (s === "price-low" || s === "price_asc") {
-      products.sort((a, b) => a.price - b.price);
-    } else if (s === "price-high" || s === "price_desc") {
-      products.sort((a, b) => b.price - a.price);
-    } else if (s === "best-selling" || s === "bestselling") {
-      products.sort((a, b) => (b.isBestSeller ? 1 : 0) - (a.isBestSeller ? 1 : 0));
-    } else if (s === "highest-rated" || s === "rating") {
-      products.sort((a, b) => (b.averageRating || 5) - (a.averageRating || 5));
-    } else if (s === "discount" || s === "best_deals") {
-      products.sort((a, b) => {
-        const discA = a.compareAtPrice ? a.compareAtPrice - a.price : 0;
-        const discB = b.compareAtPrice ? b.compareAtPrice - b.price : 0;
-        return discB - discA;
-      });
-    } else if (s === "name_asc") {
-      products.sort((a, b) => a.name.localeCompare(b.name));
-    } else if (s === "name_desc") {
-      products.sort((a, b) => b.name.localeCompare(a.name));
-    }
-
-    return products;
   }
 
   /**
@@ -369,14 +247,14 @@ export class ProductService {
           name: c.name,
           slug: c.slug,
           description: c.description || "",
-          image: c.imageUrl || "https://images.unsplash.com/photo-1566174053879-31528523f8ae?w=1200",
+          image: c.imageUrl || null,
           itemCount: c.productsCount ? `${c.productsCount} Masterpieces` : "Curated Capsule",
         }));
       }
     } catch {
-      // Fallback to static collections
+      // Live database collections only
     }
-    return FALLBACK_COLLECTIONS;
+    return [];
   }
 
   static async getCollectionBySlug(slug: string) {
@@ -388,14 +266,14 @@ export class ProductService {
           name: live.name,
           slug: live.slug,
           description: live.description || "",
-          image: live.imageUrl || "https://images.unsplash.com/photo-1566174053879-31528523f8ae?w=1200",
+          image: live.imageUrl || null,
           itemCount: live.productsCount ? `${live.productsCount} Masterpieces` : "Curated Capsule",
           products: live.products || [],
         };
       }
     } catch {
-      // Fallback to static collections
+      // Live database collections only
     }
-    return FALLBACK_COLLECTIONS.find((c) => c.slug === slug) || null;
+    return null;
   }
 }

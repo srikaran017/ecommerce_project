@@ -37,11 +37,13 @@ export default async function CollectionsPage() {
               href={`/collections/${col.slug}`}
               className="group relative h-[520px] rounded-[var(--radius)] overflow-hidden bg-[var(--muted)] border border-[var(--border)] block shadow-lg"
             >
-              <img
-                src={col.image}
-                alt={col.name}
-                className="w-full h-full object-cover object-center transition-transform duration-1000 group-hover:scale-105"
-              />
+              {col.image && (
+                <img
+                  src={col.image}
+                  alt={col.name}
+                  className="w-full h-full object-cover object-center transition-transform duration-1000 group-hover:scale-105"
+                />
+              )}
               <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
 
               <div className="absolute inset-0 p-8 sm:p-10 flex flex-col justify-end text-white">

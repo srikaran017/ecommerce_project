@@ -1,10 +1,17 @@
 import React from "react";
 import Link from "next/link";
 import { Sparkles, ArrowRight, Layers } from "lucide-react";
-import { INITIAL_CATEGORIES } from "@/config/category.config";
+import { fetchCategoryTree, ApiCategory } from "@/services/catalogApi";
 
-export function FeaturedCategories() {
-  const categories = INITIAL_CATEGORIES.filter((c) => c.isActive && c.isFeatured);
+export async function FeaturedCategories() {
+  const allCategories = await fetchCategoryTree().catch(() => []);
+  
+  // Only display categories that exist in the database with products or active image
+  const categories: ApiCategory[] = (allCategories || [])
+    .filter((c) => (c.productCount ?? 0) > 0 || Boolean(c.imageUrl))
+    .slice(0, 6);
+
+  if (!categories || categories.length === 0) return null;
 
   return (
     <section className="py-14 bg-[var(--background)]">
@@ -44,32 +51,41 @@ export function FeaturedCategories() {
               {/* Category Image with Link */}
               <Link
                 href={`/categories/${cat.slug}`}
-                className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl overflow-hidden bg-neutral-100 mb-3 shadow-inner cursor-pointer block"
+                className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl overflow-hidden bg-neutral-100 mb-3 shadow-inner cursor-pointer block relative"
               >
-                <img
-                  src={cat.image}
-                  alt={cat.name}
-                  className="w-full h-full object-cover object-top transition-transform duration-500 group-hover:scale-110"
-                />
+                {cat.imageUrl ? (
+                  <img
+                    src={cat.imageUrl}
+                    alt={cat.name}
+                    className="w-full h-full object-cover object-top transition-transform duration-500 group-hover:scale-110"
+                  />
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-amber-50 to-neutral-100 text-amber-800">
+                    <Layers className="w-6 h-6 mb-1 opacity-70" />
+                    <span className="text-[10px] font-bold uppercase tracking-wider">{cat.name.slice(0, 3)}</span>
+                  </div>
+                )}
               </Link>
 
               <Link
                 href={`/categories/${cat.slug}`}
-                className="font-bold text-xs sm:text-sm text-neutral-900 group-hover:text-amber-700 transition-colors uppercase cursor-pointer"
+                className="font-bold text-xs sm:text-sm text-neutral-900 group-hover:text-amber-700 transition-colors uppercase cursor-pointer line-clamp-1"
               >
                 {cat.name}
               </Link>
               
               <span className="text-[10px] text-neutral-400 font-medium mt-0.5 mb-2">
-                {cat.subcategories.length > 0
-                  ? `${cat.subcategories.length} Silhouettes`
+                {cat.children && cat.children.length > 0
+                  ? `${cat.children.length} Silhouettes`
+                  : cat.productCount !== undefined && cat.productCount > 0
+                  ? `${cat.productCount} Garments`
                   : "Handcrafted"}
               </span>
 
               {/* Quick Subcategory Chip */}
-              {cat.subcategories && cat.subcategories.length > 0 && (
+              {cat.children && cat.children.length > 0 && (
                 <div className="flex flex-wrap gap-1 justify-center mt-auto pt-2 border-t border-neutral-100 w-full">
-                  {cat.subcategories.slice(0, 2).map((sub) => (
+                  {cat.children.slice(0, 2).map((sub) => (
                     <Link
                       key={sub.id}
                       href={`/categories/${sub.slug}`}
@@ -88,4 +104,5 @@ export function FeaturedCategories() {
     </section>
   );
 }
+
 
