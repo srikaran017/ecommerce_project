@@ -1,9 +1,13 @@
 export interface PublicCollectionProductPrice {
-  regularPrice: number;
-  salePrice: number | null;
-  effectivePrice: number;
-  discountPercentage: number;
-  onSale: boolean;
+  regular?: number;
+  regularPrice?: number;
+  sale?: number | null;
+  salePrice?: number | null;
+  offer?: number | null;
+  effective?: number;
+  effectivePrice?: number;
+  discountPercentage?: number;
+  onSale?: boolean;
 }
 
 export interface PublicCollectionProduct {

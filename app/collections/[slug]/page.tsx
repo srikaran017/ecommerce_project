@@ -137,10 +137,24 @@ export default async function CollectionDetailPage({ params }: PageProps) {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 sm:gap-8">
             {products.map((p) => {
-              const regPrice = Number(p.price?.regularPrice || 0);
-              const salePrice = p.price?.salePrice ? Number(p.price.salePrice) : null;
-              const effPrice = Number(p.price?.effectivePrice || salePrice || regPrice);
-              const discount = p.price?.discountPercentage || (salePrice ? Math.round(((regPrice - salePrice) / regPrice) * 100) : 0);
+              const regPrice = Number(
+                p.price?.regular ?? p.price?.regularPrice ?? (p as any).regularPrice ?? (p as any).price ?? 0
+              );
+              const salePrice =
+                p.price?.sale !== undefined && p.price.sale !== null
+                  ? Number(p.price.sale)
+                  : p.price?.salePrice
+                  ? Number(p.price.salePrice)
+                  : null;
+              const effPrice = Number(
+                p.price?.effective ?? p.price?.effectivePrice ?? salePrice ?? regPrice
+              );
+              const discount =
+                p.price?.discountPercentage !== undefined
+                  ? p.price.discountPercentage
+                  : salePrice && regPrice > salePrice
+                  ? Math.round(((regPrice - salePrice) / regPrice) * 100)
+                  : 0;
 
               return (
                 <div
@@ -148,13 +162,25 @@ export default async function CollectionDetailPage({ params }: PageProps) {
                   className="group bg-[var(--muted)]/30 border border-[var(--border)] rounded-2xl overflow-hidden hover:shadow-xl transition-all duration-300 flex flex-col"
                 >
                   <div className="relative aspect-[3/4] overflow-hidden bg-slate-900">
-                    <img
-                      src={p.thumbnail || "https://images.unsplash.com/photo-1566174053879-31528523f8ae?w=800"}
-                      alt={p.name}
-                      className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700"
-                    />
+                    {p.thumbnail ? (
+                      <img
+                        src={p.thumbnail}
+                        alt={p.name}
+                        className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900 text-slate-400 p-4 text-center">
+                        <Sparkles className="w-8 h-8 mb-2 text-amber-500/60" />
+                        <span className="text-[10px] uppercase font-bold tracking-widest text-slate-500">
+                          {p.brand || "Maison"}
+                        </span>
+                        <span className="text-xs font-heading font-medium text-slate-300 line-clamp-2 mt-1">
+                          {p.name}
+                        </span>
+                      </div>
+                    )}
 
-                    {p.price?.onSale && discount > 0 && (
+                    {discount > 0 && (
                       <span className="absolute top-3 left-3 bg-rose-600 text-white text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider shadow">
                         {discount}% OFF
                       </span>
