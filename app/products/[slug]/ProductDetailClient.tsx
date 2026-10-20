@@ -80,6 +80,7 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
   const [unitSystem, setUnitSystem] = useState<"inches" | "cm">("inches");
   const [activeTab, setActiveTab] = useState<"fabric" | "care" | "shipping">("fabric");
   const [addedAnimation, setAddedAnimation] = useState(false);
+  const [isAdding, setIsAdding] = useState(false);
 
   // Reviews state - initialized with deterministic server data to avoid hydration mismatch
   const [reviews, setReviews] = useState<
@@ -189,13 +190,8 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
     }
   };
 
-  const handleAddToCart = () => {
-    if (selectedVariant.stock <= 0) return;
-
-    if (!isAuthenticated) {
-      router.push(`/login?redirect=/products/${product.slug}`);
-      return;
-    }
+  const handleAddToCart = async () => {
+    if (selectedVariant.stock <= 0 || isAdding) return;
 
     const chosenModifiers = Object.entries(selectedModifiers)
       .map(([groupId, optId]) => {
@@ -211,29 +207,34 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
       })
       .filter(Boolean) as any[];
 
-    addItem({
-      productId: product.id,
-      variantId: selectedVariant.id,
-      name: product.name,
-      price: finalDisplayPrice,
-      compareAtPrice: activePrice.regular > finalDisplayPrice ? activePrice.regular : undefined,
-      size: selectedVariant.size,
-      colorName: selectedVariant.colorName,
-      colorHex: selectedVariant.colorHex,
-      imageUrl: activeImage,
-      sku: selectedVariant.sku,
-      quantity,
-      maxStock: selectedVariant.stock,
-      modifierOptionIds: Object.values(selectedModifiers).filter(Boolean),
-      selectedModifiers: chosenModifiers,
-    });
+    setIsAdding(true);
+    try {
+      await addItem({
+        productId: product.id,
+        variantId: selectedVariant.id,
+        name: product.name,
+        price: finalDisplayPrice,
+        compareAtPrice: activePrice.regular > finalDisplayPrice ? activePrice.regular : undefined,
+        size: selectedVariant.size,
+        colorName: selectedVariant.colorName,
+        colorHex: selectedVariant.colorHex,
+        imageUrl: activeImage,
+        sku: selectedVariant.sku,
+        quantity,
+        maxStock: selectedVariant.stock,
+        modifierOptionIds: Object.values(selectedModifiers).filter(Boolean),
+        selectedModifiers: chosenModifiers,
+      });
 
-    setAddedAnimation(true);
-    router.push("/cart");
+      setAddedAnimation(true);
+      router.push("/cart");
+    } finally {
+      setIsAdding(false);
+    }
   };
 
-  const handleBuyNow = () => {
-    if (selectedVariant.stock <= 0) return;
+  const handleBuyNow = async () => {
+    if (selectedVariant.stock <= 0 || isAdding) return;
 
     if (!isAuthenticated) {
       router.push(`/login?redirect=/products/${product.slug}`);
@@ -254,24 +255,29 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
       })
       .filter(Boolean) as any[];
 
-    addItem({
-      productId: product.id,
-      variantId: selectedVariant.id,
-      name: product.name,
-      price: finalDisplayPrice,
-      compareAtPrice: activePrice.regular > finalDisplayPrice ? activePrice.regular : undefined,
-      size: selectedVariant.size,
-      colorName: selectedVariant.colorName,
-      colorHex: selectedVariant.colorHex,
-      imageUrl: activeImage,
-      sku: selectedVariant.sku,
-      quantity,
-      maxStock: selectedVariant.stock,
-      modifierOptionIds: Object.values(selectedModifiers).filter(Boolean),
-      selectedModifiers: chosenModifiers,
-    });
+    setIsAdding(true);
+    try {
+      await addItem({
+        productId: product.id,
+        variantId: selectedVariant.id,
+        name: product.name,
+        price: finalDisplayPrice,
+        compareAtPrice: activePrice.regular > finalDisplayPrice ? activePrice.regular : undefined,
+        size: selectedVariant.size,
+        colorName: selectedVariant.colorName,
+        colorHex: selectedVariant.colorHex,
+        imageUrl: activeImage,
+        sku: selectedVariant.sku,
+        quantity,
+        maxStock: selectedVariant.stock,
+        modifierOptionIds: Object.values(selectedModifiers).filter(Boolean),
+        selectedModifiers: chosenModifiers,
+      });
 
-    router.push("/checkout");
+      router.push("/checkout");
+    } finally {
+      setIsAdding(false);
+    }
   };
 
   const handleAddReview = (e: React.FormEvent) => {
@@ -595,7 +601,8 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
                 <Button
                   variant="primary"
                   size="lg"
-                  disabled={isOutOfStock}
+                  disabled={isOutOfStock || isAdding}
+                  isLoading={isAdding}
                   onClick={handleAddToCart}
                   className="flex-1"
                   leftIcon={
@@ -606,7 +613,9 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
                     )
                   }
                 >
-                  {addedAnimation
+                  {isAdding
+                    ? "ADDING TO BAG..."
+                    : addedAnimation
                     ? "ADDED TO BAG"
                     : isOutOfStock
                     ? "OUT OF STOCK"
@@ -630,6 +639,8 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
                 <Button
                   variant="secondary"
                   size="lg"
+                  disabled={isAdding}
+                  isLoading={isAdding}
                   onClick={handleBuyNow}
                   className="w-full"
                 >

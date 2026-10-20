@@ -111,22 +111,54 @@ const getBaseUrl = getApiBaseUrl;
 const GUEST_CART_TOKEN_KEY = "guest_cart_token";
 
 /**
- * Get saved guest cart token
+ * Cookie extraction helper
  */
-export function getSavedGuestCartToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem(GUEST_CART_TOKEN_KEY);
+function getCookie(name: string): string | null {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(new RegExp(`(?:^|;\\s*)${name}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]) : null;
 }
 
 /**
- * Set saved guest cart token
+ * Cookie setting helper
+ */
+function setCookie(name: string, value: string | null, days = 365): void {
+  if (typeof document === "undefined") return;
+  if (!value) {
+    document.cookie = `${name}=; path=/; max-age=0; SameSite=Lax`;
+    return;
+  }
+  const maxAge = days * 24 * 60 * 60;
+  document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${maxAge}; SameSite=Lax`;
+}
+
+/**
+ * Get saved guest cart token. If not present in localStorage or cookies, generates a stable UUID.
+ */
+export function getSavedGuestCartToken(): string | null {
+  if (typeof window === "undefined") return null;
+  let token = localStorage.getItem(GUEST_CART_TOKEN_KEY) || getCookie(GUEST_CART_TOKEN_KEY);
+  if (!token) {
+    token =
+      typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : `guest_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+    setSavedGuestCartToken(token);
+  }
+  return token;
+}
+
+/**
+ * Set saved guest cart token in both localStorage and browser cookies
  */
 export function setSavedGuestCartToken(token: string | null): void {
   if (typeof window === "undefined") return;
   if (token) {
     localStorage.setItem(GUEST_CART_TOKEN_KEY, token);
+    setCookie(GUEST_CART_TOKEN_KEY, token);
   } else {
     localStorage.removeItem(GUEST_CART_TOKEN_KEY);
+    setCookie(GUEST_CART_TOKEN_KEY, null);
   }
 }
 
@@ -152,12 +184,14 @@ export async function cartApiFetch<T = any>(
 
     if (customerToken) {
       headers["Authorization"] = `Bearer ${customerToken}`;
-    } else {
-      // 2. Guest token check
-      const guestToken = getSavedGuestCartToken();
-      if (guestToken) {
-        headers["x-guest-cart-token"] = guestToken;
-      }
+    }
+
+    // 2. Always supply guest cart token as fallback/identifier
+    const guestToken = getSavedGuestCartToken();
+    if (guestToken) {
+      headers["x-guest-cart-token"] = guestToken;
+      headers["x-guest-token"] = guestToken;
+      headers["x-cart-token"] = guestToken;
     }
   }
 
@@ -168,7 +202,10 @@ export async function cartApiFetch<T = any>(
     });
 
     // Capture guest token from response header
-    const returnedGuestHeader = response.headers.get("x-guest-cart-token");
+    const returnedGuestHeader =
+      response.headers.get("x-guest-cart-token") ||
+      response.headers.get("x-guest-token") ||
+      response.headers.get("x-cart-token");
     if (returnedGuestHeader) {
       setSavedGuestCartToken(returnedGuestHeader);
     }

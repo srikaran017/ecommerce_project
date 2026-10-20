@@ -138,10 +138,8 @@ export default function CartPage() {
     }
   };
 
-  // Empty Cart or Unauthenticated State
-  const effectiveItems = isAuthenticated ? items : [];
-
-  if (!isAuthenticated || effectiveItems.length === 0) {
+  // Empty Cart State (Supported for both Guest and Authenticated Shoppers)
+  if (items.length === 0) {
     return (
       <div className="py-24 bg-[var(--background)] min-h-[75vh] flex flex-col items-center justify-center px-4">
         <div className="max-w-md w-full text-center space-y-6">
@@ -151,25 +149,16 @@ export default function CartPage() {
 
           <div className="space-y-2">
             <h1 className="font-heading text-2xl sm:text-3xl font-bold uppercase tracking-tight text-[var(--foreground)]">
-              {!isAuthenticated ? "Sign In To View Bag" : "Your Shopping Bag Is Empty"}
+              Your Shopping Bag Is Empty
             </h1>
             <p className="text-xs sm:text-sm text-[var(--muted-foreground)] leading-relaxed">
-              {!isAuthenticated
-                ? "Please log in to your account to view your saved items and continue shopping."
-                : "Discover our handcrafted haute couture, royal sarees, and bespoke capsule edits."}
+              Discover our handcrafted haute couture, royal sarees, and bespoke capsule edits.
             </p>
           </div>
 
           <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
-            {!isAuthenticated && (
-              <Link href="/login?redirect=/cart">
-                <Button variant="primary" size="lg" className="w-full sm:w-auto px-8">
-                  SIGN IN
-                </Button>
-              </Link>
-            )}
             <Link href="/products">
-              <Button variant={!isAuthenticated ? "outline" : "primary"} size="lg" className="w-full sm:w-auto px-8">
+              <Button variant="primary" size="lg" className="w-full sm:w-auto px-8">
                 EXPLORE COLLECTION
               </Button>
             </Link>

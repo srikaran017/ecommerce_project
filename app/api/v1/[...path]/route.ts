@@ -116,6 +116,18 @@ async function proxyRequest(
       }
     }
 
+    // Auto-forward guest cart token from cookies if missing from headers
+    if (!forwardHeaders.has("x-guest-cart-token")) {
+      const guestCookie =
+        req.cookies.get("guest_cart_token")?.value ||
+        req.cookies.get("x-guest-cart-token")?.value;
+      if (guestCookie) {
+        forwardHeaders.set("x-guest-cart-token", guestCookie);
+        forwardHeaders.set("x-guest-token", guestCookie);
+        forwardHeaders.set("x-cart-token", guestCookie);
+      }
+    }
+
     let body: any = null;
     const reqContentType = req.headers.get("content-type") || "";
     const isProductCreateOrUpdate =
@@ -383,6 +395,24 @@ async function proxyRequest(
       }
     });
 
+    // Forward guest cart token header if present from backend and set cookie
+    const backendGuestToken =
+      response.headers.get("x-guest-cart-token") ||
+      response.headers.get("x-guest-token") ||
+      response.headers.get("x-cart-token");
+    if (backendGuestToken) {
+      responseHeaders.set("x-guest-cart-token", backendGuestToken);
+      responseHeaders.append(
+        "set-cookie",
+        `guest_cart_token=${backendGuestToken}; Path=/; Max-Age=31536000; SameSite=Lax;`
+      );
+    }
+
+    responseHeaders.set(
+      "Access-Control-Expose-Headers",
+      "x-guest-cart-token, Authorization, Set-Cookie"
+    );
+
     // Enforce no-cache policy on proxy responses so state updates reflect immediately
     responseHeaders.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
     responseHeaders.set("Pragma", "no-cache");
@@ -441,8 +471,15 @@ async function proxyRequest(
           finalBody = Buffer.from(JSON.stringify(parsed), "utf-8");
         }
 
-        // 3. If cart response, ensure static shipping reflects 150 and tax is 0 when items exist
+        // 3. If cart response, ensure static shipping reflects 150 and tax is 0 when items exist,
+        // and sync guest cart cookie to browser
         if ((subPath === "cart" || subPath.startsWith("cart/")) && parsed.data) {
+          if (parsed.data.guestToken) {
+            responseHeaders.append(
+              "set-cookie",
+              `guest_cart_token=${parsed.data.guestToken}; Path=/; Max-Age=31536000; SameSite=Lax;`
+            );
+          }
           const hasItems =
             (parsed.data.itemCount && parsed.data.itemCount > 0) ||
             (Array.isArray(parsed.data.items) && parsed.data.items.length > 0);

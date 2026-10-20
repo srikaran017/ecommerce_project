@@ -169,14 +169,27 @@ export const useCartStore = create<CartState>()(
               items: mappedItems,
               isLoading: false,
             });
+            if (cart.guestToken) {
+              setSavedGuestCartToken(cart.guestToken);
+            }
             return;
           }
 
-          set({
-            apiCart: cart || null,
-            items: [],
-            isLoading: false,
-          });
+          // If cart has an established DB ID, backend confirmed it is an empty cart
+          if (cart && cart.id !== null) {
+            set({
+              apiCart: cart,
+              items: [],
+              isLoading: false,
+            });
+          } else {
+            // cart.id is null (ephemeral placeholder; no cart session created in backend yet)
+            // Preserve existing optimistic/persisted items instead of wiping them out
+            set({
+              apiCart: cart || null,
+              isLoading: false,
+            });
+          }
         } catch (err: any) {
           set({ isLoading: false, error: err.message });
         }
@@ -225,12 +238,17 @@ export const useCartStore = create<CartState>()(
               metafields: input.metafields,
             });
 
-            if (updatedCart && updatedCart.items && updatedCart.items.length > 0) {
-              set({
-                apiCart: updatedCart,
-                items: updatedCart.items.map(transformApiItemToStoreItem),
-              });
-              return;
+            if (updatedCart) {
+              if (updatedCart.guestToken) {
+                setSavedGuestCartToken(updatedCart.guestToken);
+              }
+              if (updatedCart.items && updatedCart.items.length > 0) {
+                set({
+                  apiCart: updatedCart,
+                  items: updatedCart.items.map(transformApiItemToStoreItem),
+                });
+                return;
+              }
             }
           } catch (err: any) {
             console.warn("Backend add item failed, using local fallback:", err.message);

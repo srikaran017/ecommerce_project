@@ -70,17 +70,11 @@ export function ProductCard({ product }: ProductCardProps) {
       ((product.variants && product.variants.length > 1) || Boolean(product.modifierGroups?.length))
   );
 
-  const handleQuickAdd = (e: React.MouseEvent) => {
+  const handleQuickAdd = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
 
-    if (!isAuthenticated) {
-      const currentPath = typeof window !== "undefined" ? window.location.pathname : "/products";
-      router.push(`/login?redirect=${encodeURIComponent(currentPath)}`);
-      return;
-    }
-
-    addItem({
+    await addItem({
       productId: product.id,
       variantId: selectedVariant.id === "default" ? undefined : selectedVariant.id,
       name: product.name,

@@ -50,17 +50,10 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
 
   if (!isOpen) return null;
 
-  const handleAddToCart = () => {
+  const handleAddToCart = async () => {
     if (selectedVariant.stock <= 0) return;
 
-    if (!isAuthenticated) {
-      onClose();
-      const currentPath = typeof window !== "undefined" ? window.location.pathname : `/products/${product.slug}`;
-      router.push(`/login?redirect=${encodeURIComponent(currentPath)}`);
-      return;
-    }
-
-    addItem({
+    await addItem({
       productId: product.id,
       variantId: selectedVariant.id === "default" ? undefined : selectedVariant.id,
       name: product.name,
