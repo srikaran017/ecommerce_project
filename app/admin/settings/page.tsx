@@ -392,13 +392,12 @@ export default function AdminSettingsPage() {
       {/* Feedback Toast */}
       {feedback && (
         <div
-          className={`p-4 rounded-xl text-xs flex items-center gap-3 border shadow-lg transition-all ${
-            feedback.type === "success"
+          className={`p-4 rounded-xl text-xs flex items-center gap-3 border shadow-lg transition-all ${feedback.type === "success"
               ? "bg-emerald-950/80 border-emerald-800 text-emerald-200"
               : feedback.type === "info"
-              ? "bg-sky-950/80 border-sky-800 text-sky-200"
-              : "bg-rose-950/80 border-rose-800 text-rose-200"
-          }`}
+                ? "bg-sky-950/80 border-sky-800 text-sky-200"
+                : "bg-rose-950/80 border-rose-800 text-rose-200"
+            }`}
         >
           {feedback.type === "success" ? (
             <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -590,11 +589,10 @@ export default function AdminSettingsPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* 1. Razorpay Gateway Card */}
             <div
-              className={`p-4 rounded-xl border transition-all ${
-                formEnableRazorpay
+              className={`p-4 rounded-xl border transition-all ${formEnableRazorpay
                   ? "bg-slate-900 border-amber-500/40 shadow-sm"
                   : "bg-slate-900/40 border-slate-800 opacity-75"
-              }`}
+                }`}
             >
               <div className="flex items-start justify-between gap-3 mb-3">
                 <div className="p-2 bg-slate-800 rounded-lg text-amber-400 shrink-0">
@@ -604,15 +602,13 @@ export default function AdminSettingsPage() {
                   type="button"
                   disabled={!canManage}
                   onClick={() => setFormEnableRazorpay(!formEnableRazorpay)}
-                  className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-50 ${
-                    formEnableRazorpay ? "bg-amber-500" : "bg-slate-700"
-                  }`}
+                  className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-50 ${formEnableRazorpay ? "bg-amber-500" : "bg-slate-700"
+                    }`}
                   title={formEnableRazorpay ? "Disable Razorpay" : "Enable Razorpay"}
                 >
                   <span
-                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                      formEnableRazorpay ? "translate-x-5" : "translate-x-0"
-                    }`}
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${formEnableRazorpay ? "translate-x-5" : "translate-x-0"
+                      }`}
                   />
                 </button>
               </div>
@@ -634,11 +630,10 @@ export default function AdminSettingsPage() {
 
             {/* 2. Cash on Delivery (COD) Card */}
             <div
-              className={`p-4 rounded-xl border transition-all ${
-                formEnableCod
+              className={`p-4 rounded-xl border transition-all ${formEnableCod
                   ? "bg-slate-900 border-amber-500/40 shadow-sm"
                   : "bg-slate-900/40 border-slate-800 opacity-75"
-              }`}
+                }`}
             >
               <div className="flex items-start justify-between gap-3 mb-3">
                 <div className="p-2 bg-slate-800 rounded-lg text-amber-400 shrink-0">
@@ -648,15 +643,13 @@ export default function AdminSettingsPage() {
                   type="button"
                   disabled={!canManage}
                   onClick={() => setFormEnableCod(!formEnableCod)}
-                  className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-50 ${
-                    formEnableCod ? "bg-amber-500" : "bg-slate-700"
-                  }`}
+                  className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-50 ${formEnableCod ? "bg-amber-500" : "bg-slate-700"
+                    }`}
                   title={formEnableCod ? "Disable COD" : "Enable COD"}
                 >
                   <span
-                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                      formEnableCod ? "translate-x-5" : "translate-x-0"
-                    }`}
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${formEnableCod ? "translate-x-5" : "translate-x-0"
+                      }`}
                   />
                 </button>
               </div>
@@ -694,11 +687,10 @@ export default function AdminSettingsPage() {
 
             {/* 3. Direct UPI & QR Code Card */}
             <div
-              className={`p-4 rounded-xl border transition-all ${
-                formEnableUpiQr
+              className={`p-4 rounded-xl border transition-all ${formEnableUpiQr
                   ? "bg-slate-900 border-amber-500/40 shadow-sm ring-1 ring-amber-500/20"
                   : "bg-slate-900/40 border-slate-800 opacity-75"
-              }`}
+                }`}
             >
               <div className="flex items-start justify-between gap-3 mb-3">
                 <div className="p-2 bg-slate-800 rounded-lg text-amber-400 shrink-0">
@@ -708,15 +700,13 @@ export default function AdminSettingsPage() {
                   type="button"
                   disabled={!canManage}
                   onClick={() => setFormEnableUpiQr(!formEnableUpiQr)}
-                  className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-50 ${
-                    formEnableUpiQr ? "bg-amber-500" : "bg-slate-700"
-                  }`}
+                  className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-50 ${formEnableUpiQr ? "bg-amber-500" : "bg-slate-700"
+                    }`}
                   title={formEnableUpiQr ? "Disable UPI QR" : "Enable UPI QR"}
                 >
                   <span
-                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                      formEnableUpiQr ? "translate-x-5" : "translate-x-0"
-                    }`}
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${formEnableUpiQr ? "translate-x-5" : "translate-x-0"
+                      }`}
                   />
                 </button>
               </div>
@@ -763,7 +753,7 @@ export default function AdminSettingsPage() {
                       value={formUpiId}
                       onChange={(e) => setFormUpiId(e.target.value)}
                       className="w-full px-3 py-2 bg-slate-900 text-white font-mono border border-slate-800 rounded-lg focus:border-amber-400 focus:outline-none"
-                      placeholder={`e.g. ${storeConfig.payment.upiId}`}
+                      placeholder="e.g. srikaran017@oksbi"
                     />
                     <span className="text-[10px] text-slate-500 mt-1 block">
                       Compatible with Google Pay, PhonePe, Paytm, and BHIM UPI.
@@ -905,11 +895,10 @@ export default function AdminSettingsPage() {
             return (
               <div
                 key={preset.id}
-                className={`p-5 rounded-xl border flex flex-col justify-between transition-all relative ${
-                  isSelected
+                className={`p-5 rounded-xl border flex flex-col justify-between transition-all relative ${isSelected
                     ? "bg-slate-900 border-amber-400 ring-2 ring-amber-400/30 shadow-lg"
                     : "bg-slate-900/40 border-slate-800 hover:border-slate-700"
-                }`}
+                  }`}
               >
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
@@ -928,10 +917,10 @@ export default function AdminSettingsPage() {
                     {preset.id === "luxury-fashion"
                       ? "Noir Black, Gold foil accent, Silk White • Editorial Serif & Clean Sans"
                       : preset.id === "monochrome-minimal"
-                      ? "Slate Gray, Clean White, High contrast • Architectural Sans-Serif"
-                      : preset.id === "royal-festive"
-                      ? "Deep Crimson, Embroidered Gold, Regal Ivory • Classical Serif Accents"
-                      : `Custom tailored palette with ${preset.headingFont.split(",")[0].replace(/'/g, "")}`}
+                        ? "Slate Gray, Clean White, High contrast • Architectural Sans-Serif"
+                        : preset.id === "royal-festive"
+                          ? "Deep Crimson, Embroidered Gold, Regal Ivory • Classical Serif Accents"
+                          : `Custom tailored palette with ${preset.headingFont.split(",")[0].replace(/'/g, "")}`}
                   </p>
 
                   {/* Palette Preview Swatches */}
@@ -969,11 +958,10 @@ export default function AdminSettingsPage() {
                       type="button"
                       disabled={isSelected || isSwitchingTheme}
                       onClick={() => handleApplyTheme(preset.id)}
-                      className={`px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-colors cursor-pointer ${
-                        isSelected
+                      className={`px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-colors cursor-pointer ${isSelected
                           ? "bg-amber-400/20 text-amber-300 cursor-default"
                           : "bg-slate-800 hover:bg-amber-500 hover:text-slate-950 text-slate-300"
-                      }`}
+                        }`}
                     >
                       {isSelected ? "Active Preset" : "Apply Theme"}
                     </button>
@@ -1038,15 +1026,13 @@ export default function AdminSettingsPage() {
                   type="button"
                   disabled={!canManage}
                   onClick={() => handleToggleFeature(key)}
-                  className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed ${
-                    isEnabled ? "bg-amber-500" : "bg-slate-700"
-                  }`}
+                  className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed ${isEnabled ? "bg-amber-500" : "bg-slate-700"
+                    }`}
                   title={isEnabled ? "Click to disable" : "Click to enable"}
                 >
                   <span
-                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                      isEnabled ? "translate-x-5" : "translate-x-0"
-                    }`}
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${isEnabled ? "translate-x-5" : "translate-x-0"
+                      }`}
                   />
                 </button>
               </div>
