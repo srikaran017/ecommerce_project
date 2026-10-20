@@ -193,12 +193,13 @@ export function SearchModal() {
               </div>
               <div className="flex flex-wrap gap-2">
                 {[
-                  { name: "Women's Couture", slug: "womens-couture" },
-                  { name: "Evening Gowns", slug: "evening-gowns" },
-                  { name: "Royal Sarees", slug: "sarees" },
-                  { name: "Men's Apparel", slug: "mens-apparel" },
-                  { name: "Suits & Blazers", slug: "mens-suits" },
-                  { name: "Cotton Shirts", slug: "mens-shirts" },
+                  { name: "Women", slug: "women" },
+                  { name: "Dresses & Gowns", slug: "women-dresses" },
+                  { name: "Ethnic Couture", slug: "women-ethnic" },
+                  { name: "Men", slug: "men" },
+                  { name: "Suits & Blazers", slug: "men-suits-blazers" },
+                  { name: "Silk Kurtas", slug: "men-silk-kurta-sets" },
+                  { name: "Kids", slug: "kids" },
                 ].map((cat) => (
                   <Link
                     key={cat.slug}

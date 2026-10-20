@@ -28,11 +28,17 @@ import {
   Eye,
   FileQuestion,
   HelpCircle,
+  Navigation,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/auth.store";
 import { AdminService } from "@/services/admin.service";
 import { AdminCategory, CreateCategoryInput, UpdateCategoryInput } from "@/types/admin.types";
 import { rbac } from "@/lib/rbac";
+import {
+  NavbarConfig,
+  getNavbarConfig,
+  saveNavbarConfig,
+} from "@/config/navbar.config";
 
 export default function AdminCategoriesPage() {
   const { user: currentUser } = useAuthStore();
@@ -44,6 +50,10 @@ export default function AdminCategoriesPage() {
   const [flatCategories, setFlatCategories] = useState<AdminCategory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Storefront Navbar Configuration State
+  const [navbarConfig, setNavbarConfig] = useState<NavbarConfig>(getNavbarConfig());
+  const [isNavbarCardOpen, setIsNavbarCardOpen] = useState(true);
 
   // View & Filters
   const [viewMode, setViewMode] = useState<"tree" | "flat">("tree");
@@ -132,6 +142,41 @@ export default function AdminCategoriesPage() {
   useEffect(() => {
     loadData();
   }, []);
+
+  // Save Storefront Navbar Configuration
+  const handleSaveNavbarConfig = (updates: Partial<NavbarConfig>) => {
+    const updated = saveNavbarConfig(updates);
+    setNavbarConfig(updated);
+    showAlert("success", "Navbar Config Saved", "Storefront navigation bar settings updated successfully.");
+  };
+
+  // 1-Click Toggle Category in Storefront Navbar
+  const handleToggleCategoryNavbar = async (cat: AdminCategory) => {
+    if (!canManage) {
+      showAlert("error", "Permission Denied", "You need permission to modify categories.");
+      return;
+    }
+
+    const nextFeatured = !cat.isFeatured;
+    try {
+      const res = await AdminService.updateCategory(cat.id, { isFeatured: nextFeatured });
+      if (res.success) {
+        showAlert(
+          "success",
+          nextFeatured ? "Added to Navbar" : "Removed from Navbar",
+          `"${cat.name}" will ${nextFeatured ? "now be featured in" : "no longer be featured directly in"} the storefront navigation bar.`
+        );
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("category_updated"));
+        }
+        await loadData(true);
+      } else {
+        showAlert("error", "Update Failed", res.message || "Failed to update category navbar status.");
+      }
+    } catch (err: any) {
+      showAlert("error", "Update Error", err.message || "An error occurred.");
+    }
+  };
 
   // Toggle tree node expansion
   const toggleNode = (nodeId: string) => {
@@ -407,8 +452,9 @@ export default function AdminCategoriesPage() {
               <div className="flex items-center gap-2">
                 <span className="font-bold text-white text-xs sm:text-sm truncate">{node.name}</span>
                 {node.isFeatured && (
-                  <span className="px-1.5 py-0.2 rounded bg-amber-400/20 text-amber-300 text-[9px] font-bold uppercase tracking-wider">
-                    Featured
+                  <span className="px-1.5 py-0.2 rounded bg-amber-400/20 text-amber-300 text-[9px] font-bold uppercase tracking-wider flex items-center gap-1">
+                    <Sparkles className="w-2.5 h-2.5 fill-amber-300" />
+                    <span>In Navbar</span>
                   </span>
                 )}
                 {!node.isActive && (
@@ -433,6 +479,28 @@ export default function AdminCategoriesPage() {
 
           {/* Right Actions */}
           <div className="flex items-center gap-1.5 flex-shrink-0">
+            {/* Quick Toggle Navbar */}
+            {canManage && (
+              <button
+                onClick={() => handleToggleCategoryNavbar(node)}
+                className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
+                  node.isFeatured
+                    ? "bg-amber-400/20 text-amber-300 border-amber-400/50 hover:bg-amber-400/30"
+                    : "bg-slate-900 text-slate-400 border-slate-800 hover:text-white hover:border-slate-700"
+                }`}
+                title={
+                  node.isFeatured
+                    ? "Featured in Navbar (Click to remove)"
+                    : "Not featured in Navbar (Click to show directly in header navbar)"
+                }
+              >
+                <Sparkles className={`w-3.5 h-3.5 ${node.isFeatured ? "text-amber-400 fill-amber-400" : ""}`} />
+                <span className="hidden sm:inline">
+                  {node.isFeatured ? "In Nav" : "Add to Nav"}
+                </span>
+              </button>
+            )}
+
             {canManage && (
               <button
                 onClick={() => openCreateModal(node.id)}
@@ -579,6 +647,192 @@ export default function AdminCategoriesPage() {
         </div>
       </div>
 
+      {/* Storefront Navbar Navigation Manager & Live Preview */}
+      <div className="bg-slate-950/90 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-2xl relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-80 h-40 bg-amber-500/5 rounded-full blur-3xl -z-10" />
+
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800/80">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-amber-400/10 border border-amber-400/20 flex items-center justify-center text-amber-400">
+              <Navigation className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm sm:text-base font-extrabold text-white">
+                  Storefront Navigation Bar Settings
+                </h2>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold">
+                  LIVE STOREFRONT SYNC
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Control which departments, promotional links, and menus appear in your storefront header navbar.
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => setIsNavbarCardOpen(!isNavbarCardOpen)}
+            className="text-xs font-semibold text-amber-400 hover:text-amber-300 transition-colors flex items-center gap-1 self-start md:self-auto cursor-pointer"
+          >
+            <span>{isNavbarCardOpen ? "Hide Settings" : "Configure Navbar"}</span>
+            <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isNavbarCardOpen ? "rotate-180" : ""}`} />
+          </button>
+        </div>
+
+        {/* Live Interactive Navbar Simulation Preview */}
+        <div className="mt-4 pt-1">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2 flex items-center gap-1.5">
+            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+            <span>Storefront Navbar Live Preview (Active State)</span>
+          </div>
+
+          <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5 flex flex-wrap items-center gap-2 sm:gap-3 text-xs overflow-x-auto">
+            {/* Live featured categories */}
+            {categories
+              .filter((c) => c.parentId === null || !c.parentId)
+              .filter((c) => c.isFeatured && c.isActive)
+              .slice(0, navbarConfig.maxTopLevelCategories)
+              .map((c) => (
+                <div
+                  key={c.id}
+                  className="px-3 py-1.5 rounded-xl bg-amber-400/10 border border-amber-400/30 text-amber-300 font-bold uppercase tracking-wider flex items-center gap-1.5 shadow-sm"
+                >
+                  <span>{c.name}</span>
+                  {c.children && c.children.length > 0 && (
+                    <ChevronDown className="w-3 h-3 text-amber-400 opacity-70" />
+                  )}
+                </div>
+              ))}
+
+            {/* If none marked featured yet, show preview of active roots */}
+            {categories.filter((c) => (c.parentId === null || !c.parentId) && c.isFeatured && c.isActive).length === 0 &&
+              categories
+                .filter((c) => (c.parentId === null || !c.parentId) && c.isActive)
+                .slice(0, navbarConfig.maxTopLevelCategories)
+                .map((c) => (
+                  <div
+                    key={c.id}
+                    className="px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700 text-slate-200 font-semibold uppercase tracking-wider flex items-center gap-1.5"
+                  >
+                    <span>{c.name}</span>
+                    {c.children && c.children.length > 0 && (
+                      <ChevronDown className="w-3 h-3 text-slate-400" />
+                    )}
+                  </div>
+                ))}
+
+            {navbarConfig.showCategoriesDropdown && (
+              <div className="px-3 py-1.5 rounded-xl bg-slate-800/80 border border-slate-700/80 text-slate-300 font-semibold uppercase tracking-wider flex items-center gap-1">
+                <span>CATEGORIES</span>
+                <ChevronDown className="w-3 h-3 text-slate-400" />
+              </div>
+            )}
+
+            {navbarConfig.showShopAll && (
+              <div className="px-3 py-1.5 rounded-xl bg-slate-800/80 border border-slate-700/80 text-slate-300 font-semibold uppercase tracking-wider">
+                SHOP ALL
+              </div>
+            )}
+
+            {navbarConfig.showSale && (
+              <div className="px-3 py-1.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 font-bold uppercase tracking-wider">
+                {navbarConfig.saleLabel || "SALE"}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Configuration Toggles */}
+        {isNavbarCardOpen && (
+          <div className="mt-5 pt-5 border-t border-slate-800 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 animate-in fade-in duration-200">
+            {/* Toggle 1: Sale Promotional Link */}
+            <div className="p-3.5 bg-slate-900/60 rounded-2xl border border-slate-800 space-y-2">
+              <label className="flex items-center justify-between text-xs font-bold text-white cursor-pointer">
+                <span>Show &quot;Sale&quot; Link</span>
+                <input
+                  type="checkbox"
+                  checked={navbarConfig.showSale}
+                  onChange={(e) => handleSaveNavbarConfig({ showSale: e.target.checked })}
+                  className="rounded border-slate-700 text-amber-500 focus:ring-0 cursor-pointer"
+                />
+              </label>
+              {navbarConfig.showSale && (
+                <div className="space-y-1.5 pt-1">
+                  <input
+                    type="text"
+                    value={navbarConfig.saleLabel}
+                    onChange={(e) => handleSaveNavbarConfig({ saleLabel: e.target.value })}
+                    placeholder="Label (e.g. SALE)"
+                    className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-amber-400"
+                  />
+                  <input
+                    type="text"
+                    value={navbarConfig.saleUrl}
+                    onChange={(e) => handleSaveNavbarConfig({ saleUrl: e.target.value })}
+                    placeholder="URL (/products?sort=best_deals)"
+                    className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-amber-400 font-mono"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Toggle 2: Categories Dropdown */}
+            <div className="p-3.5 bg-slate-900/60 rounded-2xl border border-slate-800 flex flex-col justify-between">
+              <label className="flex items-center justify-between text-xs font-bold text-white cursor-pointer">
+                <span>Categories Dropdown</span>
+                <input
+                  type="checkbox"
+                  checked={navbarConfig.showCategoriesDropdown}
+                  onChange={(e) => handleSaveNavbarConfig({ showCategoriesDropdown: e.target.checked })}
+                  className="rounded border-slate-700 text-amber-500 focus:ring-0 cursor-pointer"
+                />
+              </label>
+              <p className="text-[11px] text-slate-400 mt-2">
+                Multi-column menu showcasing all active categories and nested subcategories.
+              </p>
+            </div>
+
+            {/* Toggle 3: Shop All Catalog */}
+            <div className="p-3.5 bg-slate-900/60 rounded-2xl border border-slate-800 flex flex-col justify-between">
+              <label className="flex items-center justify-between text-xs font-bold text-white cursor-pointer">
+                <span>Show &quot;Shop All&quot; Link</span>
+                <input
+                  type="checkbox"
+                  checked={navbarConfig.showShopAll}
+                  onChange={(e) => handleSaveNavbarConfig({ showShopAll: e.target.checked })}
+                  className="rounded border-slate-700 text-amber-500 focus:ring-0 cursor-pointer"
+                />
+              </label>
+              <p className="text-[11px] text-slate-400 mt-2">
+                Direct link to browse all products in the storefront catalog.
+              </p>
+            </div>
+
+            {/* Setting 4: Max Primary Categories */}
+            <div className="p-3.5 bg-slate-900/60 rounded-2xl border border-slate-800 flex flex-col justify-between">
+              <div>
+                <span className="text-xs font-bold text-white block">Max Header Categories</span>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Limit top-level category pills to keep header balanced.
+                </p>
+              </div>
+              <select
+                value={navbarConfig.maxTopLevelCategories}
+                onChange={(e) => handleSaveNavbarConfig({ maxTopLevelCategories: parseInt(e.target.value, 10) || 4 })}
+                className="mt-2 w-full px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-xs text-white focus:outline-none focus:border-amber-400"
+              >
+                <option value={2}>2 Categories</option>
+                <option value={3}>3 Categories</option>
+                <option value={4}>4 Categories (Recommended)</option>
+                <option value={5}>5 Categories</option>
+                <option value={6}>6 Categories</option>
+              </select>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Filter and Search Bar */}
       <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 space-y-4">
         <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
@@ -675,8 +929,9 @@ export default function AdminCategoriesPage() {
                               <div className="font-bold text-white flex items-center gap-2">
                                 <span>{cat.name}</span>
                                 {cat.isFeatured && (
-                                  <span className="px-1.5 py-0.2 rounded bg-amber-400/20 text-amber-300 text-[9px] font-bold">
-                                    FEATURED
+                                  <span className="px-1.5 py-0.2 rounded bg-amber-400/20 text-amber-300 text-[9px] font-bold flex items-center gap-1">
+                                    <Sparkles className="w-2.5 h-2.5 fill-amber-300" />
+                                    <span>IN NAVBAR</span>
                                   </span>
                                 )}
                               </div>
@@ -710,9 +965,30 @@ export default function AdminCategoriesPage() {
                         </td>
                         <td className="py-4 px-6 text-right">
                           <div className="flex items-center justify-end gap-1.5">
+                            {canManage && (
+                              <button
+                                onClick={() => handleToggleCategoryNavbar(cat)}
+                                className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition-all cursor-pointer ${
+                                  cat.isFeatured
+                                    ? "bg-amber-400/20 text-amber-300 border-amber-400/50 hover:bg-amber-400/30"
+                                    : "bg-slate-900 text-slate-400 border-slate-800 hover:text-white hover:border-slate-700"
+                                }`}
+                                title={
+                                  cat.isFeatured
+                                    ? "Featured in Navbar (Click to remove)"
+                                    : "Not featured in Navbar (Click to show in header navbar)"
+                                }
+                              >
+                                <Sparkles className={`w-3.5 h-3.5 ${cat.isFeatured ? "text-amber-400 fill-amber-400" : ""}`} />
+                                <span className="hidden sm:inline">
+                                  {cat.isFeatured ? "In Nav" : "Add to Nav"}
+                                </span>
+                              </button>
+                            )}
+
                             <button
                               onClick={() => openEditModal(cat)}
-                              className="p-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-amber-400 border border-slate-800"
+                              className="p-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-amber-400 border border-slate-800 cursor-pointer"
                               title="Edit"
                             >
                               <Edit className="w-3.5 h-3.5" />
@@ -1024,26 +1300,54 @@ export default function AdminCategoriesPage() {
               </div>
 
               {/* Toggles: isFeatured, isActive, sortOrder */}
-              <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-800">
-                <label className="flex items-center gap-2.5 text-xs text-slate-300 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={form.isFeatured}
-                    onChange={(e) => setForm({ ...form, isFeatured: e.target.checked })}
-                    className="rounded border-slate-700 text-amber-500 focus:ring-0"
-                  />
-                  <span>Feature in Store Header</span>
-                </label>
+              <div className="space-y-3 pt-3 border-t border-slate-800">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <label className="flex items-start gap-2.5 p-3 rounded-xl bg-slate-900/60 border border-slate-800 text-xs text-slate-300 cursor-pointer hover:border-amber-400/40 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={form.isFeatured}
+                      onChange={(e) => setForm({ ...form, isFeatured: e.target.checked })}
+                      className="mt-0.5 rounded border-slate-700 text-amber-500 focus:ring-0 cursor-pointer"
+                    />
+                    <div>
+                      <span className="font-bold text-white block">Show in Store Navbar</span>
+                      <span className="text-[11px] text-slate-400 block mt-0.5">
+                        Feature this category directly as a primary link in the top storefront navbar.
+                      </span>
+                    </div>
+                  </label>
 
-                <label className="flex items-center gap-2.5 text-xs text-slate-300 cursor-pointer">
+                  <label className="flex items-start gap-2.5 p-3 rounded-xl bg-slate-900/60 border border-slate-800 text-xs text-slate-300 cursor-pointer hover:border-amber-400/40 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={form.isActive}
+                      onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
+                      className="mt-0.5 rounded border-slate-700 text-amber-500 focus:ring-0 cursor-pointer"
+                    />
+                    <div>
+                      <span className="font-bold text-white block">Visible to Shoppers</span>
+                      <span className="text-[11px] text-slate-400 block mt-0.5">
+                        Active in catalog and public search. Uncheck to temporarily hide from customers.
+                      </span>
+                    </div>
+                  </label>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                    Navigation Display Order:
+                  </label>
                   <input
-                    type="checkbox"
-                    checked={form.isActive}
-                    onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
-                    className="rounded border-slate-700 text-amber-500 focus:ring-0"
+                    type="number"
+                    value={form.sortOrder}
+                    onChange={(e) => setForm({ ...form, sortOrder: parseInt(e.target.value, 10) || 0 })}
+                    placeholder="0"
+                    className="w-24 px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-xs text-white focus:outline-none focus:border-amber-400 font-mono"
                   />
-                  <span>Visible to Shoppers</span>
-                </label>
+                  <span className="text-[11px] text-slate-500">
+                    Lower numbers appear first from left-to-right.
+                  </span>
+                </div>
               </div>
 
               {/* In-Modal Success Alert */}

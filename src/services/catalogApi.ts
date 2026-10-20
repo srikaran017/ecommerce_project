@@ -37,6 +37,8 @@ export interface ApiCategory {
   imageUrl?: string | null;
   parentId?: string | null;
   sortOrder?: number;
+  isFeatured?: boolean;
+  isActive?: boolean;
   productCount?: number;
   children?: ApiCategory[];
   parent?: {

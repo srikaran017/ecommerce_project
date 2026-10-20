@@ -99,18 +99,23 @@ export function Footer() {
             <h4 className="text-xs font-bold uppercase tracking-widest">COLLECTIONS</h4>
             <ul className="space-y-2.5 text-xs opacity-80">
               <li>
-                <Link href="/products?category=womens-couture" className="hover:underline">
-                  Women's Evening & Couture
+                <Link href="/categories/women" className="hover:underline">
+                  Women&apos;s Couture & Dresses
                 </Link>
               </li>
               <li>
-                <Link href="/products?category=mens-apparel" className="hover:underline">
-                  Men's Bespoke & Linen
+                <Link href="/categories/men" className="hover:underline">
+                  Men&apos;s Bespoke & Silk Kurtas
                 </Link>
               </li>
               <li>
-                <Link href="/products?category=luxury-accessories" className="hover:underline">
-                  Silk Scarves & Shawls
+                <Link href="/categories/kids" className="hover:underline">
+                  Junior Occasion & Festive
+                </Link>
+              </li>
+              <li>
+                <Link href="/categories" className="hover:underline">
+                  All Category Departments
                 </Link>
               </li>
               <li>
