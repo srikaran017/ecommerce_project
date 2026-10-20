@@ -168,9 +168,17 @@ export const useAuthStore = create<AuthState>()(
 
       checkSession: async () => {
         try {
-          const token = AuthService.getAccessToken();
+          let token = AuthService.getAccessToken();
           if (!token) {
-            // No token stored
+            // Attempt silent refresh via HttpOnly refresh cookie (valid for 7 days)
+            const refreshRes = await AuthService.refreshToken();
+            if (refreshRes.success && refreshRes.user) {
+              set({ user: refreshRes.user, isAuthenticated: true });
+              useCartStore.getState().fetchCart().catch(() => {});
+              return;
+            }
+
+            // No valid token or refresh cookie
             if (get().isAuthenticated) {
               set({ user: null, isAuthenticated: false });
             }

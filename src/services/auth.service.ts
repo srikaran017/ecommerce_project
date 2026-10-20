@@ -45,6 +45,7 @@ const getBaseUrl = getApiBaseUrl;
 
 export class AuthService {
   private static tokenKey = "auth_access_token";
+  private static refreshPromise: Promise<AuthResponse> | null = null;
 
   /**
    * Get API Base URL
@@ -306,13 +307,24 @@ export class AuthService {
   /**
    * Get profile of currently logged-in user
    * GET /auth/me
+   * Automatically refreshes access token if expired before failing.
    */
   static async getCurrentUser(): Promise<AuthUser | null> {
     try {
-      const token = this.getAccessToken();
-      if (!token) return null;
+      let token = this.getAccessToken();
 
-      const response = await fetch(`${getBaseUrl()}/auth/me`, {
+      // If no access token in memory/localStorage, attempt silent refresh via HttpOnly cookie
+      if (!token) {
+        const refreshRes = await this.refreshToken();
+        if (refreshRes.success && refreshRes.accessToken) {
+          token = refreshRes.accessToken;
+          if (refreshRes.user) return refreshRes.user;
+        } else {
+          return null;
+        }
+      }
+
+      let response = await fetch(`${getBaseUrl()}/auth/me`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -321,10 +333,26 @@ export class AuthService {
         credentials: "include",
       });
 
-      if (!response.ok) {
-        if (response.status === 401 && !token.startsWith("google_")) {
+      // If 401 Unauthorized, token likely expired -> attempt token refresh via HttpOnly cookie
+      if (response.status === 401 && !token.startsWith("google_")) {
+        const refreshRes = await this.refreshToken();
+        if (refreshRes.success && refreshRes.accessToken) {
+          token = refreshRes.accessToken;
+          response = await fetch(`${getBaseUrl()}/auth/me`, {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            credentials: "include",
+          });
+        } else {
           this.setAccessToken(null);
+          return null;
         }
+      }
+
+      if (!response.ok) {
         return null;
       }
 
@@ -343,46 +371,58 @@ export class AuthService {
    * Session / Token Refresh
    * POST /auth/refresh
    * Rotates JWT access token using HttpOnly cookie or optional JSON body payload.
+   * Includes promise deduplication to prevent concurrent rotation collisions.
    */
   static async refreshToken(customRefreshToken?: string): Promise<AuthResponse> {
-    try {
-      const body = customRefreshToken ? JSON.stringify({ refreshToken: customRefreshToken }) : undefined;
-      const response = await fetch(`${getBaseUrl()}/auth/refresh`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body,
-      });
+    // If a refresh is already in-flight and no custom token is passed, reuse the active promise
+    if (this.refreshPromise && !customRefreshToken) {
+      return this.refreshPromise;
+    }
 
-      const data = await response.json().catch(() => ({}));
+    this.refreshPromise = (async () => {
+      try {
+        const body = customRefreshToken ? JSON.stringify({ refreshToken: customRefreshToken }) : undefined;
+        const response = await fetch(`${getBaseUrl()}/auth/refresh`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          body,
+        });
 
-      if (response.ok && data.success) {
-        const token = data.data?.accessToken;
-        if (token) {
-          this.setAccessToken(token);
+        const data = await response.json().catch(() => ({}));
+
+        if (response.ok && data.success) {
+          const token = data.data?.accessToken;
+          if (token) {
+            this.setAccessToken(token);
+          }
+
+          return {
+            success: true,
+            user: data.data?.user,
+            accessToken: token,
+            message: data.message || "Token refreshed successfully",
+          };
         }
 
         return {
-          success: true,
-          user: data.data?.user,
-          accessToken: token,
-          message: data.message || "Token refreshed successfully",
+          success: false,
+          message: data.message || "Refresh token is invalid or expired",
+          error: data.error,
         };
+      } catch (err: any) {
+        return {
+          success: false,
+          message: err.message || "Failed to refresh token",
+        };
+      } finally {
+        this.refreshPromise = null;
       }
+    })();
 
-      return {
-        success: false,
-        message: data.message || "Refresh token is invalid or expired",
-        error: data.error,
-      };
-    } catch (err: any) {
-      return {
-        success: false,
-        message: err.message || "Failed to refresh token",
-      };
-    }
+    return this.refreshPromise;
   }
 
   /**

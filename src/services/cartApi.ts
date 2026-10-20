@@ -196,10 +196,25 @@ export async function cartApiFetch<T = any>(
   }
 
   try {
-    const response = await fetch(`${getBaseUrl()}${endpoint}`, {
+    let response = await fetch(`${getBaseUrl()}${endpoint}`, {
+      credentials: "include",
       ...options,
       headers,
     });
+
+    // Auto-refresh token if 401 Unauthorized
+    if (response.status === 401 && typeof window !== "undefined") {
+      const { AuthService } = await import("@/services/auth.service");
+      const refreshRes = await AuthService.refreshToken();
+      if (refreshRes.success && refreshRes.accessToken) {
+        headers["Authorization"] = `Bearer ${refreshRes.accessToken}`;
+        response = await fetch(`${getBaseUrl()}${endpoint}`, {
+          credentials: "include",
+          ...options,
+          headers,
+        });
+      }
+    }
 
     // Capture guest token from response header
     const returnedGuestHeader =

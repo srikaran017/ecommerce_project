@@ -801,11 +801,26 @@ export class AdminService {
     }
 
     try {
-      const response = await fetch(`${getBaseUrl()}${adminPath}`, {
+      let response = await fetch(`${getBaseUrl()}${adminPath}`, {
         cache: "no-store",
+        credentials: "include",
         ...options,
         headers,
       });
+
+      // Automatic token refresh on 401 Unauthorized
+      if (response.status === 401) {
+        const refreshRes = await AuthService.refreshToken();
+        if (refreshRes.success && refreshRes.accessToken) {
+          headers.set("Authorization", `Bearer ${refreshRes.accessToken}`);
+          response = await fetch(`${getBaseUrl()}${adminPath}`, {
+            cache: "no-store",
+            credentials: "include",
+            ...options,
+            headers,
+          });
+        }
+      }
 
       if (!response.ok) {
         try {
