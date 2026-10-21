@@ -6532,6 +6532,12 @@ export class AdminService {
     });
 
     if (res.success && res.data) {
+      // Sync into local storage for resilient offline caching
+      const coupons = this.getLocalCoupons();
+      if (!coupons.some((c) => c.id === res.data!.id || c.code === formattedCode)) {
+        coupons.unshift(res.data);
+        setLocalData(STORAGE_KEYS.COUPONS, coupons);
+      }
       return {
         success: true,
         statusCode: 201,
@@ -6602,12 +6608,24 @@ export class AdminService {
       body: JSON.stringify(input),
     });
 
-    if (res.success && res.data) {
+    if (res.success) {
+      // Synchronize into local storage cache
+      const coupons = this.getLocalCoupons();
+      const idx = coupons.findIndex((c) => c.id === id);
+      if (idx !== -1) {
+        coupons[idx] = {
+          ...coupons[idx],
+          ...input,
+          ...(res.data || {}),
+          updatedAt: new Date().toISOString(),
+        };
+        setLocalData(STORAGE_KEYS.COUPONS, coupons);
+      }
       return {
         success: true,
         statusCode: 200,
         message: res.message || "Coupon updated successfully",
-        data: res.data,
+        data: res.data || (idx !== -1 ? coupons[idx] : undefined),
       };
     }
 
@@ -6668,12 +6686,19 @@ export class AdminService {
       body: JSON.stringify({ isActive }),
     });
 
-    if (res.success && res.data) {
+    if (res.success) {
+      const coupons = this.getLocalCoupons();
+      const idx = coupons.findIndex((c) => c.id === id);
+      if (idx !== -1) {
+        coupons[idx].isActive = isActive;
+        coupons[idx].updatedAt = new Date().toISOString();
+        setLocalData(STORAGE_KEYS.COUPONS, coupons);
+      }
       return {
         success: true,
         statusCode: 200,
         message: res.message || `Coupon status updated to ${isActive ? "ACTIVE" : "INACTIVE"}`,
-        data: res.data,
+        data: res.data || { id, isActive },
       };
     }
 
@@ -6719,12 +6744,24 @@ export class AdminService {
       { method: "DELETE" }
     );
 
-    if (res.success && res.data) {
+    if (res.success) {
+      // Also sync local storage so fallback stays cleanly aligned
+      const coupons = this.getLocalCoupons();
+      const target = coupons.find((c) => c.id === id);
+      if (target) {
+        if (res.data?.action === "DEACTIVATED") {
+          target.isActive = false;
+          target.updatedAt = new Date().toISOString();
+          setLocalData(STORAGE_KEYS.COUPONS, coupons);
+        } else {
+          setLocalData(STORAGE_KEYS.COUPONS, coupons.filter((c) => c.id !== id));
+        }
+      }
       return {
         success: true,
         statusCode: 200,
         message: res.message || "Coupon processed successfully",
-        data: res.data,
+        data: res.data || { id, code: target?.code || "", action: "DELETED", isActive: false },
       };
     }
 

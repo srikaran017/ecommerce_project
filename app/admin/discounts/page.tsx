@@ -85,9 +85,11 @@ export default function AdminDiscountsPage() {
   const [formIsActive, setFormIsActive] = useState(true);
 
   // Load coupons from backend / local engine
-  const loadCoupons = async () => {
+  const loadCoupons = async (showLoadingSpinner: boolean = true) => {
     try {
-      setIsLoading(true);
+      if (showLoadingSpinner) {
+        setIsLoading(true);
+      }
       const res = await AdminService.getCouponsList({
         search: search.trim() || undefined,
         status: statusFilter,
@@ -99,7 +101,9 @@ export default function AdminDiscountsPage() {
         setCoupons(res.data);
       }
     } catch (err: any) {
-      showNotification("error", err.message || "Failed to load coupons");
+      if (showLoadingSpinner) {
+        showNotification("error", err.message || "Failed to load coupons");
+      }
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -216,9 +220,32 @@ export default function AdminDiscountsPage() {
 
       const res = await AdminService.createCoupon(payload);
       if (res.success) {
+        const newCreated: AdminCoupon = (res.data as AdminCoupon) || {
+          id: `coup_uuid_${Date.now()}`,
+          code: payload.code,
+          description: payload.description || "",
+          discountType: payload.discountType,
+          discountValue: String(val.toFixed(2)),
+          minOrderAmount: payload.minOrderAmount ? String(payload.minOrderAmount.toFixed(2)) : null,
+          maxDiscountAmount: payload.maxDiscountAmount ? String(payload.maxDiscountAmount.toFixed(2)) : null,
+          startDate: payload.startDate,
+          endDate: payload.endDate,
+          usageLimit: payload.usageLimit || 500,
+          usedCount: 0,
+          perUserLimit: payload.perUserLimit || 1,
+          isActive: formIsActive,
+          computedStatus: "ACTIVE" as const,
+          remainingUses: payload.usageLimit || 500,
+          usages: [],
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+
+        // Dynamically add to table immediately for instant UI reflection
+        setCoupons((prev) => [newCreated, ...prev.filter((c) => c.id !== newCreated.id && c.code !== newCreated.code)]);
         showNotification("success", res.message || `Coupon '${formCode.toUpperCase()}' created`);
         setIsCreateModalOpen(false);
-        loadCoupons();
+        loadCoupons(false);
       } else {
         showNotification("error", res.message || "Failed to create coupon");
       }
@@ -250,6 +277,7 @@ export default function AdminDiscountsPage() {
       return;
     }
 
+    const targetId = editingCoupon.id;
     setIsSubmitting(true);
     try {
       const payload: UpdateCouponInput = {
@@ -269,11 +297,47 @@ export default function AdminDiscountsPage() {
         isActive: formIsActive,
       };
 
-      const res = await AdminService.updateCoupon(editingCoupon.id, payload);
+      const res = await AdminService.updateCoupon(targetId, payload);
       if (res.success) {
+        const now = Date.now();
+        const endMs = new Date(payload.endDate!).getTime();
+        let computedStatus: "ACTIVE" | "EXPIRED" | "INACTIVE" = "ACTIVE";
+        if (!formIsActive) {
+          computedStatus = "INACTIVE";
+        } else if (endMs < now) {
+          computedStatus = "EXPIRED";
+        }
+
+        // Dynamically update state immediately for instantaneous reflection
+        setCoupons((prev) =>
+          prev.map((c) => {
+            if (c.id === targetId) {
+              return {
+                ...c,
+                ...(res.data || {}),
+                code: payload.code!,
+                description: payload.description || "",
+                discountType: formDiscountType,
+                discountValue: String(val.toFixed(2)),
+                minOrderAmount: payload.minOrderAmount ? String(payload.minOrderAmount.toFixed(2)) : null,
+                maxDiscountAmount: payload.maxDiscountAmount ? String(payload.maxDiscountAmount.toFixed(2)) : null,
+                startDate: payload.startDate!,
+                endDate: payload.endDate!,
+                usageLimit: payload.usageLimit || 500,
+                perUserLimit: payload.perUserLimit || 1,
+                isActive: formIsActive,
+                computedStatus,
+                remainingUses: Math.max(0, (payload.usageLimit || 500) - (c.usedCount || 0)),
+                updatedAt: new Date().toISOString(),
+              };
+            }
+            return c;
+          })
+        );
+
         showNotification("success", res.message || `Coupon '${formCode.toUpperCase()}' updated`);
         setEditingCoupon(null);
-        loadCoupons();
+        loadCoupons(false);
       } else {
         showNotification("error", res.message || "Failed to update coupon");
       }
@@ -291,19 +355,48 @@ export default function AdminDiscountsPage() {
       return;
     }
 
+    const nextStatus = !coupon.isActive;
+    // Dynamically toggle in UI immediately for zero perceived latency
+    setCoupons((prev) =>
+      prev.map((c) =>
+        c.id === coupon.id
+          ? {
+              ...c,
+              isActive: nextStatus,
+              computedStatus: nextStatus ? "ACTIVE" : "INACTIVE",
+            }
+          : c
+      )
+    );
+
     try {
-      const nextStatus = !coupon.isActive;
       const res = await AdminService.toggleCouponStatus(coupon.id, nextStatus);
       if (res.success) {
         showNotification(
           "success",
           `Coupon '${coupon.code}' ${nextStatus ? "activated" : "deactivated"} successfully`
         );
-        loadCoupons();
+        loadCoupons(false);
       } else {
+        // Revert on failure
+        setCoupons((prev) =>
+          prev.map((c) =>
+            c.id === coupon.id
+              ? { ...c, isActive: coupon.isActive, computedStatus: coupon.computedStatus }
+              : c
+          )
+        );
         showNotification("error", res.message || "Failed to toggle status");
       }
     } catch (err: any) {
+      // Revert on failure
+      setCoupons((prev) =>
+        prev.map((c) =>
+          c.id === coupon.id
+            ? { ...c, isActive: coupon.isActive, computedStatus: coupon.computedStatus }
+            : c
+        )
+      );
       showNotification("error", err.message || "Error toggling coupon status");
     }
   };
@@ -317,24 +410,36 @@ export default function AdminDiscountsPage() {
       return;
     }
 
+    const targetCoupon = deletingCoupon;
     setIsSubmitting(true);
     try {
-      const res = await AdminService.deleteCoupon(deletingCoupon.id);
+      const res = await AdminService.deleteCoupon(targetCoupon.id);
       if (res.success) {
-        if (res.data?.action === "DEACTIVATED") {
+        const wasDeactivated = res.data?.action === "DEACTIVATED";
+        if (wasDeactivated) {
+          // Dynamically deactivate in UI immediately
+          setCoupons((prev) =>
+            prev.map((c) =>
+              c.id === targetCoupon.id
+                ? { ...c, isActive: false, computedStatus: "INACTIVE" }
+                : c
+            )
+          );
           showNotification(
             "info",
             res.message ||
-              `Coupon has ${deletingCoupon.usedCount} historical usages. It was deactivated instead of permanently deleted to safeguard invoice history.`
+              `Coupon has ${targetCoupon.usedCount} historical usages. It was deactivated instead of permanently deleted to safeguard invoice history.`
           );
         } else {
+          // Dynamically remove from UI immediately
+          setCoupons((prev) => prev.filter((c) => c.id !== targetCoupon.id));
           showNotification(
             "success",
-            res.message || `Coupon '${deletingCoupon.code}' successfully deleted`
+            res.message || `Coupon '${targetCoupon.code}' successfully deleted`
           );
         }
         setDeletingCoupon(null);
-        loadCoupons();
+        loadCoupons(false);
       } else {
         showNotification("error", res.message || "Failed to process coupon");
       }
