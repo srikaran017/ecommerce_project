@@ -34,6 +34,7 @@ import {
   Smartphone,
   Copy,
   Check,
+  X,
 } from "lucide-react";
 import { featureConfig } from "@/config/feature.config";
 import { storeConfig } from "@/config/store.config";
@@ -149,6 +150,15 @@ export default function AdminSettingsPage() {
     type: "success" | "error" | "info";
     text: string;
   } | null>(null);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [savedSummary, setSavedSummary] = useState<{
+    storeName: string;
+    email: string;
+    phone: string;
+    paymentMethods: string[];
+    shipping: string;
+    upiId?: string;
+  } | null>(null);
 
   // Form Fields
   const [formStoreName, setFormStoreName] = useState(storeConfig.name);
@@ -157,7 +167,7 @@ export default function AdminSettingsPage() {
   const [formCurrencySymbol, setFormCurrencySymbol] = useState(storeConfig.currency.symbol || "₹");
   const [formSupportEmail, setFormSupportEmail] = useState(storeConfig.contact.email);
   const [formSupportPhone, setFormSupportPhone] = useState(storeConfig.contact.phone);
-  const [formFreeShippingThreshold, setFormFreeShippingThreshold] = useState("2999.00");
+  const [formFreeShippingThreshold, setFormFreeShippingThreshold] = useState("9999.00");
   const [formFlatShippingRate, setFormFlatShippingRate] = useState("150.00");
   const [formShippingPolicy, setFormShippingPolicy] = useState("");
   const [formReturnPolicy, setFormReturnPolicy] = useState("");
@@ -227,7 +237,7 @@ export default function AdminSettingsPage() {
   const handleSaveStoreConfig = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canManage) {
-      showNotification("error", "Permission denied: settings:manage (SUPER_ADMIN only) required.");
+      showNotification("error", "Permission denied: settings:manage (SUPER_ADMIN or STORE_ADMIN required).");
       return;
     }
 
@@ -272,7 +282,21 @@ export default function AdminSettingsPage() {
       const res = await AdminService.updateStoreSettings(payload);
       if (res.success) {
         setSettings(res.data);
-        showNotification("success", "Store configuration & payment methods updated successfully");
+        const activeMethods: string[] = [];
+        if (formEnableRazorpay) activeMethods.push("Razorpay Gateway");
+        if (formEnableCod) activeMethods.push("Cash on Delivery (COD)");
+        if (formEnableUpiQr) activeMethods.push("Direct UPI QR");
+
+        setSavedSummary({
+          storeName: formStoreName.trim(),
+          email: formSupportEmail.trim(),
+          phone: formSupportPhone.trim(),
+          paymentMethods: activeMethods,
+          shipping: `Flat ${formCurrencySymbol}${formFlatShippingRate} • Free over ${formCurrencySymbol}${formFreeShippingThreshold}`,
+          upiId: formEnableUpiQr ? formUpiId.trim() || storeConfig.payment.upiId : undefined,
+        });
+        setShowSuccessModal(true);
+        showNotification("success", "Store configuration & payment methods updated successfully!");
       } else {
         showNotification("error", res.message || "Failed to update settings");
       }
@@ -286,7 +310,7 @@ export default function AdminSettingsPage() {
   // Switch Theme Preset
   const handleApplyTheme = async (themeId: string) => {
     if (!canManage) {
-      showNotification("error", "Permission denied: settings:manage (SUPER_ADMIN only) required.");
+      showNotification("error", "Permission denied: settings:manage (SUPER_ADMIN or STORE_ADMIN required).");
       return;
     }
 
@@ -316,7 +340,7 @@ export default function AdminSettingsPage() {
   // Toggle Feature Flag
   const handleToggleFeature = async (key: keyof StoreFeatureFlags) => {
     if (!canManage) {
-      showNotification("error", "Permission denied: settings:manage (SUPER_ADMIN only) required.");
+      showNotification("error", "Permission denied: settings:manage (SUPER_ADMIN or STORE_ADMIN required).");
       return;
     }
 
@@ -384,29 +408,141 @@ export default function AdminSettingsPage() {
         <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-center gap-3 text-xs text-amber-200">
           <ShieldAlert className="w-5 h-5 text-amber-400 shrink-0" />
           <span>
-            Read-only mode: You are viewing store settings. Modifying store branding, shipping limits, theme presets, or toggling feature flags requires the <code className="bg-amber-950/80 px-1 py-0.5 rounded text-amber-300">settings:manage</code> permission (SUPER_ADMIN only).
+            Read-only mode: You are viewing store settings. Modifying store branding, shipping limits, theme presets, or toggling feature flags requires the <code className="bg-amber-950/80 px-1 py-0.5 rounded text-amber-300">settings:manage</code> permission (SUPER_ADMIN or STORE_ADMIN).
           </span>
         </div>
       )}
 
-      {/* Feedback Toast */}
+      {/* Floating Toast Notification */}
       {feedback && (
         <div
-          className={`p-4 rounded-xl text-xs flex items-center gap-3 border shadow-lg transition-all ${feedback.type === "success"
-              ? "bg-emerald-950/80 border-emerald-800 text-emerald-200"
-              : feedback.type === "info"
-                ? "bg-sky-950/80 border-sky-800 text-sky-200"
-                : "bg-rose-950/80 border-rose-800 text-rose-200"
+          className={`fixed top-6 right-6 z-50 max-w-md w-full p-4 rounded-2xl shadow-2xl border backdrop-blur-xl transition-all duration-300 animate-in fade-in slide-in-from-top-4 ${feedback.type === "success"
+            ? "bg-emerald-950/95 border-emerald-500/50 text-emerald-200 shadow-emerald-950/50"
+            : feedback.type === "info"
+              ? "bg-sky-950/95 border-sky-500/50 text-sky-200 shadow-sky-950/50"
+              : "bg-rose-950/95 border-rose-500/50 text-rose-200 shadow-rose-950/50"
             }`}
         >
-          {feedback.type === "success" ? (
-            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-          ) : feedback.type === "info" ? (
-            <Info className="w-4 h-4 text-sky-400 shrink-0" />
-          ) : (
-            <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
-          )}
-          <span className="font-medium">{feedback.text}</span>
+          <div className="flex items-start gap-3">
+            {feedback.type === "success" ? (
+              <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
+            ) : feedback.type === "info" ? (
+              <Info className="w-5 h-5 text-sky-400 flex-shrink-0 mt-0.5" />
+            ) : (
+              <AlertTriangle className="w-5 h-5 text-rose-400 flex-shrink-0 mt-0.5" />
+            )}
+            <div className="flex-1 min-w-0">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-white">
+                {feedback.type === "success"
+                  ? "Settings Saved"
+                  : feedback.type === "info"
+                    ? "Store Notice"
+                    : "Configuration Alert"}
+              </h4>
+              <p className="text-xs mt-0.5 opacity-90 leading-relaxed font-medium">
+                {feedback.text}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setFeedback(null)}
+              className="text-slate-400 hover:text-white p-1 rounded-lg transition-colors cursor-pointer"
+              title="Dismiss notification"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Save Success Popup Modal */}
+      {showSuccessModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-slate-900 border border-amber-500/30 rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl space-y-6 relative animate-in zoom-in-95 duration-200">
+            {/* Close button */}
+            <button
+              type="button"
+              onClick={() => setShowSuccessModal(false)}
+              className="absolute top-5 right-5 text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+              title="Close popup"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {/* Glowing Icon */}
+            <div className="text-center space-y-3">
+              <div className="w-16 h-16 rounded-full bg-emerald-500/10 border-2 border-emerald-500/40 text-emerald-400 flex items-center justify-center mx-auto shadow-lg shadow-emerald-500/20">
+                <CheckCircle2 className="w-8 h-8" />
+              </div>
+              <h3 className="text-xl font-bold text-white tracking-tight">
+                Store & Payment Settings Saved!
+              </h3>
+              <p className="text-xs text-slate-300 max-w-sm mx-auto leading-relaxed">
+                Your store brand profile, delivery thresholds, and active checkout payment gateways have been updated and are live across the storefront.
+              </p>
+            </div>
+
+            {/* Saved Summary Details */}
+            {savedSummary && (
+              <div className="bg-slate-950/70 border border-slate-800 rounded-2xl p-4 space-y-3 text-xs">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-800/80">
+                  <span className="text-slate-400 uppercase font-semibold text-[10px]">Store Brand</span>
+                  <span className="font-bold text-white">{savedSummary.storeName}</span>
+                </div>
+
+                <div className="flex items-center justify-between pb-2 border-b border-slate-800/80">
+                  <span className="text-slate-400 uppercase font-semibold text-[10px]">Concierge Contact</span>
+                  <span className="font-mono text-slate-300 text-[11px]">{savedSummary.email}</span>
+                </div>
+
+                <div className="flex items-center justify-between pb-2 border-b border-slate-800/80">
+                  <span className="text-slate-400 uppercase font-semibold text-[10px]">Active Gateways</span>
+                  <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                    {savedSummary.paymentMethods.map((method) => (
+                      <span
+                        key={method}
+                        className="text-[10px] font-mono font-bold bg-amber-500/10 text-amber-300 border border-amber-500/20 px-2 py-0.5 rounded-full"
+                      >
+                        {method}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {savedSummary.upiId && (
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-800/80">
+                    <span className="text-slate-400 uppercase font-semibold text-[10px]">Merchant UPI VPA</span>
+                    <span className="font-mono text-emerald-300 font-semibold">{savedSummary.upiId}</span>
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400 uppercase font-semibold text-[10px]">Delivery Policy</span>
+                  <span className="text-slate-200 font-medium">{savedSummary.shipping}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Modal Actions */}
+            <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowSuccessModal(false)}
+                className="w-full sm:flex-1 py-2.5 px-4 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs uppercase tracking-wider rounded-xl transition-colors cursor-pointer shadow-sm hover:shadow-amber-500/20"
+              >
+                Done
+              </button>
+              <a
+                href="/"
+                target="_blank"
+                rel="noreferrer"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs rounded-xl transition-colors text-center"
+              >
+                <span>View Storefront</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            </div>
+          </div>
         </div>
       )}
 
@@ -590,8 +726,8 @@ export default function AdminSettingsPage() {
             {/* 1. Razorpay Gateway Card */}
             <div
               className={`p-4 rounded-xl border transition-all ${formEnableRazorpay
-                  ? "bg-slate-900 border-amber-500/40 shadow-sm"
-                  : "bg-slate-900/40 border-slate-800 opacity-75"
+                ? "bg-slate-900 border-amber-500/40 shadow-sm"
+                : "bg-slate-900/40 border-slate-800 opacity-75"
                 }`}
             >
               <div className="flex items-start justify-between gap-3 mb-3">
@@ -631,8 +767,8 @@ export default function AdminSettingsPage() {
             {/* 2. Cash on Delivery (COD) Card */}
             <div
               className={`p-4 rounded-xl border transition-all ${formEnableCod
-                  ? "bg-slate-900 border-amber-500/40 shadow-sm"
-                  : "bg-slate-900/40 border-slate-800 opacity-75"
+                ? "bg-slate-900 border-amber-500/40 shadow-sm"
+                : "bg-slate-900/40 border-slate-800 opacity-75"
                 }`}
             >
               <div className="flex items-start justify-between gap-3 mb-3">
@@ -688,8 +824,8 @@ export default function AdminSettingsPage() {
             {/* 3. Direct UPI & QR Code Card */}
             <div
               className={`p-4 rounded-xl border transition-all ${formEnableUpiQr
-                  ? "bg-slate-900 border-amber-500/40 shadow-sm ring-1 ring-amber-500/20"
-                  : "bg-slate-900/40 border-slate-800 opacity-75"
+                ? "bg-slate-900 border-amber-500/40 shadow-sm ring-1 ring-amber-500/20"
+                : "bg-slate-900/40 border-slate-800 opacity-75"
                 }`}
             >
               <div className="flex items-start justify-between gap-3 mb-3">
@@ -896,8 +1032,8 @@ export default function AdminSettingsPage() {
               <div
                 key={preset.id}
                 className={`p-5 rounded-xl border flex flex-col justify-between transition-all relative ${isSelected
-                    ? "bg-slate-900 border-amber-400 ring-2 ring-amber-400/30 shadow-lg"
-                    : "bg-slate-900/40 border-slate-800 hover:border-slate-700"
+                  ? "bg-slate-900 border-amber-400 ring-2 ring-amber-400/30 shadow-lg"
+                  : "bg-slate-900/40 border-slate-800 hover:border-slate-700"
                   }`}
               >
                 <div className="space-y-3">
@@ -959,8 +1095,8 @@ export default function AdminSettingsPage() {
                       disabled={isSelected || isSwitchingTheme}
                       onClick={() => handleApplyTheme(preset.id)}
                       className={`px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-colors cursor-pointer ${isSelected
-                          ? "bg-amber-400/20 text-amber-300 cursor-default"
-                          : "bg-slate-800 hover:bg-amber-500 hover:text-slate-950 text-slate-300"
+                        ? "bg-amber-400/20 text-amber-300 cursor-default"
+                        : "bg-slate-800 hover:bg-amber-500 hover:text-slate-950 text-slate-300"
                         }`}
                     >
                       {isSelected ? "Active Preset" : "Apply Theme"}

@@ -99,6 +99,7 @@ export const ROLE_PERMISSIONS: Record<AdminRole, AdminPermission[]> = {
     "promotions:manage",
     "settings:view",
     "settings:edit",
+    "settings:manage",
   ],
   STAFF: [
     "analytics:view",
@@ -255,7 +256,7 @@ export const rbac = {
   canManageSettings: (role?: string) => {
     if (!role) return false;
     const r = role.toUpperCase();
-    return r === "SUPER_ADMIN" || hasPermission(role, "settings:manage");
+    return r === "SUPER_ADMIN" || r === "STORE_ADMIN" || hasPermission(role, "settings:manage") || hasPermission(role, "settings:edit");
   },
   canManageDiscounts: (role?: string) => hasPermission(role, "discounts:manage"),
   canViewAuditLogs: (role?: string) => {
