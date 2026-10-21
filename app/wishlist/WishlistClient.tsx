@@ -37,7 +37,6 @@ export function WishlistClient() {
   const searchParams = useSearchParams();
   const { isAuthenticated } = useAuthStore();
   const { wishlistIds, removeFromWishlist: storeRemove, clearWishlist: storeClear } = useWishlistStore();
-  const { openCart } = useCartStore();
 
   const [isMounted, setIsMounted] = useState(false);
   const [items, setItems] = useState<WishlistItem[]>([]);
@@ -180,7 +179,6 @@ export function WishlistClient() {
           showToast(`"${productName}" added to your shopping bag!`);
         }
         setVariantModalItem(null);
-        openCart();
       } else {
         showToast(res.message || "Failed to add to bag.", "error");
       }

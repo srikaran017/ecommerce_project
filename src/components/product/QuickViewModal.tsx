@@ -69,6 +69,29 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
     });
 
     setAddedAnimation(true);
+    setTimeout(() => {
+      setAddedAnimation(false);
+    }, 2000);
+  };
+
+  const handleBuyNow = async () => {
+    if (selectedVariant.stock <= 0) return;
+
+    await addItem({
+      productId: product.id,
+      variantId: selectedVariant.id === "default" ? undefined : selectedVariant.id,
+      name: product.name,
+      price: selectedVariant.price,
+      compareAtPrice: selectedVariant.compareAtPrice || undefined,
+      size: selectedVariant.size,
+      colorName: selectedVariant.colorName,
+      colorHex: selectedVariant.colorHex,
+      imageUrl: activeImg,
+      sku: selectedVariant.sku,
+      quantity: 1,
+      maxStock: selectedVariant.stock,
+    });
+
     onClose();
     router.push("/cart");
   };
@@ -159,28 +182,39 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
               </div>
             )}
 
-            {/* Add to Bag Button */}
+            {/* Add to Bag and Buy Now Buttons */}
             <div className="pt-2 space-y-2">
-              <button
-                onClick={handleAddToCart}
-                className={`w-full py-3 rounded-2xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md ${
-                  addedAnimation
-                    ? "bg-emerald-600 text-white"
-                    : "bg-neutral-900 text-white hover:bg-amber-600"
-                }`}
-              >
-                {addedAnimation ? (
-                  <>
-                    <Check className="w-4 h-4" />
-                    <span>Added to Bag!</span>
-                  </>
-                ) : (
-                  <>
-                    <ShoppingBag className="w-4 h-4" />
-                    <span>Add to Bag</span>
-                  </>
-                )}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleAddToCart}
+                  className={`flex-1 py-3 rounded-2xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md ${
+                    addedAnimation
+                      ? "bg-emerald-600 text-white"
+                      : "bg-neutral-900 text-white hover:bg-neutral-800"
+                  }`}
+                >
+                  {addedAnimation ? (
+                    <>
+                      <Check className="w-4 h-4" />
+                      <span>Added to Bag!</span>
+                    </>
+                  ) : (
+                    <>
+                      <ShoppingBag className="w-4 h-4" />
+                      <span>Add to Bag</span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleBuyNow}
+                  className="flex-1 py-3 rounded-2xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold"
+                >
+                  <span>Buy Now</span>
+                </button>
+              </div>
 
               <Link
                 href={`/products/${product.slug}`}

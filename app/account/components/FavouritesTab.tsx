@@ -21,7 +21,7 @@ interface FavouritesTabProps {
 
 export function FavouritesTab({ products, onShowToast }: FavouritesTabProps) {
   const { wishlistIds, removeFromWishlist, clearWishlist } = useWishlistStore();
-  const { addItem, openCart } = useCartStore();
+  const { addItem } = useCartStore();
 
   const favoriteProducts = products.filter((p) => wishlistIds.includes(p.id));
 
@@ -47,7 +47,6 @@ export function FavouritesTab({ products, onShowToast }: FavouritesTabProps) {
     });
     await removeFromWishlist(product.id);
     onShowToast(`"${product.name}" moved to your shopping bag!`);
-    openCart();
   };
 
   const handleRemove = (product: ProductData) => {
