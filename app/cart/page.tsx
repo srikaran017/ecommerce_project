@@ -16,11 +16,13 @@ import {
   Truck,
   RotateCcw,
   Sparkles,
+  Check,
 } from "lucide-react";
 import { useCartStore } from "@/stores/cart.store";
 import { storeConfig } from "@/config/store.config";
 import { featureConfig } from "@/config/feature.config";
 import { useAuthStore } from "@/stores/auth.store";
+import { CheckoutService } from "@/services/checkout.service";
 import { Button } from "@/components/ui/Button";
 
 export default function CartPage() {
@@ -49,6 +51,8 @@ export default function CartPage() {
 
   const [couponInput, setCouponInput] = useState("");
   const [couponError, setCouponError] = useState("");
+  const [isApplyingCoupon, setIsApplyingCoupon] = useState(false);
+  const [couponSuccess, setCouponSuccess] = useState<string | null>(null);
   const [isGiftNoteOpen, setIsGiftNoteOpen] = useState(false);
   const [giftNote, setGiftNote] = useState("");
   const [giftNoteSaved, setGiftNoteSaved] = useState(false);
@@ -58,7 +62,7 @@ export default function CartPage() {
     setIsMounted(true);
     if (!hasCheckedRef.current) {
       hasCheckedRef.current = true;
-      fetchCart().catch(() => {});
+      fetchCart().catch(() => { });
     }
   }, [fetchCart]);
 
@@ -92,36 +96,46 @@ export default function CartPage() {
 
   const deliveryFee = storeConfig.shipping.flatRate; // Statically 150 rupees
 
-  const handleApplyCoupon = (e: React.FormEvent) => {
+  const handleApplyCoupon = async (e: React.FormEvent) => {
     e.preventDefault();
     setCouponError("");
+    setCouponSuccess(null);
     const code = couponInput.trim().toUpperCase();
 
     if (!code) {
-      setCouponError("Please enter a promotion code.");
+      setCouponError("Please enter a promotional code.");
       return;
     }
 
+    setIsApplyingCoupon(true);
     const merchandiseBase = subtotal + modifiersTotal;
 
-    if (code === "LUXE10") {
-      applyCoupon({
-        code: "LUXE10",
-        discountType: "PERCENTAGE",
-        discountValue: 10,
-        calculatedDiscount: Math.round((merchandiseBase * 10) / 100),
+    try {
+      // 1. Validate through live API / Admin coupon registry
+      const res = await CheckoutService.validateCoupon({
+        code,
+        subtotal: merchandiseBase,
       });
-      setCouponInput("");
-    } else if (code === "WELCOME1000") {
-      applyCoupon({
-        code: "WELCOME1000",
-        discountType: "FIXED",
-        discountValue: 1000,
-        calculatedDiscount: Math.min(1000, merchandiseBase),
-      });
-      setCouponInput("");
-    } else {
-      setCouponError("Invalid promo code. Try LUXE10 or WELCOME1000.");
+
+      if (res.success && res.data?.isValid) {
+        applyCoupon({
+          code: res.data.code,
+          discountType: res.data.discountType,
+          discountValue: res.data.discountValue,
+          calculatedDiscount: res.data.discountAmount,
+        });
+        setCouponInput("");
+        setCouponError("");
+        setCouponSuccess(res.message || `Code ${res.data.code} applied successfully!`);
+        setTimeout(() => setCouponSuccess(null), 4000);
+        return;
+      }
+
+      setCouponError(res.message || "Invalid or inactive coupon code");
+    } catch {
+      setCouponError("Unable to validate promotional code. Please try again.");
+    } finally {
+      setIsApplyingCoupon(false);
     }
   };
 
@@ -171,7 +185,7 @@ export default function CartPage() {
   return (
     <div className="py-10 bg-[var(--background)] min-h-screen">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        
+
         {/* Breadcrumb Navigation */}
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[var(--muted-foreground)]">
@@ -241,10 +255,10 @@ export default function CartPage() {
 
         {/* Grid Layout: Bag Items (8 cols) + Order Summary (4 cols) */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start">
-          
+
           {/* Left Column: Bag Items List */}
           <div className="lg:col-span-8 space-y-6">
-            
+
             {/* Items Header */}
             <div className="hidden sm:grid grid-cols-12 text-[11px] font-bold uppercase tracking-widest text-[var(--muted-foreground)] pb-3 border-b border-[var(--border)]">
               <span className="col-span-6">Garment</span>
@@ -267,9 +281,8 @@ export default function CartPage() {
                 return (
                   <div
                     key={item.id}
-                    className={`py-6 flex flex-col sm:grid sm:grid-cols-12 gap-4 items-start sm:items-center ${
-                      isOutOfStock ? "opacity-60" : ""
-                    }`}
+                    className={`py-6 flex flex-col sm:grid sm:grid-cols-12 gap-4 items-start sm:items-center ${isOutOfStock ? "opacity-60" : ""
+                      }`}
                   >
                     {/* Item Thumbnail & Details (col 6) */}
                     <div className="sm:col-span-6 flex gap-4 w-full">
@@ -408,7 +421,7 @@ export default function CartPage() {
                 Clear Entire Bag
               </button>
 
-              <button
+              {/* <button
                 type="button"
                 onClick={() => setIsGiftNoteOpen(!isGiftNoteOpen)}
                 className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-amber-700 hover:text-amber-800 transition-colors"
@@ -417,7 +430,7 @@ export default function CartPage() {
                 <span>
                   {isGiftNoteOpen ? "Close Gift Message" : "Add Personalized Gift Note / Packaging"}
                 </span>
-              </button>
+              </button> */}
             </div>
 
             {/* Gift Note Input Box */}
@@ -451,7 +464,7 @@ export default function CartPage() {
             )}
 
             {/* Atelier Assurance Guarantee */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-6 border-t border-[var(--border)] text-xs text-[var(--muted-foreground)]">
+            {/* <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-6 border-t border-[var(--border)] text-xs text-[var(--muted-foreground)]">
               <div className="flex items-center gap-3">
                 <ShieldCheck className="w-5 h-5 text-[var(--primary)] flex-shrink-0" />
                 <span>Guaranteed Authentic & Handcrafted</span>
@@ -464,7 +477,7 @@ export default function CartPage() {
                 <RotateCcw className="w-5 h-5 text-[var(--primary)] flex-shrink-0" />
                 <span>Complimentary 7-Day Boutique Returns</span>
               </div>
-            </div>
+            </div> */}
 
           </div>
 
@@ -478,38 +491,71 @@ export default function CartPage() {
               {/* Coupon Code Section */}
               {featureConfig.coupons && (
                 <div className="space-y-2">
-                  <label className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted-foreground)] block">
-                    Promotional Code
-                  </label>
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted-foreground)] block">
+                      Promotional Code
+                    </label>
+                  </div>
                   {appliedCoupon ? (
-                    <div className="flex items-center justify-between bg-emerald-50 text-emerald-950 border border-emerald-200 px-3.5 py-2.5 rounded-xl text-xs">
+                    <div className="flex items-center justify-between bg-emerald-50 text-emerald-950 border border-emerald-200 px-3.5 py-2.5 rounded-xl text-xs animate-in fade-in">
                       <div className="flex items-center gap-2 font-bold">
                         <Tag className="w-4 h-4 text-emerald-700" />
                         <span>Code {appliedCoupon.code} Applied</span>
+                        <span className="text-[10px] font-mono font-normal bg-emerald-200/70 text-emerald-900 px-1.5 py-0.5 rounded">
+                          {appliedCoupon.discountType === "PERCENTAGE"
+                            ? `${appliedCoupon.discountValue}% OFF`
+                            : `${storeConfig.currency.symbol}${appliedCoupon.discountValue} OFF`}
+                        </span>
                       </div>
                       <button
-                        onClick={removeCoupon}
+                        type="button"
+                        onClick={() => {
+                          removeCoupon();
+                          setCouponError("");
+                          setCouponSuccess(null);
+                        }}
                         className="text-xs font-semibold text-emerald-800 underline cursor-pointer hover:text-emerald-950"
                       >
                         Remove
                       </button>
                     </div>
                   ) : (
-                    <form onSubmit={handleApplyCoupon} className="flex gap-2">
-                      <input
-                        type="text"
-                        placeholder="e.g. LUXE10"
-                        value={couponInput}
-                        onChange={(e) => setCouponInput(e.target.value)}
-                        className="flex-1 px-3.5 py-2.5 text-xs uppercase bg-[var(--background)] text-[var(--foreground)] border border-[var(--border)] rounded-xl focus:outline-none focus:border-[var(--primary)]"
-                      />
-                      <Button variant="outline" size="sm" type="submit" className="font-bold">
-                        APPLY
-                      </Button>
+                    <form onSubmit={handleApplyCoupon} className="space-y-2">
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="Enter promo code"
+                          value={couponInput}
+                          onChange={(e) => {
+                            setCouponInput(e.target.value);
+                            if (couponError) setCouponError("");
+                            if (couponSuccess) setCouponSuccess(null);
+                          }}
+                          className="flex-1 px-3.5 py-2.5 text-xs uppercase bg-[var(--background)] text-[var(--foreground)] border border-[var(--border)] rounded-xl focus:outline-none focus:border-[var(--primary)]"
+                        />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          type="submit"
+                          disabled={isApplyingCoupon || !couponInput.trim()}
+                          isLoading={isApplyingCoupon}
+                          className="font-bold cursor-pointer"
+                        >
+                          {isApplyingCoupon ? "CHECKING..." : "APPLY"}
+                        </Button>
+                      </div>
                     </form>
                   )}
                   {couponError && (
-                    <p className="text-[11px] text-rose-600 font-medium">{couponError}</p>
+                    <p className="text-[11px] text-rose-600 font-medium animate-in fade-in flex items-center gap-1">
+                      <span>{couponError}</span>
+                    </p>
+                  )}
+                  {couponSuccess && (
+                    <p className="text-[11px] text-emerald-600 font-medium animate-in fade-in flex items-center gap-1">
+                      <Check className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>{couponSuccess}</span>
+                    </p>
                   )}
                 </div>
               )}
@@ -565,8 +611,8 @@ export default function CartPage() {
                   hasOutOfStock
                     ? "#"
                     : featureConfig.guestCheckout || isAuthenticated
-                    ? "/checkout"
-                    : "/login?redirect=/checkout"
+                      ? "/checkout"
+                      : "/login?redirect=/checkout"
                 }
                 onClick={(e) => {
                   if (hasOutOfStock) e.preventDefault();

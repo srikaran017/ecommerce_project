@@ -214,132 +214,7 @@ export const INITIAL_SAMPLE_ORDERS: AdminOrder[] = [];
 
 export const SAMPLE_ADMIN_ORDERS = INITIAL_SAMPLE_ORDERS;
 
-export const INITIAL_COUPONS: AdminCoupon[] = [
-  {
-    id: "coup_uuid_101",
-    code: "DIWALI25",
-    description: "Exclusive 25% off festive preview collection",
-    discountType: "PERCENTAGE",
-    discountValue: "25.00",
-    minOrderAmount: "5000.00",
-    maxDiscountAmount: "3000.00",
-    startDate: "2026-10-15T00:00:00.000Z",
-    endDate: "2026-11-05T23:59:59.000Z",
-    usageLimit: 500,
-    usedCount: 82,
-    perUserLimit: 1,
-    isActive: true,
-    computedStatus: "ACTIVE",
-    remainingUses: 418,
-    createdAt: "2026-10-01T10:00:00.000Z",
-    usages: [
-      {
-        id: "use_uuid_1",
-        usedAt: "2026-10-16T14:22:00.000Z",
-        discountApplied: "2500.00",
-        user: {
-          id: "usr_uuid_1",
-          name: "Meera Sen",
-          email: "meera@example.com",
-        },
-        order: {
-          id: "ord_uuid_1",
-          orderNumber: "ORD-20261016-1092",
-          totalAmount: "10000.00",
-        },
-      },
-    ],
-  },
-  {
-    id: "coup_uuid_102",
-    code: "WELCOME1000",
-    description: "₹1,000 off on luxury welcome registration",
-    discountType: "FIXED",
-    discountValue: "1000.00",
-    minOrderAmount: "4000.00",
-    maxDiscountAmount: null,
-    startDate: "2026-01-01T00:00:00.000Z",
-    endDate: "2026-12-31T23:59:59.000Z",
-    usageLimit: 1000,
-    usedCount: 142,
-    perUserLimit: 1,
-    isActive: true,
-    computedStatus: "ACTIVE",
-    remainingUses: 858,
-    createdAt: "2026-01-01T00:00:00.000Z",
-    usages: [
-      {
-        id: "use_uuid_2",
-        usedAt: "2026-08-10T12:00:00.000Z",
-        discountApplied: "1000.00",
-        user: {
-          id: "usr_uuid_2",
-          name: "Priya Sengupta",
-          email: "priya@example.com",
-        },
-        order: {
-          id: "ord_uuid_2",
-          orderNumber: "ORD-20260810-7712",
-          totalAmount: "8500.00",
-        },
-      },
-    ],
-  },
-  {
-    id: "coup_uuid_103",
-    code: "FESTIVE20",
-    description: "Autumn gala launch coupon",
-    discountType: "PERCENTAGE",
-    discountValue: "20.00",
-    minOrderAmount: "4000.00",
-    maxDiscountAmount: "2000.00",
-    startDate: "2026-10-15T00:00:00.000Z",
-    endDate: "2026-10-31T23:59:59.000Z",
-    usageLimit: 200,
-    usedCount: 0,
-    perUserLimit: 1,
-    isActive: true,
-    computedStatus: "ACTIVE",
-    remainingUses: 200,
-    createdAt: "2026-10-05T10:00:00.000Z",
-    usages: [],
-  },
-  {
-    id: "coup_uuid_104",
-    code: "SUMMER50",
-    description: "50% off mid-season clearance archive",
-    discountType: "PERCENTAGE",
-    discountValue: "50.00",
-    minOrderAmount: "6000.00",
-    maxDiscountAmount: "5000.00",
-    startDate: "2026-05-01T00:00:00.000Z",
-    endDate: "2026-06-30T23:59:59.000Z",
-    usageLimit: 100,
-    usedCount: 100,
-    perUserLimit: 1,
-    isActive: false,
-    computedStatus: "EXPIRED",
-    remainingUses: 0,
-    createdAt: "2026-05-01T00:00:00.000Z",
-    usages: [
-      {
-        id: "use_uuid_3",
-        usedAt: "2026-06-20T17:30:00.000Z",
-        discountApplied: "4000.00",
-        user: {
-          id: "usr_uuid_3",
-          name: "Rohan Varma",
-          email: "rohan@example.com",
-        },
-        order: {
-          id: "ord_uuid_3",
-          orderNumber: "ORD-20260620-3312",
-          totalAmount: "8000.00",
-        },
-      },
-    ],
-  },
-];
+export const INITIAL_COUPONS: AdminCoupon[] = [];
 
 export const INITIAL_PROMOTIONS: AdminPromotion[] = [
   {
@@ -6406,7 +6281,7 @@ export class AdminService {
     const res = await this.request<any>(`/coupons${qs}`);
     if (res.success && res.data) {
       const items = Array.isArray(res.data) ? res.data : Array.isArray(res.data.data) ? res.data.data : null;
-      if (items) {
+      if (items && items.length > 0) {
         return {
           success: true,
           statusCode: res.statusCode || 200,

@@ -1,6 +1,7 @@
 import { getApiBaseUrl } from "@/services/apiConfig";
 import { AuthService } from "@/services/auth.service";
 import { AdminService } from "@/services/admin.service";
+import { AdminCoupon } from "@/types/admin.types";
 import { storeConfig } from "@/config/store.config";
 import {
   getStorePaymentConfig,
@@ -129,105 +130,30 @@ export class CheckoutService {
         body: JSON.stringify({ code, subtotal }),
       });
 
-      if (res.status !== 404) {
-        const json = await res.json().catch(() => ({}));
+      const json = await res.json().catch(() => ({}));
+
+      if (res.ok && json.success && json.data?.isValid) {
         return {
-          success: res.ok && json.success !== false,
+          success: true,
           statusCode: res.status,
-          message: json.message || (res.ok ? "Coupon applied successfully" : "Invalid coupon"),
+          message: json.message || "Coupon applied successfully",
           data: json.data,
           error: json.error,
         };
       }
-    } catch (err) {
-      console.warn("[CheckoutService] Live validateCoupon request error, running smart fallback:", err);
-    }
-
-    // Smart Fallback Engine: Validate against Admin Coupon Registry
-    try {
-      const adminCoupons = await AdminService.getCouponsList({ search: code });
-      const found = adminCoupons.data?.find((c) => c.code.toUpperCase() === code);
-
-      if (!found) {
-        return {
-          success: false,
-          statusCode: 404,
-          message: "Coupon code does not exist",
-          error: { code: "COUPON_NOT_FOUND" },
-        };
-      }
-
-      if (!found.isActive) {
-        return {
-          success: false,
-          statusCode: 400,
-          message: "Coupon is disabled or currently inactive",
-          error: { code: "COUPON_INACTIVE" },
-        };
-      }
-
-      const now = Date.now();
-      if (found.startDate && new Date(found.startDate).getTime() > now) {
-        return {
-          success: false,
-          statusCode: 400,
-          message: "Promotional campaign has not started yet",
-          error: { code: "COUPON_NOT_STARTED" },
-        };
-      }
-
-      if (found.endDate && new Date(found.endDate).getTime() < now) {
-        return {
-          success: false,
-          statusCode: 400,
-          message: "Promotional campaign has ended",
-          error: { code: "COUPON_EXPIRED" },
-        };
-      }
-
-      const minOrder = Number(found.minOrderAmount || 0);
-      if (minOrder > 0 && subtotal < minOrder) {
-        return {
-          success: false,
-          statusCode: 400,
-          message: `Minimum order spend of ${storeConfig.currency.symbol}${minOrder.toLocaleString()} required for this coupon`,
-          error: { code: "MIN_ORDER_NOT_MET" },
-        };
-      }
-
-      let discountAmount = 0;
-      const discountVal = Number(found.discountValue || 0);
-      if (found.discountType === "PERCENTAGE") {
-        discountAmount = Math.round((subtotal * discountVal) / 100);
-        const maxDiscount = Number(found.maxDiscountAmount || 0);
-        if (maxDiscount > 0 && discountAmount > maxDiscount) {
-          discountAmount = maxDiscount;
-        }
-      } else {
-        discountAmount = Math.min(discountVal, subtotal);
-      }
 
       return {
-        success: true,
-        statusCode: 200,
-        message: "Coupon applied successfully",
-        data: {
-          isValid: true,
-          code: found.code,
-          discountType: (found.discountType === "PERCENTAGE" ? "PERCENTAGE" : "FIXED") as "PERCENTAGE" | "FIXED",
-          discountValue: discountVal,
-          discountAmount,
-          minOrderAmount: minOrder,
-          maxDiscountAmount: found.maxDiscountAmount ? Number(found.maxDiscountAmount) : null,
-          description: found.description || `${discountVal}% off luxury garments`,
-        },
+        success: false,
+        statusCode: res.status || 400,
+        message: json.message || "Invalid or inactive coupon code",
+        error: json.error || { code: "COUPON_NOT_FOUND" },
       };
     } catch (err: any) {
       return {
         success: false,
         statusCode: 500,
-        message: err.message || "Failed to validate coupon code",
-        error: { code: "COUPON_VALIDATION_ERROR" },
+        message: "Failed to communicate with coupon validation service",
+        error: { code: "SERVICE_UNAVAILABLE", message: err.message },
       };
     }
   }

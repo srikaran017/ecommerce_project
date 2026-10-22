@@ -374,7 +374,7 @@ async function proxyRequest(
       body = await req.arrayBuffer();
     }
 
-    const response = await fetch(targetUrl, {
+    let response = await fetch(targetUrl, {
       method: req.method,
       headers: forwardHeaders,
       body,
@@ -460,12 +460,13 @@ async function proxyRequest(
           }
         }
 
-        // 2. If checkout/summary, enforce static 150 delivery charge and 0 extra tax for all customers
+        // 2. If checkout/summary, enforce static 150 delivery charge, zero extra tax, and compute coupon discount
         if (subPath.includes("checkout/summary") && parsed.data?.pricing) {
           parsed.data.pricing.shippingAmount = 150;
           parsed.data.pricing.taxAmount = 0;
           const sub = Number(parsed.data.pricing.subtotal || 0);
-          const disc = Number(parsed.data.pricing.discountAmount || 0);
+          let disc = Number(parsed.data.pricing.discountAmount || 0);
+
           const taxable = Math.max(0, sub - disc);
           parsed.data.pricing.totalAmount = Math.round((taxable + 150) * 100) / 100;
           finalBody = Buffer.from(JSON.stringify(parsed), "utf-8");
