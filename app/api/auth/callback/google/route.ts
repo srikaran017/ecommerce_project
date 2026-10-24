@@ -88,71 +88,37 @@ export async function GET(req: NextRequest) {
       return NextResponse.redirect(loginUrl);
     }
 
-    // 3. Synchronize customer with backend server database to create real account & JWT
+    // 3. Synchronize customer with backend server database via official Social OAuth endpoint
+    // Document Reference: document/29.social_login_and_pagination_audit.md
     const TARGET_API_URL =
       process.env.BACKEND_INTERNAL_URL ||
       process.env.NEXT_PUBLIC_API_URL ||
       "https://dress-ecomm-backend.onrender.com/api/v1";
 
-    const secretSalt = process.env.AUTH_SECRET || "ecomm_google_auth_salt_9988";
-    const googleUserPassword = `GAuth_${crypto
-      .createHash("sha256")
-      .update(`${profile.sub}_${profile.email}_${secretSalt}`)
-      .digest("hex")
-      .slice(0, 16)}!Aa1`;
-
     let backendToken: string | null = null;
     let backendUser: any = null;
 
     try {
-      // Step A: Attempt backend login
-      const loginRes = await fetch(`${TARGET_API_URL}/auth/login`, {
+      const socialLoginRes = await fetch(`${TARGET_API_URL}/auth/social-login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          provider: "google",
+          token: tokenData.access_token || tokenData.id_token,
+          providerAccountId: profile.sub,
           email: profile.email.toLowerCase().trim(),
-          password: googleUserPassword,
+          name: profile.name || profile.email.split("@")[0],
+          avatarUrl: profile.picture || undefined,
         }),
       });
 
-      const loginData = await loginRes.json().catch(() => ({}));
+      const socialData = await socialLoginRes.json().catch(() => ({}));
 
-      if (loginRes.ok && loginData.success && loginData.data?.accessToken) {
-        backendToken = loginData.data.accessToken;
-        backendUser = loginData.data.user;
+      if (socialLoginRes.ok && socialData.success && socialData.data?.accessToken) {
+        backendToken = socialData.data.accessToken;
+        backendUser = socialData.data.user;
       } else {
-        // Step B: Attempt backend registration
-        const registerRes = await fetch(`${TARGET_API_URL}/auth/register`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: profile.name || profile.email.split("@")[0],
-            email: profile.email.toLowerCase().trim(),
-            password: googleUserPassword,
-            role: "CUSTOMER",
-          }),
-        });
-
-        const regData = await registerRes.json().catch(() => ({}));
-
-        if (registerRes.ok && regData.success) {
-          // Auto-login to obtain authoritative backend JWT
-          const autoLoginRes = await fetch(`${TARGET_API_URL}/auth/login`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              email: profile.email.toLowerCase().trim(),
-              password: googleUserPassword,
-            }),
-          });
-          const autoData = await autoLoginRes.json().catch(() => ({}));
-          if (autoLoginRes.ok && autoData.data?.accessToken) {
-            backendToken = autoData.data.accessToken;
-            backendUser = autoData.data.user;
-          } else {
-            backendUser = regData.data?.user;
-          }
-        }
+        console.warn("[Backend Google Social Login Sync Error]:", socialData);
       }
     } catch (backendErr) {
       console.warn("[Backend Google User Sync Exception]:", backendErr);
@@ -163,7 +129,7 @@ export async function GET(req: NextRequest) {
       id: backendUser?.id || (profile.sub ? `usr_google_${profile.sub}` : `usr_${Date.now()}`),
       name: backendUser?.name || profile.name || profile.email.split("@")[0],
       email: (backendUser?.email || profile.email).toLowerCase().trim(),
-      avatarUrl: profile.picture || undefined,
+      avatarUrl: backendUser?.avatarUrl || profile.picture || undefined,
       role: "CUSTOMER" as const,
       createdAt: backendUser?.createdAt || new Date().toISOString(),
     };

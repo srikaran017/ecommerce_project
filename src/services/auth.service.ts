@@ -23,11 +23,17 @@ export interface SignupCredentials {
   password: string;
   phone?: string;
   role?: UserRole;
+  avatar?: File;
+  avatarUrl?: string;
 }
 
 export interface SocialLoginCredentials {
-  provider: "google" | "facebook" | "github";
-  token: string;
+  provider: "google" | "facebook" | "github" | "apple";
+  token?: string;
+  providerAccountId?: string;
+  email?: string;
+  name?: string;
+  avatarUrl?: string;
   role?: UserRole;
 }
 
@@ -111,19 +117,38 @@ export class AuthService {
    */
   static async signup(credentials: SignupCredentials): Promise<AuthResponse> {
     try {
-      const response = await fetch(`${getBaseUrl()}/auth/register`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify({
-          name: credentials.name.trim(),
-          email: credentials.email.toLowerCase().trim(),
-          password: credentials.password,
-          phone: credentials.phone?.trim() || undefined,
-        }),
-      });
+      let response: Response;
+
+      // Check if avatar File is provided for multipart upload
+      if (credentials.avatar && typeof window !== "undefined" && credentials.avatar instanceof File) {
+        const formData = new FormData();
+        formData.append("name", credentials.name.trim());
+        formData.append("email", credentials.email.toLowerCase().trim());
+        formData.append("password", credentials.password);
+        if (credentials.phone?.trim()) formData.append("phone", credentials.phone.trim());
+        formData.append("avatar", credentials.avatar);
+
+        response = await fetch(`${getBaseUrl()}/auth/register`, {
+          method: "POST",
+          credentials: "include",
+          body: formData,
+        });
+      } else {
+        response = await fetch(`${getBaseUrl()}/auth/register`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          body: JSON.stringify({
+            name: credentials.name.trim(),
+            email: credentials.email.toLowerCase().trim(),
+            password: credentials.password,
+            phone: credentials.phone?.trim() || undefined,
+            avatarUrl: credentials.avatarUrl || undefined,
+          }),
+        });
+      }
 
       const data = await response.json().catch(() => ({}));
 
@@ -133,6 +158,7 @@ export class AuthService {
           name: credentials.name.trim(),
           email: credentials.email.toLowerCase().trim(),
           phone: credentials.phone?.trim(),
+          avatarUrl: data.data?.user?.avatarUrl || credentials.avatarUrl,
           role: "CUSTOMER",
           createdAt: data.data?.createdAt,
         };
@@ -227,8 +253,9 @@ export class AuthService {
   }
 
   /**
-   * Social Login (Google, Facebook, GitHub)
+   * Social Login (Google, Facebook, GitHub, Apple)
    * POST /auth/social-login
+   * Document Reference: document/29.social_login_and_pagination_audit.md
    */
   static async socialLogin(credentials: SocialLoginCredentials): Promise<AuthResponse> {
     try {
@@ -241,7 +268,10 @@ export class AuthService {
         body: JSON.stringify({
           provider: credentials.provider,
           token: credentials.token,
-          role: credentials.role || "CUSTOMER",
+          providerAccountId: credentials.providerAccountId,
+          email: credentials.email,
+          name: credentials.name,
+          avatarUrl: credentials.avatarUrl,
         }),
       });
 
@@ -255,9 +285,10 @@ export class AuthService {
 
         const user: AuthUser = data.data?.user || {
           id: `usr_${Date.now()}`,
-          name: `${credentials.provider} User`,
-          email: "user@social.com",
-          role: credentials.role || "CUSTOMER",
+          name: credentials.name || `${credentials.provider} User`,
+          email: credentials.email || "user@social.com",
+          avatarUrl: credentials.avatarUrl,
+          role: "CUSTOMER",
         };
 
         return {
