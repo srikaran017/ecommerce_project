@@ -140,7 +140,7 @@ export default function CheckoutPage() {
     if (!hasCheckedCartRef.current) {
       hasCheckedCartRef.current = true;
       if (items.length === 0) {
-        fetchCart().catch(() => {});
+        fetchCart().catch(() => { });
       }
     }
   }, [fetchCart, items.length]);
@@ -425,7 +425,7 @@ export default function CheckoutPage() {
         }
         if (errCode === "PAYMENT_METHOD_DISABLED") {
           setGeneralError("The selected payment method is currently disabled. Please select an alternate payment method.");
-          CheckoutService.fetchPaymentMethodsConfig().then(setPaymentSettings).catch(() => {});
+          CheckoutService.fetchPaymentMethodsConfig().then(setPaymentSettings).catch(() => { });
           return;
         }
         if (errCode === "AUTH_RATE_LIMIT_EXCEEDED" || res.statusCode === 429) {
@@ -678,7 +678,7 @@ export default function CheckoutPage() {
   return (
     <div className="py-12 bg-[var(--background)] min-h-screen">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        
+
         {/* Back Link */}
         <Link
           href="/cart"
@@ -691,19 +691,17 @@ export default function CheckoutPage() {
         {/* Global Error Notice */}
         {generalError && (
           <div
-            className={`mb-8 p-5 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 border shadow-sm ${
-              generalError.toLowerCase().includes("authentication") || generalError.toLowerCase().includes("log in")
+            className={`mb-8 p-5 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 border shadow-sm ${generalError.toLowerCase().includes("authentication") || generalError.toLowerCase().includes("log in")
                 ? "bg-amber-500/10 border-amber-500/30 text-amber-900"
                 : "bg-red-50 border-red-200 text-red-700"
-            }`}
+              }`}
           >
             <div className="flex items-start gap-3.5">
               <AlertCircle
-                className={`w-5 h-5 mt-0.5 flex-shrink-0 ${
-                  generalError.toLowerCase().includes("authentication") || generalError.toLowerCase().includes("log in")
+                className={`w-5 h-5 mt-0.5 flex-shrink-0 ${generalError.toLowerCase().includes("authentication") || generalError.toLowerCase().includes("log in")
                     ? "text-amber-600"
                     : "text-red-600"
-                }`}
+                  }`}
               />
               <div className="space-y-1">
                 <p className="font-bold text-xs uppercase tracking-wider">
@@ -726,11 +724,11 @@ export default function CheckoutPage() {
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
-          
+
           {/* Left Column: Multi-step Customer & Shipping Form (7 cols) */}
           <div className="lg:col-span-7 space-y-10">
             <form onSubmit={handlePlaceOrder} className="space-y-10">
-              
+
               {/* Step 1: Contact Details */}
               <div className="space-y-4">
                 <div className="flex items-center justify-between border-b border-[var(--border)] pb-3">
@@ -764,7 +762,7 @@ export default function CheckoutPage() {
                       required
                       value={formData.phone}
                       onChange={handleInputChange}
-                      placeholder="+91 98765 43210"
+                      placeholder="+91 93612 00683"
                       helperText="Used for courier dispatch, delivery pin, and COD verification calls."
                     />
                   </div>
@@ -797,11 +795,10 @@ export default function CheckoutPage() {
                           <div
                             key={addr.id}
                             onClick={() => handleSelectAddress(addr.id)}
-                            className={`p-4 border rounded-[var(--radius)] cursor-pointer text-xs space-y-1 transition-all ${
-                              isSelected
+                            className={`p-4 border rounded-[var(--radius)] cursor-pointer text-xs space-y-1 transition-all ${isSelected
                                 ? "border-[var(--foreground)] bg-[var(--muted)] ring-1 ring-[var(--foreground)]"
                                 : "border-[var(--border)] hover:border-neutral-400 bg-[var(--background)]"
-                            }`}
+                              }`}
                           >
                             <div className="flex items-center justify-between font-bold text-[var(--foreground)]">
                               <span>
@@ -822,11 +819,10 @@ export default function CheckoutPage() {
                       })}
                       <div
                         onClick={() => handleSelectAddress("new")}
-                        className={`p-4 border border-dashed rounded-[var(--radius)] cursor-pointer text-xs flex items-center justify-center gap-2 transition-all ${
-                          selectedAddressId === "new"
+                        className={`p-4 border border-dashed rounded-[var(--radius)] cursor-pointer text-xs flex items-center justify-center gap-2 transition-all ${selectedAddressId === "new"
                             ? "border-[var(--foreground)] bg-[var(--muted)] ring-1 ring-[var(--foreground)]"
                             : "border-[var(--border)] hover:border-neutral-400 text-[var(--muted-foreground)]"
-                        }`}
+                          }`}
                       >
                         <Plus className="w-4 h-4" />
                         <span className="font-bold uppercase tracking-wider">Use Different Address</span>
@@ -931,15 +927,14 @@ export default function CheckoutPage() {
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  
+
                   {/* 1. Online Payment (Razorpay / Cards / Wallets) */}
                   {paymentSettings.enableRazorpay && (
                     <label
-                      className={`p-4 rounded-[var(--radius)] border cursor-pointer flex flex-col justify-between transition-all ${
-                        formData.paymentMethod === "RAZORPAY"
+                      className={`p-4 rounded-[var(--radius)] border cursor-pointer flex flex-col justify-between transition-all ${formData.paymentMethod === "RAZORPAY"
                           ? "border-[var(--foreground)] bg-[var(--muted)] ring-1 ring-[var(--foreground)]"
                           : "border-[var(--border)] hover:border-[var(--foreground)]"
-                      }`}
+                        }`}
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex items-center gap-2">
@@ -966,11 +961,10 @@ export default function CheckoutPage() {
                   {/* 2. Direct UPI & QR Code Payment */}
                   {paymentSettings.enableUpiQr && (
                     <label
-                      className={`p-4 rounded-[var(--radius)] border cursor-pointer flex flex-col justify-between transition-all ${
-                        formData.paymentMethod === "UPI_QR"
+                      className={`p-4 rounded-[var(--radius)] border cursor-pointer flex flex-col justify-between transition-all ${formData.paymentMethod === "UPI_QR"
                           ? "border-[var(--foreground)] bg-[var(--muted)] ring-1 ring-[var(--foreground)]"
                           : "border-[var(--border)] hover:border-[var(--foreground)]"
-                      }`}
+                        }`}
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex items-center gap-2">
@@ -997,13 +991,12 @@ export default function CheckoutPage() {
                   {/* 3. Cash On Delivery (COD) */}
                   {paymentSettings.enableCod && featureConfig.cashOnDelivery && (
                     <label
-                      className={`p-4 rounded-[var(--radius)] border transition-all ${
-                        isCodBlockedByCap
+                      className={`p-4 rounded-[var(--radius)] border transition-all ${isCodBlockedByCap
                           ? "opacity-60 cursor-not-allowed border-dashed bg-neutral-50 dark:bg-neutral-900/40"
                           : formData.paymentMethod === "COD"
-                          ? "border-[var(--foreground)] bg-[var(--muted)] ring-1 ring-[var(--foreground)] cursor-pointer"
-                          : "border-[var(--border)] hover:border-[var(--foreground)] cursor-pointer"
-                      }`}
+                            ? "border-[var(--foreground)] bg-[var(--muted)] ring-1 ring-[var(--foreground)] cursor-pointer"
+                            : "border-[var(--border)] hover:border-[var(--foreground)] cursor-pointer"
+                        }`}
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex items-center gap-2">
@@ -1210,10 +1203,10 @@ export default function CheckoutPage() {
                 {isProcessing
                   ? "PROCESSING TRANSACTION..."
                   : formData.paymentMethod === "RAZORPAY"
-                  ? `PAY VIA RAZORPAY • ${storeConfig.currency.symbol}${displayTotal.toLocaleString()}`
-                  : formData.paymentMethod === "UPI_QR"
-                  ? `CONFIRM ORDER VIA UPI • ${storeConfig.currency.symbol}${displayTotal.toLocaleString()}`
-                  : `CONFIRM CASH ON DELIVERY • ${storeConfig.currency.symbol}${displayTotal.toLocaleString()}`}
+                    ? `PAY VIA RAZORPAY • ${storeConfig.currency.symbol}${displayTotal.toLocaleString()}`
+                    : formData.paymentMethod === "UPI_QR"
+                      ? `CONFIRM ORDER VIA UPI • ${storeConfig.currency.symbol}${displayTotal.toLocaleString()}`
+                      : `CONFIRM CASH ON DELIVERY • ${storeConfig.currency.symbol}${displayTotal.toLocaleString()}`}
               </Button>
               {formData.paymentMethod === "UPI_QR" && upiReference.trim().length < 6 && (
                 <p className="text-[11px] text-amber-700 text-center font-medium">

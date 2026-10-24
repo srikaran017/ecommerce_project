@@ -210,7 +210,7 @@ function SignupForm() {
               <Phone className="w-4 h-4 text-neutral-400 absolute left-3.5 top-3.5" />
               <input
                 type="tel"
-                placeholder="+91 98765 43210"
+                placeholder="+91 93612 00683"
                 value={phone}
                 onChange={(e) => {
                   setPhone(e.target.value);

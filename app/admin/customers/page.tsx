@@ -244,16 +244,16 @@ export default function AdminCustomersPage() {
           avatarUrl: createForm.avatarUrl.trim() || undefined,
           address: createForm.includeAddress && createForm.address1.trim()
             ? {
-                firstName: createForm.name.split(" ")[0] || "Valued",
-                lastName: createForm.name.split(" ").slice(1).join(" ") || "Client",
-                address1: createForm.address1.trim(),
-                address2: createForm.address2.trim() || undefined,
-                city: createForm.city.trim() || "Mumbai",
-                state: createForm.state.trim() || "Maharashtra",
-                postalCode: createForm.postalCode.trim() || "400001",
-                country: createForm.country.trim() || "India",
-                phoneNumber: createForm.phone.trim() || undefined,
-              }
+              firstName: createForm.name.split(" ")[0] || "Valued",
+              lastName: createForm.name.split(" ").slice(1).join(" ") || "Client",
+              address1: createForm.address1.trim(),
+              address2: createForm.address2.trim() || undefined,
+              city: createForm.city.trim() || "Mumbai",
+              state: createForm.state.trim() || "Maharashtra",
+              postalCode: createForm.postalCode.trim() || "400001",
+              country: createForm.country.trim() || "India",
+              phoneNumber: createForm.phone.trim() || undefined,
+            }
             : undefined,
         };
       }
@@ -333,13 +333,13 @@ export default function AdminCustomersPage() {
           prev.map((c) =>
             c.id === editingCustomer.id
               ? {
-                  ...c,
-                  name: editForm.name.trim() || c.name,
-                  email: editForm.email.trim().toLowerCase() || c.email,
-                  phone: editForm.phone.trim() || c.phone,
-                  isActive: editForm.isActive,
-                  avatarUrl: editForm.avatarUrl || c.avatarUrl,
-                }
+                ...c,
+                name: editForm.name.trim() || c.name,
+                email: editForm.email.trim().toLowerCase() || c.email,
+                phone: editForm.phone.trim() || c.phone,
+                isActive: editForm.isActive,
+                avatarUrl: editForm.avatarUrl || c.avatarUrl,
+              }
               : c
           )
         );
@@ -440,13 +440,12 @@ export default function AdminCustomersPage() {
       {/* Toast Feedback */}
       {feedback && (
         <div
-          className={`p-4 rounded-2xl flex items-center justify-between border shadow-lg transition-all animate-fade-in ${
-            feedback.type === "success"
+          className={`p-4 rounded-2xl flex items-center justify-between border shadow-lg transition-all animate-fade-in ${feedback.type === "success"
               ? "bg-emerald-950/40 border-emerald-500/30 text-emerald-300"
               : feedback.type === "warning"
-              ? "bg-amber-950/40 border-amber-500/30 text-amber-300"
-              : "bg-rose-950/40 border-rose-500/30 text-rose-300"
-          }`}
+                ? "bg-amber-950/40 border-amber-500/30 text-amber-300"
+                : "bg-rose-950/40 border-rose-500/30 text-rose-300"
+            }`}
         >
           <div className="flex items-center gap-3">
             {feedback.type === "success" ? (
@@ -758,17 +757,15 @@ export default function AdminCustomersPage() {
                       <button
                         onClick={() => handleToggleCustomerStatus(c)}
                         disabled={!canWrite}
-                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all ${
-                          c.isActive
+                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all ${c.isActive
                             ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20"
                             : "bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-750"
-                        } ${canWrite ? "cursor-pointer" : "cursor-default"}`}
+                          } ${canWrite ? "cursor-pointer" : "cursor-default"}`}
                         title={canWrite ? `Click to ${c.isActive ? "deactivate" : "activate"} account` : undefined}
                       >
                         <span
-                          className={`w-1.5 h-1.5 rounded-full ${
-                            c.isActive ? "bg-emerald-400 animate-pulse" : "bg-slate-500"
-                          }`}
+                          className={`w-1.5 h-1.5 rounded-full ${c.isActive ? "bg-emerald-400 animate-pulse" : "bg-slate-500"
+                            }`}
                         />
                         <span>{c.isActive ? "Active" : "Inactive"}</span>
                       </button>
@@ -891,11 +888,10 @@ export default function AdminCustomersPage() {
                     <div className="flex items-center justify-between">
                       <h4 className="text-base font-bold text-white">{customer360.profile.name}</h4>
                       <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${
-                          customer360.profile.isActive
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${customer360.profile.isActive
                             ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30"
                             : "bg-slate-800 text-slate-400"
-                        }`}
+                          }`}
                       >
                         {customer360.profile.isActive ? "Active Account" : "Deactivated"}
                       </span>
@@ -947,21 +943,19 @@ export default function AdminCustomersPage() {
                 <div className="border-b border-slate-800 flex gap-4">
                   <button
                     onClick={() => setActive360Tab("orders")}
-                    className={`pb-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-colors cursor-pointer ${
-                      active360Tab === "orders"
+                    className={`pb-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-colors cursor-pointer ${active360Tab === "orders"
                         ? "border-amber-400 text-amber-400"
                         : "border-transparent text-slate-400 hover:text-white"
-                    }`}
+                      }`}
                   >
                     Recent Orders ({customer360.recentOrders.length})
                   </button>
                   <button
                     onClick={() => setActive360Tab("addresses")}
-                    className={`pb-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-colors cursor-pointer ${
-                      active360Tab === "addresses"
+                    className={`pb-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-colors cursor-pointer ${active360Tab === "addresses"
                         ? "border-amber-400 text-amber-400"
                         : "border-transparent text-slate-400 hover:text-white"
-                    }`}
+                      }`}
                   >
                     Saved Addresses ({customer360.savedAddresses.length})
                   </button>
@@ -1030,11 +1024,10 @@ export default function AdminCustomersPage() {
                       customer360.savedAddresses.map((addr) => (
                         <div
                           key={addr.id}
-                          className={`bg-slate-900/80 border rounded-xl p-4 space-y-2 text-xs ${
-                            addr.isDefault
+                          className={`bg-slate-900/80 border rounded-xl p-4 space-y-2 text-xs ${addr.isDefault
                               ? "border-amber-400/50 bg-amber-950/10"
                               : "border-slate-800"
-                          }`}
+                            }`}
                         >
                           <div className="flex items-center justify-between">
                             <span className="font-bold text-white">
@@ -1139,7 +1132,7 @@ export default function AdminCustomersPage() {
                   type="tel"
                   value={createForm.phone}
                   onChange={(e) => setCreateForm({ ...createForm, phone: e.target.value })}
-                  placeholder="+91 98765 43210"
+                  placeholder="+91 93612 00683"
                   className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 font-mono focus:outline-none focus:ring-1 focus:ring-amber-400"
                 />
               </div>
@@ -1182,22 +1175,20 @@ export default function AdminCustomersPage() {
                   <button
                     type="button"
                     onClick={() => setCreateForm({ ...createForm, avatarMode: "url" })}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${
-                      createForm.avatarMode === "url"
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${createForm.avatarMode === "url"
                         ? "bg-amber-500 text-slate-950"
                         : "bg-slate-900 text-slate-400"
-                    }`}
+                      }`}
                   >
                     Image URL
                   </button>
                   <button
                     type="button"
                     onClick={() => setCreateForm({ ...createForm, avatarMode: "upload" })}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${
-                      createForm.avatarMode === "upload"
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${createForm.avatarMode === "upload"
                         ? "bg-amber-500 text-slate-950"
                         : "bg-slate-900 text-slate-400"
-                    }`}
+                      }`}
                   >
                     Upload File
                   </button>

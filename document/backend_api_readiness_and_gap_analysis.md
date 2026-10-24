@@ -340,7 +340,7 @@ await prisma.$transaction(async (tx) => {
         "id": "cust-uuid",
         "name": "Victoria Beckham",
         "email": "victoria@example.com",
-        "phone": "+91 98765 43210",
+        "phone": "+91 98765 93612 00683",
         "avatarUrl": "https://...",
         "isActive": true,
         "ordersCount": 4,

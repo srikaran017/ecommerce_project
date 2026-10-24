@@ -353,7 +353,7 @@ function getInitialUsers(): AdminManagedUser[] {
         "users:read",
         "staff:manage",
       ],
-      phone: "+91 98765 43210",
+      phone: "+91 93612 00683",
       isActive: true,
       createdById: "usr_super_admin_1",
       creator: {
@@ -4641,8 +4641,8 @@ export class AdminService {
         {
           id: "0bd8c799-20b2-4c5f-881e-a5baaeb4535a",
           name: "Reshi",
-          email: "priya.sharma@example.com",
-          phone: "9876543210",
+          email: "reshi@gmail.com",
+          phone: "9361200683",
           avatarUrl: "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=400&q=80",
           isActive: true,
           ordersCount: 1,

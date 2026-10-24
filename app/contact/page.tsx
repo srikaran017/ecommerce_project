@@ -337,8 +337,8 @@ export default function ContactPage() {
                         if (fieldErrors.name) setFieldErrors({ ...fieldErrors, name: "" });
                       }}
                       className={`w-full px-4 py-3 bg-neutral-50/70 border rounded-2xl text-neutral-900 text-xs font-medium focus:bg-white focus:outline-none transition-colors ${fieldErrors.name
-                          ? "border-rose-500 focus:border-rose-600"
-                          : "border-neutral-200 focus:border-neutral-900"
+                        ? "border-rose-500 focus:border-rose-600"
+                        : "border-neutral-200 focus:border-neutral-900"
                         }`}
                     />
                     {fieldErrors.name && (
@@ -360,8 +360,8 @@ export default function ContactPage() {
                         if (fieldErrors.email) setFieldErrors({ ...fieldErrors, email: "" });
                       }}
                       className={`w-full px-4 py-3 bg-neutral-50/70 border rounded-2xl text-neutral-900 text-xs font-medium focus:bg-white focus:outline-none transition-colors ${fieldErrors.email
-                          ? "border-rose-500 focus:border-rose-600"
-                          : "border-neutral-200 focus:border-neutral-900"
+                        ? "border-rose-500 focus:border-rose-600"
+                        : "border-neutral-200 focus:border-neutral-900"
                         }`}
                     />
                     {fieldErrors.email && (
@@ -378,7 +378,7 @@ export default function ContactPage() {
                     </label>
                     <input
                       type="tel"
-                      placeholder="+91 98765 43210"
+                      placeholder="+91 93612 00683"
                       value={form.phone || ""}
                       onChange={(e) => {
                         setForm({ ...form, phone: e.target.value });
@@ -405,8 +405,8 @@ export default function ContactPage() {
                         if (fieldErrors.subject) setFieldErrors({ ...fieldErrors, subject: "" });
                       }}
                       className={`w-full px-4 py-3 bg-neutral-50/70 border rounded-2xl text-neutral-900 text-xs font-medium focus:bg-white focus:outline-none transition-colors ${fieldErrors.subject
-                          ? "border-rose-500 focus:border-rose-600"
-                          : "border-neutral-200 focus:border-neutral-900"
+                        ? "border-rose-500 focus:border-rose-600"
+                        : "border-neutral-200 focus:border-neutral-900"
                         }`}
                     />
                     {fieldErrors.subject && (
@@ -430,8 +430,8 @@ export default function ContactPage() {
                           if (fieldErrors.subject) setFieldErrors({ ...fieldErrors, subject: "" });
                         }}
                         className={`text-[11px] px-2.5 py-1 rounded-full border transition-colors cursor-pointer ${form.subject === sug
-                            ? "bg-neutral-900 text-white border-neutral-900 font-semibold"
-                            : "bg-neutral-50 text-neutral-600 border-neutral-200 hover:bg-neutral-100"
+                          ? "bg-neutral-900 text-white border-neutral-900 font-semibold"
+                          : "bg-neutral-50 text-neutral-600 border-neutral-200 hover:bg-neutral-100"
                           }`}
                       >
                         {sug}
@@ -462,8 +462,8 @@ export default function ContactPage() {
                       if (fieldErrors.message) setFieldErrors({ ...fieldErrors, message: "" });
                     }}
                     className={`w-full p-4 bg-neutral-50/70 border rounded-2xl text-neutral-900 text-xs font-medium focus:bg-white focus:outline-none transition-colors leading-relaxed ${fieldErrors.message
-                        ? "border-rose-500 focus:border-rose-600"
-                        : "border-neutral-200 focus:border-neutral-900"
+                      ? "border-rose-500 focus:border-rose-600"
+                      : "border-neutral-200 focus:border-neutral-900"
                       }`}
                   />
                   {fieldErrors.message && (

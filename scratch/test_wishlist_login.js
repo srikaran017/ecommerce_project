@@ -68,7 +68,7 @@ async function run() {
     name: 'Customer Test',
     email,
     password,
-    phone: '+919876543210'
+    phone: '+919361200683'
   });
   console.log('Register response:', JSON.stringify(regRes.data, null, 2));
 

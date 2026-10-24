@@ -210,7 +210,7 @@ export class CheckoutService {
             const parsed = JSON.parse(cartStateRaw);
             rawCartItems = parsed?.state?.items || [];
           }
-        } catch {}
+        } catch { }
       }
 
       if (rawCartItems.length === 0) {
@@ -443,7 +443,7 @@ export class CheckoutService {
             state: "Maharashtra",
             postalCode: "400001",
             country: "India",
-            phoneNumber: "+91 98765 43210",
+            phoneNumber: "+91 93612 00683",
           };
         }
       }
@@ -456,7 +456,7 @@ export class CheckoutService {
         orderNumber,
         customerName,
         customerEmail,
-        customerPhone: shippingAddr.phoneNumber || "+91 98765 43210",
+        customerPhone: shippingAddr.phoneNumber || "+91 93612 00683",
         shippingAddress: {
           street: shippingAddr.address1,
           city: shippingAddr.city,
@@ -607,7 +607,7 @@ export class CheckoutService {
         if (typeof window !== "undefined") {
           try {
             localStorage.setItem("admin_orders", JSON.stringify(localOrders));
-          } catch {}
+          } catch { }
         }
       }
 
@@ -682,11 +682,11 @@ export class CheckoutService {
             },
             items: Array.isArray(raw.items)
               ? raw.items.map((it: any) => ({
-                  ...it,
-                  price: Number(it.price || 0),
-                  totalPrice: Number(it.totalPrice ?? Number(it.price || 0) * (it.quantity || 1)),
-                  quantity: Number(it.quantity || 1),
-                }))
+                ...it,
+                price: Number(it.price || 0),
+                totalPrice: Number(it.totalPrice ?? Number(it.price || 0) * (it.quantity || 1)),
+                quantity: Number(it.quantity || 1),
+              }))
               : [],
           };
 
