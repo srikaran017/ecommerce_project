@@ -22,6 +22,7 @@ import {
   Moon,
   Palette,
   UserCheck,
+  Star,
 } from "lucide-react";
 import { storeConfig } from "@/config/store.config";
 import { useAuthStore } from "@/stores/auth.store";
@@ -135,6 +136,7 @@ export default function AdminLayout({
     { label: "Analytics", href: "/admin/analytics", icon: TrendingUp },
     { label: "Orders", href: "/admin/orders", icon: ShoppingBag },
     { label: "Products", href: "/admin/products", icon: Package },
+    { label: "Reviews & Moderation", href: "/admin/reviews", icon: Star },
     { label: "Inventory", href: "/admin/inventory", icon: Layers },
     { label: "Customers", href: "/admin/customers", icon: UserCheck },
     { label: "Categories", href: "/admin/categories", icon: FolderTree },

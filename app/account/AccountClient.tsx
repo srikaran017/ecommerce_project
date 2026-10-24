@@ -22,6 +22,7 @@ import {
   CheckCircle2,
   X,
   ChevronRight,
+  Star,
 } from "lucide-react";
 
 import { ProfileTab } from "./components/ProfileTab";
@@ -30,8 +31,16 @@ import { AddressesTab } from "./components/AddressesTab";
 import { OrdersTab } from "./components/OrdersTab";
 import { FavouritesTab } from "./components/FavouritesTab";
 import { PreferencesTab } from "./components/PreferencesTab";
+import { ReviewsTab } from "./components/ReviewsTab";
 
-type AccountTab = "orders" | "profile" | "addresses" | "security" | "favourites" | "preferences";
+type AccountTab =
+  | "orders"
+  | "profile"
+  | "addresses"
+  | "security"
+  | "favourites"
+  | "preferences"
+  | "reviews";
 
 interface AccountClientProps {
   initialProducts: ProductData[];
@@ -47,6 +56,7 @@ export function AccountClient({ initialProducts }: AccountClientProps) {
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [isLoadingOrders, setIsLoadingOrders] = useState(true);
   const [addressCount, setAddressCount] = useState(0);
+  const [reviewsCount, setReviewsCount] = useState(0);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Sync tab from URL query param if present
@@ -54,7 +64,15 @@ export function AccountClient({ initialProducts }: AccountClientProps) {
     const tabParam = searchParams.get("tab");
     if (
       tabParam &&
-      ["orders", "profile", "addresses", "security", "favourites", "preferences"].includes(tabParam)
+      [
+        "orders",
+        "profile",
+        "addresses",
+        "security",
+        "favourites",
+        "preferences",
+        "reviews",
+      ].includes(tabParam)
     ) {
       setActiveTab(tabParam as AccountTab);
     }
@@ -153,6 +171,7 @@ export function AccountClient({ initialProducts }: AccountClientProps) {
 
   const tabs: Array<{ id: AccountTab; label: string; icon: any; count?: number }> = [
     { id: "orders", label: "Orders", icon: Package, count: orders.length },
+    { id: "reviews", label: "Reviews", icon: Star, count: reviewsCount },
     { id: "profile", label: "Profile", icon: User },
     { id: "addresses", label: "Addresses", icon: MapPin, count: addressCount },
     { id: "security", label: "Security", icon: Lock },
@@ -344,6 +363,10 @@ export function AccountClient({ initialProducts }: AccountClientProps) {
 
           {activeTab === "preferences" && (
             <PreferencesTab onShowToast={showToast} />
+          )}
+
+          {activeTab === "reviews" && (
+            <ReviewsTab onShowToast={showToast} onRefreshCount={setReviewsCount} />
           )}
         </div>
 
