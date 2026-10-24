@@ -119,7 +119,7 @@ export default function ContactPage() {
   return (
     <div className="py-10 bg-[var(--background)] min-h-screen text-[var(--foreground)]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        
+
         {/* Breadcrumb Hierarchy */}
         <nav className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-widest text-neutral-500 mb-8">
           <Link href="/" className="hover:text-neutral-900 transition-colors">
@@ -158,10 +158,10 @@ export default function ContactPage() {
 
         {/* Two-Column Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          
+
           {/* Left Column: Direct Concierge Touchpoints (5 cols) */}
           <div className="lg:col-span-5 space-y-5">
-            
+
             {/* Quick Contact Card */}
             <div className="bg-white rounded-3xl border border-neutral-200/80 p-6 sm:p-8 space-y-6 shadow-xs">
               <h2 className="font-heading text-base font-bold uppercase tracking-wider text-neutral-900 border-b border-neutral-100 pb-4">
@@ -273,7 +273,7 @@ export default function ContactPage() {
           {/* Right Column: Contact Inquiry Form (7 cols) */}
           <div className="lg:col-span-7">
             <div className="bg-white rounded-3xl border border-neutral-200/80 p-6 sm:p-10 shadow-xs space-y-6">
-              
+
               <div>
                 <h2 className="font-heading text-lg font-bold uppercase tracking-wide text-neutral-900">
                   Send a Private Inquiry
@@ -320,7 +320,7 @@ export default function ContactPage() {
 
               {/* Inquiry Form */}
               <form onSubmit={handleSubmit} className="space-y-5 text-xs">
-                
+
                 {/* Name & Email Row */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
@@ -330,17 +330,16 @@ export default function ContactPage() {
                     <input
                       type="text"
                       required
-                      placeholder="e.g. Priya Sharma"
+                      placeholder="e.g. Reshi"
                       value={form.name}
                       onChange={(e) => {
                         setForm({ ...form, name: e.target.value });
                         if (fieldErrors.name) setFieldErrors({ ...fieldErrors, name: "" });
                       }}
-                      className={`w-full px-4 py-3 bg-neutral-50/70 border rounded-2xl text-neutral-900 text-xs font-medium focus:bg-white focus:outline-none transition-colors ${
-                        fieldErrors.name
+                      className={`w-full px-4 py-3 bg-neutral-50/70 border rounded-2xl text-neutral-900 text-xs font-medium focus:bg-white focus:outline-none transition-colors ${fieldErrors.name
                           ? "border-rose-500 focus:border-rose-600"
                           : "border-neutral-200 focus:border-neutral-900"
-                      }`}
+                        }`}
                     />
                     {fieldErrors.name && (
                       <p className="text-[11px] text-rose-600 font-medium pl-1">{fieldErrors.name}</p>
@@ -360,11 +359,10 @@ export default function ContactPage() {
                         setForm({ ...form, email: e.target.value });
                         if (fieldErrors.email) setFieldErrors({ ...fieldErrors, email: "" });
                       }}
-                      className={`w-full px-4 py-3 bg-neutral-50/70 border rounded-2xl text-neutral-900 text-xs font-medium focus:bg-white focus:outline-none transition-colors ${
-                        fieldErrors.email
+                      className={`w-full px-4 py-3 bg-neutral-50/70 border rounded-2xl text-neutral-900 text-xs font-medium focus:bg-white focus:outline-none transition-colors ${fieldErrors.email
                           ? "border-rose-500 focus:border-rose-600"
                           : "border-neutral-200 focus:border-neutral-900"
-                      }`}
+                        }`}
                     />
                     {fieldErrors.email && (
                       <p className="text-[11px] text-rose-600 font-medium pl-1">{fieldErrors.email}</p>
@@ -406,11 +404,10 @@ export default function ContactPage() {
                         setForm({ ...form, subject: e.target.value });
                         if (fieldErrors.subject) setFieldErrors({ ...fieldErrors, subject: "" });
                       }}
-                      className={`w-full px-4 py-3 bg-neutral-50/70 border rounded-2xl text-neutral-900 text-xs font-medium focus:bg-white focus:outline-none transition-colors ${
-                        fieldErrors.subject
+                      className={`w-full px-4 py-3 bg-neutral-50/70 border rounded-2xl text-neutral-900 text-xs font-medium focus:bg-white focus:outline-none transition-colors ${fieldErrors.subject
                           ? "border-rose-500 focus:border-rose-600"
                           : "border-neutral-200 focus:border-neutral-900"
-                      }`}
+                        }`}
                     />
                     {fieldErrors.subject && (
                       <p className="text-[11px] text-rose-600 font-medium pl-1">{fieldErrors.subject}</p>
@@ -432,11 +429,10 @@ export default function ContactPage() {
                           setForm({ ...form, subject: sug });
                           if (fieldErrors.subject) setFieldErrors({ ...fieldErrors, subject: "" });
                         }}
-                        className={`text-[11px] px-2.5 py-1 rounded-full border transition-colors cursor-pointer ${
-                          form.subject === sug
+                        className={`text-[11px] px-2.5 py-1 rounded-full border transition-colors cursor-pointer ${form.subject === sug
                             ? "bg-neutral-900 text-white border-neutral-900 font-semibold"
                             : "bg-neutral-50 text-neutral-600 border-neutral-200 hover:bg-neutral-100"
-                        }`}
+                          }`}
                       >
                         {sug}
                       </button>
@@ -465,11 +461,10 @@ export default function ContactPage() {
                       setForm({ ...form, message: e.target.value });
                       if (fieldErrors.message) setFieldErrors({ ...fieldErrors, message: "" });
                     }}
-                    className={`w-full p-4 bg-neutral-50/70 border rounded-2xl text-neutral-900 text-xs font-medium focus:bg-white focus:outline-none transition-colors leading-relaxed ${
-                      fieldErrors.message
+                    className={`w-full p-4 bg-neutral-50/70 border rounded-2xl text-neutral-900 text-xs font-medium focus:bg-white focus:outline-none transition-colors leading-relaxed ${fieldErrors.message
                         ? "border-rose-500 focus:border-rose-600"
                         : "border-neutral-200 focus:border-neutral-900"
-                    }`}
+                      }`}
                   />
                   {fieldErrors.message && (
                     <p className="text-[11px] text-rose-600 font-medium pl-1">{fieldErrors.message}</p>

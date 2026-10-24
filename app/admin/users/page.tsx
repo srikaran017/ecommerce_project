@@ -395,12 +395,12 @@ export default function AdminUsersPage() {
           prev.map((u) =>
             u.id === selectedUserForEdit.id
               ? {
-                  ...u,
-                  name: editForm.name.trim(),
-                  phone: editForm.phone || null,
-                  permissions: editForm.permissions,
-                  isActive: editForm.isActive,
-                }
+                ...u,
+                name: editForm.name.trim(),
+                phone: editForm.phone || null,
+                permissions: editForm.permissions,
+                isActive: editForm.isActive,
+              }
               : u
           )
         );
@@ -506,13 +506,12 @@ export default function AdminUsersPage() {
       {/* Toast Alert Banner */}
       {alertMessage && (
         <div
-          className={`fixed top-4 right-4 z-50 max-w-md w-full p-4 rounded-2xl shadow-2xl border backdrop-blur-xl transition-all duration-300 ${
-            alertMessage.type === "success"
+          className={`fixed top-4 right-4 z-50 max-w-md w-full p-4 rounded-2xl shadow-2xl border backdrop-blur-xl transition-all duration-300 ${alertMessage.type === "success"
               ? "bg-emerald-950/90 border-emerald-500/40 text-emerald-200"
               : alertMessage.type === "error"
-              ? "bg-rose-950/90 border-rose-500/40 text-rose-200"
-              : "bg-slate-900/90 border-slate-700 text-slate-200"
-          }`}
+                ? "bg-rose-950/90 border-rose-500/40 text-rose-200"
+                : "bg-slate-900/90 border-slate-700 text-slate-200"
+            }`}
         >
           <div className="flex items-start gap-3">
             {alertMessage.type === "success" ? (
@@ -679,11 +678,10 @@ export default function AdminUsersPage() {
                     setRoleFilter(role);
                     setCurrentPage(1);
                   }}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex-shrink-0 ${
-                    isSelected
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex-shrink-0 ${isSelected
                       ? "bg-amber-500 text-slate-950 shadow-md"
                       : "bg-slate-900 text-slate-400 hover:text-white border border-slate-800"
-                  }`}
+                    }`}
                 >
                   {role === "ALL" ? "All Roles" : role.replace("_", " ")}
                 </button>
@@ -759,15 +757,14 @@ export default function AdminUsersPage() {
                             />
                           ) : (
                             <div
-                              className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm uppercase flex-shrink-0 ${
-                                u.role === "SUPER_ADMIN"
+                              className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm uppercase flex-shrink-0 ${u.role === "SUPER_ADMIN"
                                   ? "bg-violet-500/20 text-violet-300 border border-violet-500/30"
                                   : u.role === "STORE_ADMIN"
-                                  ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
-                                  : u.role === "STAFF"
-                                  ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
-                                  : "bg-slate-800 text-slate-300 border border-slate-700"
-                              }`}
+                                    ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                                    : u.role === "STAFF"
+                                      ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                                      : "bg-slate-800 text-slate-300 border border-slate-700"
+                                }`}
                             >
                               {u.name.charAt(0)}
                             </div>
@@ -846,23 +843,21 @@ export default function AdminUsersPage() {
                         <button
                           onClick={() => handleToggleStatus(u)}
                           disabled={!canDeact}
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold transition-all ${
-                            u.isActive
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold transition-all ${u.isActive
                               ? "bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20"
                               : "bg-rose-500/10 border border-rose-500/30 text-rose-400 hover:bg-rose-500/20"
-                          } ${!canDeact ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
+                            } ${!canDeact ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
                           title={
                             isSelf
                               ? "Cannot deactivate your own account"
                               : !canManage
-                              ? "Cannot modify an account with equal or higher role"
-                              : "Click to toggle account access"
+                                ? "Cannot modify an account with equal or higher role"
+                                : "Click to toggle account access"
                           }
                         >
                           <span
-                            className={`w-1.5 h-1.5 rounded-full ${
-                              u.isActive ? "bg-emerald-400 animate-pulse" : "bg-rose-400"
-                            }`}
+                            className={`w-1.5 h-1.5 rounded-full ${u.isActive ? "bg-emerald-400 animate-pulse" : "bg-rose-400"
+                              }`}
                           />
                           <span>{u.isActive ? "Active" : "Deactivated"}</span>
                         </button>
@@ -883,11 +878,10 @@ export default function AdminUsersPage() {
                           <button
                             onClick={() => openEditModal(u)}
                             disabled={!canManage && !isSelf}
-                            className={`p-1.5 rounded-lg border transition-colors ${
-                              canManage || isSelf
+                            className={`p-1.5 rounded-lg border transition-colors ${canManage || isSelf
                                 ? "bg-slate-900 hover:bg-slate-800 text-amber-400 hover:text-amber-300 border-slate-800 hover:border-amber-500/30"
                                 : "bg-slate-900/50 text-slate-600 border-slate-800/50 cursor-not-allowed"
-                            }`}
+                              }`}
                             title={
                               canManage || isSelf
                                 ? "Edit Subordinate Profile & Permissions"
@@ -904,17 +898,16 @@ export default function AdminUsersPage() {
                               setDeleteError(null);
                             }}
                             disabled={isSelf || !canManage}
-                            className={`p-1.5 rounded-lg border transition-colors ${
-                              !isSelf && canManage
+                            className={`p-1.5 rounded-lg border transition-colors ${!isSelf && canManage
                                 ? "bg-slate-900 hover:bg-rose-950/40 text-slate-400 hover:text-rose-400 border-slate-800 hover:border-rose-500/30 cursor-pointer"
                                 : "bg-slate-900/50 text-slate-700 border-slate-800/50 cursor-not-allowed opacity-50"
-                            }`}
+                              }`}
                             title={
                               isSelf
                                 ? "You cannot delete your own account"
                                 : !canManage
-                                ? "Cannot delete an account with equal or higher role"
-                                : `Delete staff account '${u.name}'`
+                                  ? "Cannot delete an account with equal or higher role"
+                                  : `Delete staff account '${u.name}'`
                             }
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -1026,10 +1019,9 @@ export default function AdminUsersPage() {
                     required
                     value={createForm.name}
                     onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
-                    placeholder="e.g. Priya Sharma"
-                    className={`w-full px-3.5 py-2.5 bg-slate-950 border rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none focus:border-amber-400 ${
-                      createErrors.name ? "border-rose-500" : "border-slate-800"
-                    }`}
+                    placeholder="e.g. Reshi"
+                    className={`w-full px-3.5 py-2.5 bg-slate-950 border rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none focus:border-amber-400 ${createErrors.name ? "border-rose-500" : "border-slate-800"
+                      }`}
                   />
                   {createErrors.name && (
                     <p className="text-[11px] text-rose-400 mt-1">{createErrors.name}</p>
@@ -1046,9 +1038,8 @@ export default function AdminUsersPage() {
                     value={createForm.email}
                     onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })}
                     placeholder={`e.g. staff@${storeConfig.contact.email.split("@")[1] || "store.com"}`}
-                    className={`w-full px-3.5 py-2.5 bg-slate-950 border rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none focus:border-amber-400 ${
-                      createErrors.email ? "border-rose-500" : "border-slate-800"
-                    }`}
+                    className={`w-full px-3.5 py-2.5 bg-slate-950 border rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none focus:border-amber-400 ${createErrors.email ? "border-rose-500" : "border-slate-800"
+                      }`}
                   />
                   {createErrors.email && (
                     <p className="text-[11px] text-rose-400 mt-1">{createErrors.email}</p>
@@ -1066,9 +1057,8 @@ export default function AdminUsersPage() {
                       value={createForm.password}
                       onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })}
                       placeholder="Min 8 chars, 1 letter, 1 number"
-                      className={`w-full px-3.5 py-2.5 pr-10 bg-slate-950 border rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none focus:border-amber-400 ${
-                        createErrors.password ? "border-rose-500" : "border-slate-800"
-                      }`}
+                      className={`w-full px-3.5 py-2.5 pr-10 bg-slate-950 border rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none focus:border-amber-400 ${createErrors.password ? "border-rose-500" : "border-slate-800"
+                        }`}
                     />
                     <button
                       type="button"
@@ -1115,11 +1105,10 @@ export default function AdminUsersPage() {
                         setCreateAvatarMode("upload");
                         setCreateAvatarUrl("");
                       }}
-                      className={`px-2.5 py-1 text-[11px] font-bold uppercase rounded-lg transition-colors flex items-center gap-1.5 ${
-                        createAvatarMode === "upload"
+                      className={`px-2.5 py-1 text-[11px] font-bold uppercase rounded-lg transition-colors flex items-center gap-1.5 ${createAvatarMode === "upload"
                           ? "bg-amber-400 text-slate-950 shadow-sm"
                           : "text-slate-400 hover:text-white"
-                      }`}
+                        }`}
                     >
                       <Upload className="w-3 h-3" />
                       <span>Upload</span>
@@ -1131,11 +1120,10 @@ export default function AdminUsersPage() {
                         setCreateAvatarFile(null);
                         setCreateAvatarPreview(null);
                       }}
-                      className={`px-2.5 py-1 text-[11px] font-bold uppercase rounded-lg transition-colors flex items-center gap-1.5 ${
-                        createAvatarMode === "url"
+                      className={`px-2.5 py-1 text-[11px] font-bold uppercase rounded-lg transition-colors flex items-center gap-1.5 ${createAvatarMode === "url"
                           ? "bg-amber-400 text-slate-950 shadow-sm"
                           : "text-slate-400 hover:text-white"
-                      }`}
+                        }`}
                     >
                       <LinkIcon className="w-3 h-3" />
                       <span>URL</span>
@@ -1261,11 +1249,10 @@ export default function AdminUsersPage() {
                               return (
                                 <label
                                   key={p.code}
-                                  className={`flex items-start gap-2.5 p-2 rounded-xl border text-xs cursor-pointer transition-colors ${
-                                    isChecked
+                                  className={`flex items-start gap-2.5 p-2 rounded-xl border text-xs cursor-pointer transition-colors ${isChecked
                                       ? "bg-amber-500/10 border-amber-500/40 text-amber-200"
                                       : "bg-slate-900/60 border-slate-800/80 text-slate-400 hover:text-slate-200"
-                                  }`}
+                                    }`}
                                 >
                                   <input
                                     type="checkbox"
@@ -1415,11 +1402,10 @@ export default function AdminUsersPage() {
                         setEditAvatarMode("upload");
                         setEditAvatarUrl("");
                       }}
-                      className={`px-2.5 py-1 text-[11px] font-bold uppercase rounded-lg transition-colors flex items-center gap-1.5 ${
-                        editAvatarMode === "upload"
+                      className={`px-2.5 py-1 text-[11px] font-bold uppercase rounded-lg transition-colors flex items-center gap-1.5 ${editAvatarMode === "upload"
                           ? "bg-amber-400 text-slate-950 shadow-sm"
                           : "text-slate-400 hover:text-white"
-                      }`}
+                        }`}
                     >
                       <Upload className="w-3 h-3" />
                       <span>Upload</span>
@@ -1431,11 +1417,10 @@ export default function AdminUsersPage() {
                         setEditAvatarFile(null);
                         setEditAvatarPreview(null);
                       }}
-                      className={`px-2.5 py-1 text-[11px] font-bold uppercase rounded-lg transition-colors flex items-center gap-1.5 ${
-                        editAvatarMode === "url"
+                      className={`px-2.5 py-1 text-[11px] font-bold uppercase rounded-lg transition-colors flex items-center gap-1.5 ${editAvatarMode === "url"
                           ? "bg-amber-400 text-slate-950 shadow-sm"
                           : "text-slate-400 hover:text-white"
-                      }`}
+                        }`}
                     >
                       <LinkIcon className="w-3 h-3" />
                       <span>URL</span>
@@ -1521,11 +1506,10 @@ export default function AdminUsersPage() {
                     }
                     setEditForm({ ...editForm, isActive: !editForm.isActive });
                   }}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors ${
-                    editForm.isActive
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors ${editForm.isActive
                       ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40"
                       : "bg-rose-500/20 text-rose-400 border border-rose-500/40"
-                  }`}
+                    }`}
                 >
                   {editForm.isActive ? "Active (Unlocked)" : "Deactivated (Locked)"}
                 </button>
@@ -1581,11 +1565,10 @@ export default function AdminUsersPage() {
                               return (
                                 <label
                                   key={p.code}
-                                  className={`flex items-start gap-2.5 p-2 rounded-xl border text-xs cursor-pointer transition-colors ${
-                                    isChecked
+                                  className={`flex items-start gap-2.5 p-2 rounded-xl border text-xs cursor-pointer transition-colors ${isChecked
                                       ? "bg-amber-500/10 border-amber-500/40 text-amber-200"
                                       : "bg-slate-900/60 border-slate-800/80 text-slate-400 hover:text-slate-200"
-                                  }`}
+                                    }`}
                                 >
                                   <input
                                     type="checkbox"
@@ -1702,11 +1685,10 @@ export default function AdminUsersPage() {
                   <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Status</div>
                   <div className="mt-1">
                     <span
-                      className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                        selectedUserForView.isActive
+                      className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold ${selectedUserForView.isActive
                           ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30"
                           : "bg-rose-500/10 text-rose-400 border border-rose-500/30"
-                      }`}
+                        }`}
                     >
                       <span className={`w-1.5 h-1.5 rounded-full ${selectedUserForView.isActive ? "bg-emerald-400" : "bg-rose-400"}`} />
                       {selectedUserForView.isActive ? "ACTIVE" : "DEACTIVATED"}

@@ -93,7 +93,7 @@ function TrackOrderContent() {
         setTrackingData(null);
         setErrorMessage(
           res.message ||
-            "Order details could not be verified. Please check the order number and email or phone number entered."
+          "Order details could not be verified. Please check the order number and email or phone number entered."
         );
       }
     } catch (err: any) {
@@ -199,7 +199,7 @@ function TrackOrderContent() {
                     placeholder={
                       isAuthenticated
                         ? "Verified via your account session"
-                        : "e.g. priya@example.com or 9876543210"
+                        : "e.g. reshi@gmail.com or 9361200683"
                     }
                     className="w-full pl-10 pr-4 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl text-xs sm:text-sm font-medium text-neutral-900 placeholder:text-neutral-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-600/30 focus:border-amber-600 transition-all"
                   />
@@ -256,13 +256,12 @@ function TrackOrderContent() {
                       #{trackingData.orderNumber}
                     </h2>
                     <span
-                      className={`px-3 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
-                        trackingData.tracking.isDelivered
-                          ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                          : trackingData.tracking.isCancelled
+                      className={`px-3 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${trackingData.tracking.isDelivered
+                        ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                        : trackingData.tracking.isCancelled
                           ? "bg-rose-50 text-rose-800 border-rose-200"
                           : "bg-amber-50 text-amber-800 border-amber-200"
-                      }`}
+                        }`}
                     >
                       {trackingData.tracking.statusLabel || trackingData.status}
                     </span>

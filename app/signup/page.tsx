@@ -107,7 +107,7 @@ function SignupForm() {
   return (
     <div className="min-h-[85vh] flex items-center justify-center px-4 sm:px-6 lg:px-8 py-12">
       <div className="max-w-md w-full space-y-7 bg-white p-8 sm:p-10 rounded-3xl border border-neutral-100 shadow-xl">
-        
+
         {/* Header */}
         <div className="text-center space-y-2">
           <Link href="/" className="inline-flex flex-col items-center gap-2 group">
@@ -148,7 +148,7 @@ function SignupForm() {
 
         {/* Signup Form */}
         <form onSubmit={handleSignup} className="space-y-4 text-xs">
-          
+
           {/* Full Name */}
           <div className="space-y-1">
             <label className="font-bold text-neutral-800 uppercase tracking-wider block">
@@ -158,17 +158,16 @@ function SignupForm() {
               <User className="w-4 h-4 text-neutral-400 absolute left-3.5 top-3.5" />
               <input
                 type="text"
-                placeholder="e.g. Priya Sharma"
+                placeholder="e.g. Reshi"
                 value={name}
                 onChange={(e) => {
                   setName(e.target.value);
                   if (fieldErrors.name) setFieldErrors({ ...fieldErrors, name: undefined });
                 }}
-                className={`w-full pl-10 pr-4 py-3 bg-neutral-50 border rounded-2xl text-neutral-900 text-xs font-medium focus:bg-white focus:outline-none transition-colors ${
-                  fieldErrors.name
-                    ? "border-rose-500 focus:border-rose-600"
-                    : "border-neutral-200 focus:border-neutral-900"
-                }`}
+                className={`w-full pl-10 pr-4 py-3 bg-neutral-50 border rounded-2xl text-neutral-900 text-xs font-medium focus:bg-white focus:outline-none transition-colors ${fieldErrors.name
+                  ? "border-rose-500 focus:border-rose-600"
+                  : "border-neutral-200 focus:border-neutral-900"
+                  }`}
               />
             </div>
             {fieldErrors.name && (
@@ -185,17 +184,16 @@ function SignupForm() {
               <Mail className="w-4 h-4 text-neutral-400 absolute left-3.5 top-3.5" />
               <input
                 type="email"
-                placeholder="priya@example.com"
+                placeholder="reshi@gmail.com"
                 value={email}
                 onChange={(e) => {
                   setEmail(e.target.value);
                   if (fieldErrors.email) setFieldErrors({ ...fieldErrors, email: undefined });
                 }}
-                className={`w-full pl-10 pr-4 py-3 bg-neutral-50 border rounded-2xl text-neutral-900 text-xs font-medium focus:bg-white focus:outline-none transition-colors ${
-                  fieldErrors.email
-                    ? "border-rose-500 focus:border-rose-600"
-                    : "border-neutral-200 focus:border-neutral-900"
-                }`}
+                className={`w-full pl-10 pr-4 py-3 bg-neutral-50 border rounded-2xl text-neutral-900 text-xs font-medium focus:bg-white focus:outline-none transition-colors ${fieldErrors.email
+                  ? "border-rose-500 focus:border-rose-600"
+                  : "border-neutral-200 focus:border-neutral-900"
+                  }`}
               />
             </div>
             {fieldErrors.email && (
@@ -218,11 +216,10 @@ function SignupForm() {
                   setPhone(e.target.value);
                   if (fieldErrors.phone) setFieldErrors({ ...fieldErrors, phone: undefined });
                 }}
-                className={`w-full pl-10 pr-4 py-3 bg-neutral-50 border rounded-2xl text-neutral-900 text-xs font-medium focus:bg-white focus:outline-none transition-colors ${
-                  fieldErrors.phone
-                    ? "border-rose-500 focus:border-rose-600"
-                    : "border-neutral-200 focus:border-neutral-900"
-                }`}
+                className={`w-full pl-10 pr-4 py-3 bg-neutral-50 border rounded-2xl text-neutral-900 text-xs font-medium focus:bg-white focus:outline-none transition-colors ${fieldErrors.phone
+                  ? "border-rose-500 focus:border-rose-600"
+                  : "border-neutral-200 focus:border-neutral-900"
+                  }`}
               />
             </div>
             {fieldErrors.phone && (
@@ -245,11 +242,10 @@ function SignupForm() {
                   setPassword(e.target.value);
                   if (fieldErrors.password) setFieldErrors({ ...fieldErrors, password: undefined });
                 }}
-                className={`w-full pl-10 pr-10 py-3 bg-neutral-50 border rounded-2xl text-neutral-900 text-xs font-medium focus:bg-white focus:outline-none transition-colors ${
-                  fieldErrors.password
-                    ? "border-rose-500 focus:border-rose-600"
-                    : "border-neutral-200 focus:border-neutral-900"
-                }`}
+                className={`w-full pl-10 pr-10 py-3 bg-neutral-50 border rounded-2xl text-neutral-900 text-xs font-medium focus:bg-white focus:outline-none transition-colors ${fieldErrors.password
+                  ? "border-rose-500 focus:border-rose-600"
+                  : "border-neutral-200 focus:border-neutral-900"
+                  }`}
               />
               <button
                 type="button"
@@ -279,11 +275,10 @@ function SignupForm() {
                   setConfirmPassword(e.target.value);
                   if (fieldErrors.confirmPassword) setFieldErrors({ ...fieldErrors, confirmPassword: undefined });
                 }}
-                className={`w-full pl-10 pr-4 py-3 bg-neutral-50 border rounded-2xl text-neutral-900 text-xs font-medium focus:bg-white focus:outline-none transition-colors ${
-                  fieldErrors.confirmPassword
-                    ? "border-rose-500 focus:border-rose-600"
-                    : "border-neutral-200 focus:border-neutral-900"
-                }`}
+                className={`w-full pl-10 pr-4 py-3 bg-neutral-50 border rounded-2xl text-neutral-900 text-xs font-medium focus:bg-white focus:outline-none transition-colors ${fieldErrors.confirmPassword
+                  ? "border-rose-500 focus:border-rose-600"
+                  : "border-neutral-200 focus:border-neutral-900"
+                  }`}
               />
             </div>
             {fieldErrors.confirmPassword && (

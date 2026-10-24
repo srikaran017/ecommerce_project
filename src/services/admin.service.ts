@@ -366,8 +366,8 @@ function getInitialUsers(): AdminManagedUser[] {
     },
     {
       id: "usr_staff_3",
-      name: "Priya Sharma (Operations)",
-      email: "priya.staff@maison.com",
+      name: "Reshi (Operations)",
+      email: "reshi.thangam@bytevenue.com",
       role: "STAFF",
       permissions: [
         "products:read",
@@ -4640,7 +4640,7 @@ export class AdminService {
         },
         {
           id: "0bd8c799-20b2-4c5f-881e-a5baaeb4535a",
-          name: "Priya Sharma",
+          name: "Reshi",
           email: "priya.sharma@example.com",
           phone: "9876543210",
           avatarUrl: "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=400&q=80",
