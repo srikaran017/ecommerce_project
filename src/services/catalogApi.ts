@@ -196,7 +196,7 @@ export const fetchCategoryTree = async (options?: {
   const queryString = query.toString() ? `?${query.toString()}` : "";
   const res = await fetch(`${getBaseUrl()}/categories${queryString}`, {
     headers: getHeaders(),
-    next: { revalidate: 60 },
+    cache: "no-store",
   });
 
   const data = await res.json();
@@ -210,7 +210,7 @@ export const fetchCategoryTree = async (options?: {
 export const fetchCategoryBySlug = async (slug: string): Promise<ApiCategory> => {
   const res = await fetch(`${getBaseUrl()}/categories/${encodeURIComponent(slug)}`, {
     headers: getHeaders(),
-    next: { revalidate: 60 },
+    cache: "no-store",
   });
 
   const data = await res.json();
@@ -241,7 +241,7 @@ export const fetchCategoryProducts = async (
     `${getBaseUrl()}/categories/${encodeURIComponent(slug)}/products${queryString}`,
     {
       headers: getHeaders(),
-      next: { revalidate: 30 },
+      cache: "no-store",
     }
   );
 
@@ -281,7 +281,7 @@ export const fetchProducts = async (
   const queryString = query.toString() ? `?${query.toString()}` : "";
   const res = await fetch(`${getBaseUrl()}/products${queryString}`, {
     headers: getHeaders(),
-    next: { revalidate: 30 },
+    cache: "no-store",
   });
 
   const data = await res.json();
@@ -308,7 +308,7 @@ export const fetchProductBySlug = async (
 ): Promise<ApiProductDetail> => {
   const res = await fetch(`${getBaseUrl()}/products/${encodeURIComponent(slug)}`, {
     headers: getHeaders(),
-    next: { revalidate: 30 },
+    cache: "no-store",
   });
 
   const data = await res.json();

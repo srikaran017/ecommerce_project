@@ -1213,7 +1213,22 @@ export class AdminService {
 
     if (res.success) {
       const finalProduct = (res.data as any)?.product || (res as any)?.product || res.data;
-      if (finalProduct) return { success: true, product: finalProduct };
+      if (finalProduct) {
+        // Sync to local products so storefront & admin cache update in real time
+        const products = this.getLocalProducts();
+        const existingIdx = products.findIndex((p) => p.id === finalProduct.id || p.slug === finalProduct.slug);
+        if (existingIdx !== -1) {
+          products[existingIdx] = { ...products[existingIdx], ...finalProduct };
+        } else {
+          products.unshift(finalProduct);
+        }
+        setLocalData(STORAGE_KEYS.PRODUCTS, products);
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("products-changed", { detail: { action: "create", product: finalProduct } }));
+          window.dispatchEvent(new Event("storage"));
+        }
+        return { success: true, product: finalProduct };
+      }
     }
 
     if (res.statusCode && res.statusCode >= 400) {
@@ -1403,6 +1418,10 @@ export class AdminService {
     products.unshift(newProd);
     setLocalData(STORAGE_KEYS.PRODUCTS, products);
     this.logAudit("PRODUCT", newProd.id, `Created garment "${newProd.name}" with ${newProd.variants.length} variants`);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("products-changed", { detail: { action: "create", product: newProd } }));
+      window.dispatchEvent(new Event("storage"));
+    }
     return { success: true, product: newProd };
   }
 
@@ -1488,7 +1507,20 @@ export class AdminService {
       });
     }
 
-    if (res.success && res.data) return { success: true, product: res.data };
+    if (res.success && res.data) {
+      const updated = (res.data as any)?.product || (res as any)?.product || res.data;
+      const products = this.getLocalProducts();
+      const idx = products.findIndex((p) => p.id === id || p.id === updated.id);
+      if (idx !== -1) {
+        products[idx] = { ...products[idx], ...updated };
+        setLocalData(STORAGE_KEYS.PRODUCTS, products);
+      }
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("products-changed", { detail: { action: "update", product: updated } }));
+        window.dispatchEvent(new Event("storage"));
+      }
+      return { success: true, product: updated };
+    }
 
     if (res.statusCode && res.statusCode >= 400) {
       return {
@@ -1582,6 +1614,10 @@ export class AdminService {
     products[idx] = updated;
     setLocalData(STORAGE_KEYS.PRODUCTS, products);
     this.logAudit("PRODUCT", id, `Updated garment "${updated.name}"`);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("products-changed", { detail: { action: "update", product: updated } }));
+      window.dispatchEvent(new Event("storage"));
+    }
     return { success: true, product: updated };
   }
 
@@ -1637,6 +1673,10 @@ export class AdminService {
         id,
         `Toggled status: Active=${status.isActive}, Featured=${status.isFeatured}`
       );
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("products-changed", { detail: { action: "toggleStatus", id, status } }));
+        window.dispatchEvent(new Event("storage"));
+      }
       return {
         success: true,
         statusCode: res.statusCode || 200,
@@ -1688,6 +1728,10 @@ export class AdminService {
       id,
       `Toggled status: Active=${prod.isActive}, Featured=${prod.isFeatured}`
     );
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("products-changed", { detail: { action: "toggleStatus", id, status } }));
+      window.dispatchEvent(new Event("storage"));
+    }
 
     return {
       success: true,
@@ -1715,6 +1759,10 @@ export class AdminService {
     if (res.success) {
       const products = this.getLocalProducts().filter((p) => p.id !== id);
       setLocalData(STORAGE_KEYS.PRODUCTS, products);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("products-changed", { detail: { action: "delete", id } }));
+        window.dispatchEvent(new Event("storage"));
+      }
       return {
         success: true,
         statusCode: res.statusCode || 200,
@@ -1774,6 +1822,10 @@ export class AdminService {
         id,
         `Soft-archived garment "${product.name}" (retained for cart/order history)`
       );
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("products-changed", { detail: { action: "archive", id } }));
+        window.dispatchEvent(new Event("storage"));
+      }
       return {
         success: true,
         statusCode: 200,
@@ -1789,6 +1841,10 @@ export class AdminService {
       const remaining = products.filter((p) => p.id !== id);
       setLocalData(STORAGE_KEYS.PRODUCTS, remaining);
       this.logAudit("PRODUCT", id, `Permanently deleted garment "${product.name}"`);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("products-changed", { detail: { action: "delete", id } }));
+        window.dispatchEvent(new Event("storage"));
+      }
       return {
         success: true,
         statusCode: 200,

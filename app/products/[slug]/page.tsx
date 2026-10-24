@@ -4,6 +4,9 @@ import { ProductService } from "@/services/product.service";
 import { ProductDetailClient } from "./ProductDetailClient";
 import { storeConfig } from "@/config/store.config";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 interface ProductDetailPageProps {
   params: Promise<{ slug: string }>;
 }
