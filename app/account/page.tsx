@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuthStore } from "@/stores/auth.store";
 import { useWishlistStore } from "@/stores/wishlist.store";
+import { canAccessAdmin } from "@/lib/rbac";
 import { CustomerService, AccountDetails } from "@/services/customer.service";
 import { AdminOrder } from "@/types/admin.types";
 import { storeConfig } from "@/config/store.config";
@@ -370,7 +371,7 @@ function AccountCenterContent() {
 
             {/* Quick Actions */}
             <div className="flex items-center gap-2 self-start sm:self-auto">
-              {(user?.role === "STORE_ADMIN" || user?.role === "SUPER_ADMIN") && (
+              {canAccessAdmin(user?.role) && (
                 <Link
                   href="/admin"
                   className="px-3.5 py-2 bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-medium rounded-lg transition-colors shadow-xs flex items-center gap-1.5"

@@ -27,6 +27,7 @@ import { useCartStore } from "@/stores/cart.store";
 import { useWishlistStore } from "@/stores/wishlist.store";
 import { useUIStore } from "@/stores/ui.store";
 import { useAuthStore } from "@/stores/auth.store";
+import { canAccessAdmin } from "@/lib/rbac";
 import { fetchCategoryTree, ApiCategory } from "@/services/catalogApi";
 
 // Curated initial fallback categories matching real database taxonomy
@@ -55,7 +56,7 @@ const FALLBACK_CATEGORIES: ApiCategory[] = [
 ];
 
 export function Navbar() {
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, user } = useAuthStore();
   const rawItemCount = useCartStore((state) => state.getItemCount());
   const itemCount = rawItemCount;
   const rawWishlistCount = useWishlistStore((state) => state.wishlistIds.length);
@@ -65,6 +66,9 @@ export function Navbar() {
 
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
+
+  // Show Store Admin Console strictly to authenticated admin users (SUPER_ADMIN, STORE_ADMIN, STAFF)
+  const isAdmin = Boolean(isMounted && isAuthenticated && canAccessAdmin(user?.role));
 
   // Dynamic Navigation & Categories State
   const [categories, setCategories] = useState<ApiCategory[]>(FALLBACK_CATEGORIES);
@@ -436,13 +440,15 @@ export function Navbar() {
               </Link>
             )}
 
-            <Link
-              href="/admin"
-              title="Store Admin Console"
-              className="p-1.5 text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
-            >
-              <ShieldAlert className="w-5 h-5" />
-            </Link>
+            {isAdmin && (
+              <Link
+                href="/admin"
+                title="Store Admin Console"
+                className="p-1.5 text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
+              >
+                <ShieldAlert className="w-5 h-5" />
+              </Link>
+            )}
 
             <Link
               href="/cart"
@@ -576,6 +582,17 @@ export function Navbar() {
           )}
 
           <div className="border-t border-[var(--border)] pt-4 space-y-3">
+            {isAdmin && (
+              <Link
+                href="/admin"
+                onClick={closeMobileMenu}
+                className="flex items-center gap-2 text-sm font-semibold uppercase tracking-widest text-amber-700 hover:text-amber-800 transition-colors"
+              >
+                <ShieldAlert className="w-4 h-4" />
+                Admin Console
+              </Link>
+            )}
+
             {featureConfig.wishlist && (
               <Link
                 href="/wishlist"
