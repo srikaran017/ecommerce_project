@@ -183,19 +183,39 @@ export function Navbar() {
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-20">
-          {/* Mobile Menu Button */}
-          <div className="flex items-center lg:hidden">
-            <button
-              onClick={toggleMobileMenu}
-              className="p-2 text-[var(--foreground)] hover:opacity-75 focus:outline-none cursor-pointer"
-              aria-label="Toggle navigation menu"
-            >
-              {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-            </button>
-          </div>
+          {/* Left Section: Mobile Menu + Brand Logo (Left-aligned) + Desktop Navigation Links */}
+          <div className="flex items-center gap-3 sm:gap-5 lg:gap-8 xl:gap-10">
+            {/* Mobile Menu Button */}
+            <div className="flex items-center lg:hidden">
+              <button
+                onClick={toggleMobileMenu}
+                className="p-2 -ml-2 text-[var(--foreground)] hover:opacity-75 focus:outline-none cursor-pointer"
+                aria-label="Toggle navigation menu"
+              >
+                {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+              </button>
+            </div>
 
-          {/* Left Navigation Links (Desktop) - 100% Dynamically Governed by Admin Panel */}
-          <nav className="hidden lg:flex items-center gap-7">
+            {/* Brand Logo (Left Side) */}
+            <div className="flex items-center flex-shrink-0">
+              <Link href="/" className="inline-flex items-center justify-start gap-2.5 group py-1">
+                {storeConfig.logo?.dark ? (
+                  <img
+                    src={storeConfig.logo.dark}
+                    alt={storeConfig.logo.alt || storeConfig.name}
+                    className="h-14 sm:h-16 md:h-[72px] lg:h-[78px] w-auto max-w-[200px] sm:max-w-[280px] md:max-w-[340px] lg:max-w-[400px] object-contain transition-transform group-hover:scale-105"
+                  />
+                ) : null}
+                {(!storeConfig.logo?.dark || storeConfig.logo?.showTextAlongsideLogo) && (
+                  <span className="font-heading text-lg sm:text-2xl font-bold tracking-widest text-[var(--foreground)] uppercase">
+                    {storeConfig.name}
+                  </span>
+                )}
+              </Link>
+            </div>
+
+            {/* Desktop Navigation Links - 100% Dynamically Governed by Admin Panel */}
+            <nav className="hidden lg:flex items-center gap-5 xl:gap-7">
             {/* 1. Dynamic Primary Top-Level Categories */}
             {topLevelCategories.map((cat) => {
               const hasChildren = Array.isArray(cat.children) && cat.children.length > 0;
@@ -372,28 +392,11 @@ export function Navbar() {
                 <span>{navbarConfig.saleLabel || "SALE"}</span>
               </Link>
             )}
-          </nav>
-
-          {/* Center Brand Logo */}
-          <div className="flex-1 lg:flex-none text-center">
-            <Link href="/" className="inline-flex items-center justify-center gap-2.5 group py-1">
-              {storeConfig.logo?.dark ? (
-                <img
-                  src={storeConfig.logo.dark}
-                  alt={storeConfig.logo.alt || storeConfig.name}
-                  className="h-16 sm:h-20 md:h-[78px] w-auto max-w-[260px] sm:max-w-[340px] md:max-w-[400px] object-contain transition-transform group-hover:scale-105"
-                />
-              ) : null}
-              {(!storeConfig.logo?.dark || storeConfig.logo?.showTextAlongsideLogo) && (
-                <span className="font-heading text-lg sm:text-2xl font-bold tracking-widest text-[var(--foreground)] uppercase">
-                  {storeConfig.name}
-                </span>
-              )}
-            </Link>
+            </nav>
           </div>
 
           {/* Right Action Icons */}
-          <div className="flex items-center gap-5">
+          <div className="flex items-center gap-5 flex-shrink-0">
             {featureConfig.search && (
               <button
                 onClick={toggleSearch}
