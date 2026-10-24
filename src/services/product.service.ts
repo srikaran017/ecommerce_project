@@ -7,6 +7,7 @@ import {
 } from "@/data/products.data";
 import {
   fetchProducts,
+  fetchAllProducts,
   fetchProductBySlug as apiFetchProductBySlug,
   fetchCategoryProducts as apiFetchCategoryProducts,
   fetchCategoryTree as apiFetchCategoryTree,
@@ -213,9 +214,16 @@ export class ProductService {
       if (filters?.fabric) apiParams.fabric = filters.fabric;
       if (filters?.occasion) apiParams.occasion = filters.occasion;
 
-      const { products } = await fetchProducts(apiParams);
-      if (products && Array.isArray(products)) {
-        transformed = products.map(transformApiCardToProduct);
+      if (filters?.page) {
+        const { products } = await fetchProducts(apiParams);
+        if (products && Array.isArray(products)) {
+          transformed = products.map(transformApiCardToProduct);
+        }
+      } else {
+        const products = await fetchAllProducts(apiParams);
+        if (products && Array.isArray(products)) {
+          transformed = products.map(transformApiCardToProduct);
+        }
       }
     } catch (err) {
       console.warn("[ProductService.getAllProducts] Live fetch failed:", err);
@@ -413,17 +421,21 @@ export class ProductService {
         pagination: res.pagination,
       };
     } catch {
-      const products = await this.getAllProducts({ category: slug, ...params });
+      const all = await this.getAllProducts({ category: slug });
+      const page = Number(params.page) || 1;
+      const limit = Number(params.limit) || 12;
+      const start = (page - 1) * limit;
+      const paginated = all.slice(start, start + limit);
       return {
         category: null,
-        products,
+        products: paginated,
         pagination: {
-          page: 1,
-          limit: 24,
-          total: products.length,
-          totalPages: 1,
-          hasNextPage: false,
-          hasPreviousPage: false,
+          page,
+          limit,
+          total: all.length,
+          totalPages: Math.max(1, Math.ceil(all.length / limit)),
+          hasNextPage: start + limit < all.length,
+          hasPreviousPage: page > 1,
         },
       };
     }

@@ -302,6 +302,42 @@ export const fetchProducts = async (
   };
 };
 
+// 4b. Fetch All Products Across All Pages (Auto-Paginating Multi-Page Fetch)
+export const fetchAllProducts = async (
+  params: Record<string, any> = {}
+): Promise<ApiProductCard[]> => {
+  // Request first page with backend maximum limit (100 items per page)
+  const firstPage = await fetchProducts({ ...params, limit: 100, page: 1 });
+  const allProducts: ApiProductCard[] = [...(firstPage.products || [])];
+
+  // If backend indicates additional pages exist, fetch remaining pages in parallel
+  if (firstPage.pagination && firstPage.pagination.totalPages > 1) {
+    const pagePromises: Promise<{ products: ApiProductCard[] }>[] = [];
+    for (let p = 2; p <= firstPage.pagination.totalPages; p++) {
+      pagePromises.push(
+        fetchProducts({ ...params, limit: 100, page: p }).catch((err) => {
+          console.warn(`[fetchAllProducts] Page ${p} fetch failed:`, err);
+          return { products: [], pagination: {} as any };
+        })
+      );
+    }
+    const pageResults = await Promise.all(pagePromises);
+    for (const res of pageResults) {
+      if (res.products && Array.isArray(res.products)) {
+        allProducts.push(...res.products);
+      }
+    }
+  }
+
+  // Deduplicate products by unique ID to safeguard against overlapping page results
+  const seen = new Set<string>();
+  return allProducts.filter((p) => {
+    if (!p.id || seen.has(p.id)) return false;
+    seen.add(p.id);
+    return true;
+  });
+};
+
 // 5. Fetch Full Product Details Page (PDP)
 export const fetchProductBySlug = async (
   slug: string
