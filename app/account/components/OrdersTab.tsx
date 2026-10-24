@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { AdminOrder } from "@/types/admin.types";
 import { storeConfig } from "@/config/store.config";
 import { useCartStore } from "@/stores/cart.store";
 import { OrderTrackingModal } from "./OrderTrackingModal";
+import { Pagination } from "@/components/ui/Pagination";
 import {
   Package,
   Truck,
@@ -33,7 +34,14 @@ export function OrdersTab({ orders, isLoading, onShowToast }: OrdersTabProps) {
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [selectedOrderForTracking, setSelectedOrderForTracking] = useState<AdminOrder | null>(null);
   const [reorderingId, setReorderingId] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(5);
   const { openCart } = useCartStore();
+
+  // Reset to first page when filtering or searching
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, statusFilter]);
 
   // Filter orders
   const filteredOrders = orders.filter((ord) => {
@@ -59,6 +67,11 @@ export function OrdersTab({ orders, isLoading, onShowToast }: OrdersTabProps) {
 
     return true;
   });
+
+  const totalPages = Math.max(1, Math.ceil(filteredOrders.length / pageSize));
+  const activePage = Math.min(currentPage, totalPages);
+  const startIndex = (activePage - 1) * pageSize;
+  const paginatedOrders = filteredOrders.slice(startIndex, startIndex + pageSize);
 
   const handleReorder = async (ord: AdminOrder) => {
     const orderNum = ord.orderNumber || ord.id;
@@ -161,6 +174,34 @@ export function OrdersTab({ orders, isLoading, onShowToast }: OrdersTabProps) {
             ))}
           </div>
         </div>
+
+        {/* Page Size & Counter Bar */}
+        {filteredOrders.length > 5 && (
+          <div className="pt-2.5 border-t border-neutral-100 flex flex-wrap items-center justify-between gap-2 text-xs text-neutral-500">
+            <span>
+              Showing <strong className="text-neutral-900 font-mono font-semibold">{startIndex + 1}–{Math.min(startIndex + pageSize, filteredOrders.length)}</strong> of <strong className="text-neutral-900 font-mono font-semibold">{filteredOrders.length}</strong> orders
+            </span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-neutral-400 font-medium">Orders per page:</span>
+              {[5, 10, 20].map((size) => (
+                <button
+                  key={size}
+                  onClick={() => {
+                    setPageSize(size);
+                    setCurrentPage(1);
+                  }}
+                  className={`px-2.5 py-0.5 rounded-md text-[11px] font-semibold transition-all cursor-pointer ${
+                    pageSize === size
+                      ? "bg-neutral-900 text-white shadow-2xs"
+                      : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200 hover:text-neutral-900"
+                  }`}
+                >
+                  {size}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Orders List */}
@@ -194,7 +235,7 @@ export function OrdersTab({ orders, isLoading, onShowToast }: OrdersTabProps) {
         </div>
       ) : (
         <div className="space-y-4">
-          {filteredOrders.map((ord) => {
+          {paginatedOrders.map((ord) => {
             const orderDate = ord.createdAt
               ? new Date(ord.createdAt).toLocaleDateString("en-IN", {
                   day: "numeric",
@@ -335,6 +376,21 @@ export function OrdersTab({ orders, isLoading, onShowToast }: OrdersTabProps) {
               </div>
             );
           })}
+
+          {/* Orders Pagination */}
+          {totalPages > 1 && (
+            <Pagination
+              currentPage={activePage}
+              totalPages={totalPages}
+              totalItems={filteredOrders.length}
+              pageSize={pageSize}
+              onPageChange={(p) => {
+                setCurrentPage(p);
+                window.scrollTo({ top: 120, behavior: "smooth" });
+              }}
+              itemLabel="orders"
+            />
+          )}
         </div>
       )}
 
