@@ -2,7 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { Phone, Mail, MapPin, MessageSquare, Globe, Share2 } from "lucide-react";
+import { Phone, Mail, MapPin, MessageSquare, Globe, Share2, Truck } from "lucide-react";
 import { storeConfig } from "@/config/store.config";
 import { featureConfig } from "@/config/feature.config";
 import { Button } from "@/components/ui/Button";
@@ -157,6 +157,15 @@ export function Footer() {
                   </a>
                 </li>
               )}
+              <li className="pt-1">
+                <Link
+                  href="/track-order"
+                  className="inline-flex items-center gap-2 text-amber-300 font-semibold hover:underline"
+                >
+                  <Truck className="w-4 h-4" />
+                  <span>Track Your Order</span>
+                </Link>
+              </li>
               <li className="pt-2">
                 <Link
                   href="/contact"
@@ -194,6 +203,7 @@ export function Footer() {
         <div className="border-t border-white/10 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] opacity-70">
           <p>© {new Date().getFullYear()} {storeConfig.name}. All Rights Reserved.</p>
           <div className="flex items-center gap-6">
+            <Link href="/track-order" className="hover:underline font-semibold text-amber-300">Track Order</Link>
             <Link href="/contact" className="hover:underline">Contact Concierge</Link>
             <Link href="/privacy" className="hover:underline">Privacy Policy</Link>
             <Link href="/terms" className="hover:underline">Terms of Service</Link>

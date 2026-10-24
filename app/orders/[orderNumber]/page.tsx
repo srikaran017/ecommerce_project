@@ -27,7 +27,12 @@ import {
   Gift,
   Check,
   ChevronRight,
+  Sparkles,
 } from "lucide-react";
+import { compileTrackingTimeline } from "@/utils/tracking.utils";
+import { OrderProgressBar } from "@/components/tracking/OrderProgressBar";
+import { OrderActivityTimeline } from "@/components/tracking/OrderActivityTimeline";
+import { OrderCourierCard } from "@/components/tracking/OrderCourierCard";
 
 export default function OrderDetailPage() {
   const params = useParams();
@@ -283,91 +288,33 @@ export default function OrderDetailPage() {
             </div>
           </div>
 
-          {/* Visual Fulfillment Stepper Timeline */}
-          {!isCancelled ? (
-            <div className="space-y-3 pt-1">
-              <h3 className="text-xs font-semibold text-neutral-700">
-                Fulfillment status
-              </h3>
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-center text-xs font-medium">
-                {[
-                  { label: "Placed", key: 0 },
-                  { label: "Confirmed", key: 1 },
-                  { label: "Shipped", key: 2 },
-                  { label: "Out for delivery", key: 3 },
-                  { label: "Delivered", key: 4 },
-                ].map((step) => {
-                  const state = getStepState(step.key);
-                  const isDone = state === "completed";
-                  const isActive = state === "active";
+          {/* Canonical 5-Step Fulfillment Stepper */}
+          {(() => {
+            const tracking = order.tracking || compileTrackingTimeline(order);
+            return (
+              <div className="space-y-4 pt-1">
+                <div className="flex items-center justify-between border-b border-neutral-100 pb-2">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-800 flex items-center gap-2">
+                    <Clock className="w-3.5 h-3.5 text-amber-700" />
+                    <span>Fulfillment & Delivery Progress</span>
+                  </h3>
+                  <span className="text-[10px] text-neutral-500 font-medium">
+                    Step {tracking.currentStep} of {tracking.totalSteps}
+                  </span>
+                </div>
 
-                  return (
-                    <div
-                      key={step.key}
-                      className={`p-2.5 rounded-lg border text-xs transition-all flex items-center justify-center gap-1.5 ${
-                        isDone
-                          ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                          : isActive
-                          ? "bg-sky-50 text-sky-800 border-sky-300 font-semibold"
-                          : "bg-neutral-50 text-neutral-400 border-neutral-200"
-                      }`}
-                    >
-                      {isDone && <Check className="w-3.5 h-3.5 text-emerald-600" />}
-                      <span>{step.label}</span>
-                    </div>
-                  );
-                })}
+                <OrderProgressBar tracking={tracking} />
+
+                {/* Courier Card */}
+                {tracking.courierPartner && tracking.trackingNumber && (
+                  <OrderCourierCard
+                    tracking={tracking}
+                    onCopied={(awb) => showToast("success", `Tracking number ${awb} copied!`)}
+                  />
+                )}
               </div>
-            </div>
-          ) : (
-            <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-xs text-red-900 space-y-1">
-              <p className="font-semibold flex items-center gap-1.5">
-                <Ban className="w-4 h-4 text-red-600" />
-                <span>Order Cancelled</span>
-              </p>
-              <p className="text-red-700">
-                This order was cancelled on {order.cancelledAt ? new Date(order.cancelledAt).toLocaleDateString() : "recently"}.
-                {order.cancelReason ? ` Reason: "${order.cancelReason}"` : ""}
-              </p>
-            </div>
-          )}
-
-          {/* Courier Live Tracking Card */}
-          {order.courierPartner && order.trackingNumber && (
-            <div className="p-4 bg-sky-50/70 border border-sky-200/80 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-sky-950">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2 font-semibold text-xs">
-                  <Truck className="w-4 h-4 text-sky-600" />
-                  <span>Shipped via {order.courierPartner}</span>
-                </div>
-                <div className="flex items-center gap-2 text-xs">
-                  <span className="text-sky-700">Tracking number:</span>
-                  <span className="font-mono font-bold text-neutral-900">{order.trackingNumber}</span>
-                  <button
-                    onClick={() => handleCopyAwb(order.trackingNumber!)}
-                    className="p-1 hover:bg-sky-100 rounded text-sky-700 cursor-pointer"
-                    title="Copy tracking number"
-                  >
-                    <Copy className="w-3.5 h-3.5" />
-                  </button>
-                  {copiedAwb && <span className="text-[11px] text-emerald-700 font-medium">Copied!</span>}
-                </div>
-              </div>
-
-              {order.estimatedDelivery && (
-                <div className="text-left sm:text-right sm:border-l sm:border-sky-200 sm:pl-4">
-                  <span className="text-[11px] text-sky-700 block">Expected delivery</span>
-                  <strong className="text-xs font-semibold text-neutral-900">
-                    {new Date(order.estimatedDelivery).toLocaleDateString("en-IN", {
-                      weekday: "short",
-                      day: "numeric",
-                      month: "short",
-                    })}
-                  </strong>
-                </div>
-              )}
-            </div>
-          )}
+            );
+          })()}
         </div>
 
         {/* Grid: Ordered Items (7 cols) + Summary (5 cols) */}
@@ -466,6 +413,26 @@ export default function OrderDetailPage() {
                 </div>
               </div>
             </div>
+
+            {/* Atelier & Courier Live Checkpoints Timeline Feed */}
+            {(() => {
+              const tracking = order.tracking || compileTrackingTimeline(order);
+              if (!tracking.checkpoints || tracking.checkpoints.length === 0) return null;
+              return (
+                <div className="bg-white border border-neutral-200/90 rounded-xl p-5 sm:p-6 space-y-4 shadow-xs">
+                  <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
+                    <h3 className="text-sm font-semibold text-neutral-900 flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-amber-700" />
+                      <span>Atelier & Courier Timeline</span>
+                    </h3>
+                    <span className="text-[10px] text-neutral-500 font-mono">
+                      {tracking.checkpoints.length} Checkpoints
+                    </span>
+                  </div>
+                  <OrderActivityTimeline checkpoints={tracking.checkpoints} />
+                </div>
+              );
+            })()}
 
             {/* Delivery Destination Card */}
             {order.shippingAddress && (

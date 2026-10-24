@@ -13,6 +13,7 @@ import {
   ChevronDown,
   ArrowRight,
   Sparkles,
+  Truck,
 } from "lucide-react";
 import { storeConfig } from "@/config/store.config";
 import { featureConfig } from "@/config/feature.config";
@@ -399,6 +400,17 @@ export function Navbar() {
               </button>
             )}
 
+            {/* Desktop View Track Order Button */}
+            <Link
+              href="/track-order"
+              aria-label="Track Order"
+              title="Track Order"
+              className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold tracking-wider uppercase text-[var(--foreground)] hover:text-amber-800 hover:bg-neutral-100/80 border border-neutral-200/60 shadow-2xs transition-all cursor-pointer"
+            >
+              <Truck className="w-3.5 h-3.5 text-amber-700" />
+              <span className="hidden xl:inline">Track Order</span>
+            </Link>
+
             {featureConfig.customerAccounts && (
               <Link
                 href="/account"
@@ -583,6 +595,14 @@ export function Navbar() {
                 My Account
               </Link>
             )}
+
+            <Link
+              href="/track-order"
+              onClick={closeMobileMenu}
+              className="block text-sm font-semibold uppercase tracking-widest text-amber-700 hover:text-amber-800 transition-colors"
+            >
+              Track Order
+            </Link>
           </div>
         </div>
       )}

@@ -12,6 +12,15 @@ import {
   CancelOrderResponse,
   ReorderResponse,
 } from "@/types/order.types";
+import {
+  TrackOrderResponse,
+  TrackOrderResponseData,
+  OrderTrackingInfo,
+} from "@/types/tracking.types";
+import {
+  compileTrackingTimeline,
+  formatTrackOrderData,
+} from "@/utils/tracking.utils";
 
 export class OrderService {
   /**
@@ -186,6 +195,7 @@ export class OrderService {
                   quantity: Number(it.quantity || 1),
                 }))
               : [],
+            tracking: raw.tracking || compileTrackingTimeline(raw),
           };
 
           return {
@@ -301,6 +311,7 @@ export class OrderService {
           createdAt: sh.createdAt,
         })),
         metafields: (found as any).metafields || [],
+        tracking: compileTrackingTimeline(found),
       };
 
       return {
@@ -516,4 +527,155 @@ export class OrderService {
       };
     }
   }
+
+  /**
+   * 5. GET /api/v1/orders/track OR GET /api/v1/orders/:orderNumber/track OR POST /api/v1/orders/track
+   * Complete Order Tracking & Timeline Engine (Document 27)
+   * Supports both Authenticated (Zero param) & Public Guest (Order Number + Email/Phone verification)
+   */
+  static async trackOrder(
+    orderNumber: string,
+    contact?: { email?: string; phone?: string; emailOrPhone?: string }
+  ): Promise<TrackOrderResponse> {
+    const baseUrl = getApiBaseUrl();
+    const cleanOrderNumber = (orderNumber || "").trim();
+
+    if (!cleanOrderNumber) {
+      return {
+        success: false,
+        statusCode: 400,
+        message: "Please enter a valid order number to view tracking details.",
+        error: { code: "INVALID_ORDER_NUMBER" },
+      };
+    }
+
+    const email = contact?.email?.trim();
+    const phone = contact?.phone?.trim();
+    const emailOrPhone = contact?.emailOrPhone?.trim();
+
+    // 1. Try Live Backend GET /orders/:orderNumber/track with query parameters
+    try {
+      const qp = new URLSearchParams();
+      if (email) qp.set("email", email);
+      if (phone) qp.set("phone", phone);
+      if (emailOrPhone) qp.set("emailOrPhone", emailOrPhone);
+
+      const queryStr = qp.toString() ? `?${qp.toString()}` : "";
+      const endpoint = `${baseUrl}/orders/${encodeURIComponent(cleanOrderNumber)}/track${queryStr}`;
+
+      const res = await AuthService.fetchWithAuth(endpoint, {
+        method: "GET",
+      });
+
+      const json = await res.json().catch(() => ({}));
+
+      if (res.ok && json.success && json.data) {
+        return {
+          success: true,
+          statusCode: res.status,
+          message: json.message || "Order tracking details retrieved successfully",
+          data: json.data,
+        };
+      }
+
+      // If backend explicitly rejected contact verification (400, 401, 404), return the message
+      if (!res.ok && json.message && (res.status === 400 || res.status === 401 || res.status === 404)) {
+        return {
+          success: false,
+          statusCode: res.status,
+          message: json.message,
+          error: json.error || { code: res.status === 401 ? "UNAUTHORIZED" : "NOT_FOUND" },
+        };
+      }
+    } catch (liveErr) {
+      console.warn(`[OrderService] Live trackOrder(${cleanOrderNumber}) failed, running local tracking engine:`, liveErr);
+    }
+
+    // 2. Dual-Mode Local Security Guard & Timeline Compiler Fallback
+    try {
+      const localOrders = AdminService.getLocalOrders();
+      const order = localOrders.find(
+        (o) =>
+          (o.orderNumber || "").toUpperCase() === cleanOrderNumber.toUpperCase() ||
+          o.id === cleanOrderNumber
+      );
+
+      if (!order) {
+        return {
+          success: false,
+          statusCode: 404,
+          message:
+            "Order details could not be verified. Please check the order number and email or phone number entered.",
+          error: { code: "ORDER_NOT_FOUND" },
+        };
+      }
+
+      // Dual-Mode Security Guard:
+      // A. Check if user is authenticated and is the owner
+      const currentUser = await AuthService.getCurrentUser();
+      const isOwner = Boolean(
+        currentUser &&
+          ((currentUser.email &&
+            order.customerEmail &&
+            currentUser.email.toLowerCase() === order.customerEmail.toLowerCase()) ||
+            currentUser.role === "ADMIN" ||
+            currentUser.role === "SUPER_ADMIN" ||
+            currentUser.role === "STAFF")
+      );
+
+      // B. If not authenticated owner, strict contact verification is required
+      if (!isOwner) {
+        const contactInput = emailOrPhone || email || phone || "";
+        const cleanInput = contactInput.trim().toLowerCase();
+
+        if (!cleanInput) {
+          return {
+            success: false,
+            statusCode: 401,
+            message:
+              "Please provide the email address or phone number associated with this order to view tracking details.",
+            error: { code: "CONTACT_INPUT_REQUIRED" },
+          };
+        }
+
+        const orderEmail = (order.customerEmail || "").trim().toLowerCase();
+        const orderPhone = (order.customerPhone || "").replace(/\D/g, "");
+        const inputDigits = cleanInput.replace(/\D/g, "");
+
+        const isEmailMatch = cleanInput.includes("@") && orderEmail === cleanInput;
+        const isPhoneMatch =
+          inputDigits.length >= 4 &&
+          (orderPhone.endsWith(inputDigits.slice(-10)) || inputDigits.endsWith(orderPhone.slice(-10)));
+        const isGenericMatch = !cleanInput.includes("@") && orderEmail.length > 0 && orderEmail.includes(cleanInput);
+
+        if (!isEmailMatch && !isPhoneMatch && !isGenericMatch) {
+          return {
+            success: false,
+            statusCode: 404,
+            message:
+              "Order details could not be verified. Please check the order number and email or phone number entered.",
+            error: { code: "VERIFICATION_FAILED" },
+          };
+        }
+      }
+
+      // Compile canonical 5-step timeline with PII masking for guests
+      const responseData = formatTrackOrderData(order, !isOwner);
+
+      return {
+        success: true,
+        statusCode: 200,
+        message: "Order tracking details retrieved successfully",
+        data: responseData,
+      };
+    } catch (fallbackErr: any) {
+      return {
+        success: false,
+        statusCode: 500,
+        message: fallbackErr.message || "Unable to retrieve order tracking information.",
+        error: { code: "TRACKING_ENGINE_ERROR" },
+      };
+    }
+  }
 }
+

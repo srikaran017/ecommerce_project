@@ -141,6 +141,7 @@ import {
 } from "@/lib/rbac";
 import { WishlistAnalyticsResponse } from "@/types/wishlist.types";
 import { WishlistService } from "@/services/wishlist.service";
+import { AddCheckpointInput, AddCheckpointResponse } from "@/types/tracking.types";
 
 const getBaseUrl = () => getApiBaseUrl();
 
@@ -3129,6 +3130,93 @@ export class AdminService {
         trackingNumber: currentOrder.trackingNumber,
         status: currentOrder.status,
         shippedAt: currentOrder.shippedAt,
+      },
+    };
+  }
+
+  /**
+   * 2.4b. POST /api/v1/admin/orders/:id/checkpoints
+   * Add custom real-time tracking checkpoint / progress milestone
+   * Document 27, Section 4.3
+   */
+  static async addTrackingCheckpoint(
+    orderId: string,
+    input: AddCheckpointInput
+  ): Promise<AddCheckpointResponse> {
+    const formattedComment = input.location
+      ? `[${input.location}] ${input.comment}`
+      : input.comment;
+
+    // 1. Live API call
+    const res = await this.request<{ checkpoint: any }>(`/orders/${orderId}/checkpoints`, {
+      method: "POST",
+      body: JSON.stringify({
+        comment: input.comment,
+        location: input.location,
+        status: input.status,
+      }),
+    });
+
+    if (res.success && res.data) {
+      return {
+        success: true,
+        statusCode: 201,
+        message: res.message || "Tracking checkpoint added successfully",
+        data: res.data,
+      };
+    }
+
+    // 2. Local Fallback
+    const orders = this.getLocalOrders();
+    const idx = orders.findIndex((o) => o.id === orderId || o.orderNumber === orderId);
+    if (idx === -1) {
+      return {
+        success: false,
+        statusCode: 404,
+        message: `Order #${orderId} not found`,
+        error: { code: "ORDER_NOT_FOUND" },
+      };
+    }
+
+    const currentOrder = orders[idx];
+    const prevStatus = currentOrder.status;
+    const now = new Date().toISOString();
+    const adminUser = this.getCurrentAdminUser();
+
+    if (input.status) {
+      currentOrder.status = input.status as OrderStatus;
+      if (input.status === "DELIVERED") {
+        (currentOrder as any).deliveredAt = now;
+      }
+    }
+    currentOrder.updatedAt = now;
+
+    const newCheckpoint = {
+      id: `cp_${Date.now()}`,
+      orderId: currentOrder.id,
+      previousStatus: prevStatus,
+      newStatus: currentOrder.status,
+      comment: formattedComment,
+      createdAt: now,
+      changedBy: adminUser,
+    };
+
+    currentOrder.statusHistory = currentOrder.statusHistory || [];
+    currentOrder.statusHistory.push(newCheckpoint);
+
+    setLocalData(STORAGE_KEYS.ORDERS, orders);
+    this.logAudit(
+      "ORDER",
+      currentOrder.orderNumber,
+      `Added tracking checkpoint: ${formattedComment}${input.status ? ` (Status: ${input.status})` : ""}`
+    );
+
+    return {
+      success: true,
+      statusCode: 201,
+      message: "Tracking checkpoint added successfully",
+      data: {
+        checkpoint: newCheckpoint,
       },
     };
   }

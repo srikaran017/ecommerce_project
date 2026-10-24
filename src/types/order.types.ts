@@ -62,6 +62,8 @@ export interface CustomerOrderPricing {
   currency: string;
 }
 
+import type { OrderTrackingInfo } from "./tracking.types";
+
 export interface CustomerOrder {
   id: string;
   orderNumber: string;
@@ -84,6 +86,7 @@ export interface CustomerOrder {
   cancelledAt?: string | null;
   cancelReason?: string | null;
   notes?: string | null;
+  tracking?: OrderTrackingInfo;
   pricing?: CustomerOrderPricing;
   items: CustomerOrderItem[];
   payments?: CustomerOrderPayment[];

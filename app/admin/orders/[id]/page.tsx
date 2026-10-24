@@ -143,6 +143,13 @@ export default function OrderDetailsPage() {
   const [mfIsPublic, setMfIsPublic] = useState(false);
   const [isSavingMetafield, setIsSavingMetafield] = useState(false);
 
+  // Checkpoint Management (Document 27, Section 4.3)
+  const [isCheckpointModalOpen, setIsCheckpointModalOpen] = useState(false);
+  const [cpComment, setCpComment] = useState("");
+  const [cpLocation, setCpLocation] = useState("");
+  const [cpStatus, setCpStatus] = useState<string>("");
+  const [isSubmittingCheckpoint, setIsSubmittingCheckpoint] = useState(false);
+
   const loadOrderDetail = async () => {
     setIsLoading(true);
     try {
@@ -249,6 +256,39 @@ export default function OrderDetailsPage() {
       }
     } catch (err: any) {
       showNotification("error", err.message || "Failed to assign shipment.");
+    }
+  };
+
+  const handleAddCheckpoint = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!order || !cpComment.trim()) return;
+    if (!rbac.canWriteOrders(user?.role)) {
+      showNotification("error", "Permission denied: orders:write permission required.");
+      return;
+    }
+
+    setIsSubmittingCheckpoint(true);
+    try {
+      const res = await AdminService.addTrackingCheckpoint(order.id, {
+        comment: cpComment.trim(),
+        location: cpLocation.trim() || undefined,
+        status: cpStatus || undefined,
+      });
+
+      if (res.success) {
+        showNotification("success", "Tracking checkpoint added successfully! Live customer timeline updated.");
+        setIsCheckpointModalOpen(false);
+        setCpComment("");
+        setCpLocation("");
+        setCpStatus("");
+        loadOrderDetail();
+      } else {
+        showNotification("error", res.message || "Failed to add tracking checkpoint.");
+      }
+    } catch (err: any) {
+      showNotification("error", err.message || "Failed to add tracking checkpoint.");
+    } finally {
+      setIsSubmittingCheckpoint(false);
     }
   };
 
@@ -623,6 +663,14 @@ export default function OrderDetailsPage() {
                     <Truck className="w-3.5 h-3.5" />
                     <span>Assign Waybill</span>
                   </button>
+
+                  <button
+                    onClick={() => setIsCheckpointModalOpen(true)}
+                    className="px-4 py-2 bg-amber-950 hover:bg-amber-900 text-amber-300 border border-amber-800 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Add Progress Checkpoint</span>
+                  </button>
                 </div>
               </div>
             ) : (
@@ -684,10 +732,19 @@ export default function OrderDetailsPage() {
 
           {/* Order Status History Timeline (1.2 / 2.2) */}
           <div className="bg-slate-950 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-sm">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-white border-b border-slate-800 pb-3 flex items-center gap-2">
-              <Clock className="w-4 h-4 text-amber-400" />
-              <span>Immutable Audit Timeline ({order.statusHistory?.length || 0} events)</span>
-            </h3>
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-sm font-bold uppercase tracking-wider text-white flex items-center gap-2">
+                <Clock className="w-4 h-4 text-amber-400" />
+                <span>Tracking Checkpoints & Audit Timeline ({order.statusHistory?.length || 0})</span>
+              </h3>
+              <button
+                onClick={() => setIsCheckpointModalOpen(true)}
+                className="px-3 py-1 bg-amber-400/10 hover:bg-amber-400/20 text-amber-400 border border-amber-400/30 rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer transition-colors"
+              >
+                <Sparkles className="w-3 h-3" />
+                <span>+ Add Checkpoint</span>
+              </button>
+            </div>
 
             {order.statusHistory && order.statusHistory.length > 0 ? (
               <div className="space-y-4 pl-2 border-l border-slate-800 text-xs">
@@ -1369,6 +1426,102 @@ export default function OrderDetailsPage() {
                   className="px-6 py-2.5 bg-amber-400 hover:bg-amber-300 disabled:opacity-40 text-slate-950 font-bold uppercase tracking-wider rounded-xl transition-all shadow-md cursor-pointer"
                 >
                   {isSavingMetafield ? "Saving..." : "Save Metafield"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Add Progress Checkpoint Modal (Document 27, Section 4.3) */}
+      {isCheckpointModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-slate-950 border border-slate-800 rounded-3xl p-6 sm:p-8 max-w-md w-full space-y-6 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-2 text-amber-400">
+                <Sparkles className="w-5 h-5" />
+                <h3 className="text-base font-bold text-white uppercase tracking-wider">
+                  Add Tracking Checkpoint
+                </h3>
+              </div>
+              <button
+                onClick={() => setIsCheckpointModalOpen(false)}
+                className="text-slate-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddCheckpoint} className="space-y-4 text-xs">
+              <div className="space-y-1.5">
+                <label className="font-semibold text-slate-300">
+                  Checkpoint Milestone Description *
+                </label>
+                <textarea
+                  required
+                  rows={3}
+                  placeholder="e.g. Handcrafted embroidery inspection passed. Steaming and packaging underway."
+                  value={cpComment}
+                  onChange={(e) => setCpComment(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white font-medium resize-none leading-relaxed focus:border-amber-400 focus:outline-none"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="font-semibold text-slate-300">
+                  Facility or Location Tag (Optional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Atelier Quality Lab, Central Hub, South Delhi Depot"
+                  value={cpLocation}
+                  onChange={(e) => setCpLocation(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white font-medium focus:border-amber-400 focus:outline-none"
+                />
+                <p className="text-[10px] text-slate-500">
+                  Automatically displayed as &quot;[Location] Comment&quot; on customer tracking screen.
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="font-semibold text-slate-300">
+                  Advance Status Simultaneously (Optional)
+                </label>
+                <select
+                  value={cpStatus}
+                  onChange={(e) => setCpStatus(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white font-medium focus:border-amber-400 focus:outline-none"
+                >
+                  <option value="">Keep Current Status ({order?.status})</option>
+                  <option value="PROCESSING">PROCESSING (In Atelier Tailoring)</option>
+                  <option value="PACKED">PACKED (Garment Boxed & Sealed)</option>
+                  <option value="SHIPPED">SHIPPED (Dispatched / In Transit)</option>
+                  <option value="OUT_FOR_DELIVERY">OUT_FOR_DELIVERY (Courier Out for Delivery)</option>
+                  <option value="DELIVERED">DELIVERED (Successfully Delivered)</option>
+                </select>
+              </div>
+
+              <div className="pt-4 border-t border-slate-800 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsCheckpointModalOpen(false)}
+                  className="px-4 py-2 text-slate-400 hover:text-white cursor-pointer font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingCheckpoint || !cpComment.trim()}
+                  className="px-6 py-2.5 bg-amber-400 hover:bg-amber-300 disabled:opacity-40 text-slate-950 font-bold uppercase tracking-wider rounded-xl transition-all shadow-md cursor-pointer flex items-center gap-1.5"
+                >
+                  {isSubmittingCheckpoint ? (
+                    <>
+                      <div className="w-3.5 h-3.5 rounded-full border-2 border-slate-950/30 border-t-slate-950 animate-spin" />
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <span>Post Checkpoint</span>
+                  )}
                 </button>
               </div>
             </form>

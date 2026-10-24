@@ -18,6 +18,9 @@ import {
   FileText,
   Sparkles,
 } from "lucide-react";
+import { compileTrackingTimeline } from "@/utils/tracking.utils";
+import { OrderProgressBar } from "@/components/tracking/OrderProgressBar";
+import { OrderActivityTimeline } from "@/components/tracking/OrderActivityTimeline";
 
 interface OrderTrackingModalProps {
   order: AdminOrder;
@@ -29,6 +32,7 @@ export function OrderTrackingModal({ order, onClose, onShowToast }: OrderTrackin
   const [copied, setCopied] = useState(false);
   const [showInvoice, setShowInvoice] = useState(false);
   const tracking: OrderTrackingDetails = CustomerService.getOrderTrackingDetails(order);
+  const canonicalTracking = compileTrackingTimeline(order);
 
   const handleCopyAwb = () => {
     if (typeof navigator !== "undefined" && navigator.clipboard) {
@@ -116,71 +120,31 @@ export function OrderTrackingModal({ order, onClose, onShowToast }: OrderTrackin
             </div>
           </div>
 
-          {/* Stepper Progress Timeline */}
-          <div className="space-y-3 bg-neutral-50/70 p-5 rounded-2xl border border-neutral-100">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-900 flex items-center gap-2">
-              <Clock className="w-3.5 h-3.5 text-amber-700" />
-              <span>Fulfillment Milestones</span>
-            </h3>
-
-            <div className="relative pl-6 sm:pl-8 space-y-6 pt-2">
-              {/* Vertical connector line */}
-              <div className="absolute left-2.5 sm:left-3.5 top-3 bottom-3 w-0.5 bg-neutral-200" />
-
-              {tracking.stages.map((stage, idx) => {
-                const isPassed = stage.isCompleted;
-                const isCurrent = stage.isCurrent;
-
-                return (
-                  <div key={stage.key} className="relative flex items-start gap-4">
-                    {/* Circle Node */}
-                    <div
-                      className={`absolute -left-6 sm:-left-8 top-0.5 w-6 h-6 rounded-full flex items-center justify-center transition-all ${
-                        isPassed
-                          ? "bg-emerald-600 text-white ring-4 ring-emerald-50"
-                          : isCurrent
-                          ? "bg-amber-600 text-white ring-4 ring-amber-100 animate-pulse"
-                          : "bg-neutral-200 text-neutral-400"
-                      }`}
-                    >
-                      {isPassed ? (
-                        <Check className="w-3.5 h-3.5 stroke-[3]" />
-                      ) : (
-                        <span className="w-2 h-2 rounded-full bg-white" />
-                      )}
-                    </div>
-
-                    <div className="space-y-0.5">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span
-                          className={`text-xs font-bold ${
-                            isCurrent
-                              ? "text-amber-900 font-extrabold"
-                              : isPassed
-                              ? "text-neutral-900"
-                              : "text-neutral-400"
-                          }`}
-                        >
-                          {stage.label}
-                        </span>
-                        {isCurrent && (
-                          <span className="text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 font-bold">
-                            Live Stage
-                          </span>
-                        )}
-                        <span className="text-[10px] text-neutral-400 font-mono">
-                          {stage.timestamp}
-                        </span>
-                      </div>
-                      <p className="text-xs text-neutral-500 max-w-md">
-                        {stage.description}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
+          {/* Canonical 5-Step Progress Timeline */}
+          <div className="space-y-4 bg-neutral-50/70 p-5 rounded-2xl border border-neutral-100">
+            <div className="flex items-center justify-between border-b border-neutral-200/60 pb-2">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-900 flex items-center gap-2">
+                <Clock className="w-3.5 h-3.5 text-amber-700" />
+                <span>Canonical 5-Step Order Progression</span>
+              </h3>
+              <span className="text-[10px] font-bold text-amber-900 bg-amber-100 px-2 py-0.5 rounded-full">
+                Step {canonicalTracking.currentStep} of {canonicalTracking.totalSteps}
+              </span>
             </div>
+
+            <OrderProgressBar tracking={canonicalTracking} />
           </div>
+
+          {/* Activity Checkpoints Feed */}
+          {canonicalTracking.checkpoints && canonicalTracking.checkpoints.length > 0 && (
+            <div className="space-y-3 bg-white p-5 rounded-2xl border border-neutral-100">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-900 flex items-center gap-2">
+                <Sparkles className="w-3.5 h-3.5 text-amber-700" />
+                <span>Atelier & Courier Activity Updates</span>
+              </h3>
+              <OrderActivityTimeline checkpoints={canonicalTracking.checkpoints} />
+            </div>
+          )}
 
           {/* Ordered Garments Recap */}
           <div className="space-y-3">
