@@ -130,6 +130,47 @@ async function proxyRequest(
 
     let body: any = null;
     const reqContentType = req.headers.get("content-type") || "";
+
+    // Order tracking adapter: live backend GET /orders/:orderNumber/track crashes with 500 when phone is omitted in query (due to reading req.body.phone on undefined GET body).
+    // Safely forward to POST /orders/track which handles both email-only and phone-only queries cleanly.
+    const isOrderTrackGet =
+      req.method === "GET" &&
+      (subPath === "orders/track" || (subPath.startsWith("orders/") && subPath.endsWith("/track")));
+
+    if (isOrderTrackGet) {
+      const parts = subPath.split("/");
+      const pathOrderNumber = parts.length === 3 ? parts[1] : undefined;
+      const orderNumber = pathOrderNumber || searchParams.get("orderNumber") || undefined;
+      const email = searchParams.get("email") || undefined;
+      const phone = searchParams.get("phone") || undefined;
+      const emailOrPhone = searchParams.get("emailOrPhone") || undefined;
+
+      const trackHeaders = new Headers(forwardHeaders);
+      trackHeaders.set("content-type", "application/json");
+
+      try {
+        const trackRes = await fetch(`${TARGET_API_URL}/orders/track`, {
+          method: "POST",
+          headers: trackHeaders,
+          body: JSON.stringify({
+            orderNumber,
+            email,
+            phone,
+            emailOrPhone,
+          }),
+        });
+
+        const trackData = await trackRes.json().catch(() => null);
+        if (trackData) {
+          const resHeaders = new Headers();
+          resHeaders.set("Content-Type", "application/json");
+          resHeaders.set("Cache-Control", "no-store, no-cache, must-revalidate");
+          return NextResponse.json(trackData, { status: trackRes.status, headers: resHeaders });
+        }
+      } catch (trackErr) {
+        console.warn("[Proxy trackOrder GET Adapter Error]:", trackErr);
+      }
+    }
     const isProductCreateOrUpdate =
       (subPath === "admin/products" ||
         (subPath.startsWith("admin/products/") && !subPath.includes("/images"))) &&
