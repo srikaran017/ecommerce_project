@@ -127,40 +127,16 @@ export function AccountClient({ initialProducts }: AccountClientProps) {
     router.push("/login");
   };
 
+  useEffect(() => {
+    if (!isAuthenticated) {
+      router.replace("/login?redirect=/account");
+    }
+  }, [isAuthenticated, router]);
+
   if (!isAuthenticated) {
     return (
-      <div className="min-h-[75vh] flex items-center justify-center px-4 py-16 bg-[var(--background)]">
-        <div className="max-w-md w-full bg-white p-6 sm:p-8 rounded-xl border border-neutral-200/90 shadow-xs space-y-6 text-center">
-          <div className="w-12 h-12 rounded-full bg-neutral-100 flex items-center justify-center mx-auto text-neutral-600">
-            <User className="w-6 h-6 stroke-[1.75]" />
-          </div>
-
-          <div className="space-y-1.5">
-            <h1 className="text-xl font-semibold text-neutral-900">
-              Sign in to your account
-            </h1>
-            <p className="text-xs sm:text-sm text-neutral-500 max-w-sm mx-auto">
-              Access your order history, saved addresses, and profile details.
-            </p>
-          </div>
-
-          <div className="pt-2 flex flex-col gap-2.5">
-            <Link
-              href="/login?redirect=/account"
-              className="w-full py-2.5 bg-neutral-900 hover:bg-neutral-800 text-white font-medium text-xs rounded-lg transition-colors shadow-xs flex items-center justify-center gap-2"
-            >
-              <LogIn className="w-3.5 h-3.5" />
-              <span>Sign in</span>
-            </Link>
-
-            <Link
-              href="/signup?redirect=/account"
-              className="w-full py-2.5 bg-white hover:bg-neutral-50 text-neutral-800 font-medium text-xs rounded-lg border border-neutral-300 transition-colors flex items-center justify-center"
-            >
-              <span>Create account</span>
-            </Link>
-          </div>
-        </div>
+      <div className="min-h-screen bg-[var(--background)] flex items-center justify-center">
+        <div className="w-7 h-7 rounded-full border-2 border-neutral-300 border-t-neutral-900 animate-spin" />
       </div>
     );
   }
