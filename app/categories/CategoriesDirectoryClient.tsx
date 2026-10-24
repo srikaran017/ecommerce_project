@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { ApiCategory } from "@/services/catalogApi";
 import { CategoryConfig, INITIAL_CATEGORIES } from "@/config/category.config";
+import { Pagination } from "@/components/ui/Pagination";
 
 interface CategoriesDirectoryClientProps {
   categoriesTree: ApiCategory[];
@@ -23,6 +24,8 @@ export function CategoriesDirectoryClient({
   categoriesTree,
 }: CategoriesDirectoryClientProps) {
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchPage, setSearchPage] = useState(1);
+  const pageSize = 12;
 
   // Default curated visual catalog images if backend imageUrl is null
   const defaultImages: Record<string, string> = {
@@ -104,6 +107,13 @@ export function CategoriesDirectoryClient({
       )
     : [];
 
+  const totalSearchPages = Math.max(1, Math.ceil(filteredLeaves.length / pageSize));
+  const safeSearchPage = Math.min(Math.max(1, searchPage), totalSearchPages);
+  const paginatedLeaves = filteredLeaves.slice(
+    (safeSearchPage - 1) * pageSize,
+    safeSearchPage * pageSize
+  );
+
   return (
     <div className="py-8 sm:py-12 bg-neutral-50/50 min-h-screen">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -172,46 +182,60 @@ export function CategoriesDirectoryClient({
                 </p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredLeaves.map((cat, idx) => (
-                  <Link
-                    key={`${cat.slug}-${idx}`}
-                    href={`/categories/${cat.slug}`}
-                    className="group bg-white rounded-3xl overflow-hidden border border-neutral-200/80 shadow-sm hover:shadow-lg transition-all flex flex-col p-5"
-                  >
-                    <div className="flex items-center gap-4 mb-3">
-                      <div className="w-16 h-16 rounded-2xl overflow-hidden bg-neutral-100 flex-shrink-0">
-                        <img
-                          src={cat.image}
-                          alt={cat.name}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                        />
-                      </div>
-                      <div className="min-w-0">
-                        {cat.parentName && (
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 block truncate">
-                            {cat.parentName}
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {paginatedLeaves.map((cat, idx) => (
+                    <Link
+                      key={`${cat.slug}-${idx}`}
+                      href={`/categories/${cat.slug}`}
+                      className="group bg-white rounded-3xl overflow-hidden border border-neutral-200/80 shadow-sm hover:shadow-lg transition-all flex flex-col p-5"
+                    >
+                      <div className="flex items-center gap-4 mb-3">
+                        <div className="w-16 h-16 rounded-2xl overflow-hidden bg-neutral-100 flex-shrink-0">
+                          <img
+                            src={cat.image}
+                            alt={cat.name}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                          />
+                        </div>
+                        <div className="min-w-0">
+                          {cat.parentName && (
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 block truncate">
+                              {cat.parentName}
+                            </span>
+                          )}
+                          <h3 className="font-heading text-base font-bold uppercase text-neutral-900 group-hover:text-amber-700 transition-colors truncate">
+                            {cat.name}
+                          </h3>
+                          <span className="text-[11px] text-neutral-500 block">
+                            Slug: /{cat.slug}
                           </span>
-                        )}
-                        <h3 className="font-heading text-base font-bold uppercase text-neutral-900 group-hover:text-amber-700 transition-colors truncate">
-                          {cat.name}
-                        </h3>
-                        <span className="text-[11px] text-neutral-500 block">
-                          Slug: /{cat.slug}
-                        </span>
+                        </div>
                       </div>
-                    </div>
-                    {cat.description && (
-                      <p className="text-xs text-neutral-500 line-clamp-2 mt-auto pt-2 border-t border-neutral-100">
-                        {cat.description}
-                      </p>
-                    )}
-                    <div className="mt-4 flex items-center justify-between text-xs font-bold uppercase tracking-wider text-neutral-900 group-hover:text-amber-700 pt-2 border-t border-neutral-100">
-                      <span>View Products</span>
-                      <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                    </div>
-                  </Link>
-                ))}
+                      {cat.description && (
+                        <p className="text-xs text-neutral-500 line-clamp-2 mt-auto pt-2 border-t border-neutral-100">
+                          {cat.description}
+                        </p>
+                      )}
+                      <div className="mt-4 flex items-center justify-between text-xs font-bold uppercase tracking-wider text-neutral-900 group-hover:text-amber-700 pt-2 border-t border-neutral-100">
+                        <span>View Products</span>
+                        <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+
+                {/* Categories Pagination */}
+                {totalSearchPages > 1 && (
+                  <Pagination
+                    currentPage={safeSearchPage}
+                    totalPages={totalSearchPages}
+                    totalItems={filteredLeaves.length}
+                    pageSize={pageSize}
+                    onPageChange={setSearchPage}
+                    itemLabel="categories"
+                  />
+                )}
               </div>
             )}
           </div>

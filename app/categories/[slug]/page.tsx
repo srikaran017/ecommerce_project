@@ -2,6 +2,7 @@ import React from "react";
 import Link from "next/link";
 import { ProductService } from "@/services/product.service";
 import { ProductCard } from "@/components/product/ProductCard";
+import { Pagination } from "@/components/ui/Pagination";
 import { ChevronRight, Sparkles } from "lucide-react";
 import { storeConfig } from "@/config/store.config";
 
@@ -41,9 +42,12 @@ export default async function CategoryPage({
   const { slug } = await params;
   const resolvedSearchParams = await searchParams;
 
-  const { category, products } = await ProductService.getCategoryProducts(slug, {
-    page: resolvedSearchParams.page ? Number(resolvedSearchParams.page) : 1,
-    limit: resolvedSearchParams.limit ? Number(resolvedSearchParams.limit) : 24,
+  const page = resolvedSearchParams.page ? Math.max(1, Number(resolvedSearchParams.page)) : 1;
+  const limit = resolvedSearchParams.limit ? Number(resolvedSearchParams.limit) : 12;
+
+  const { category, products, pagination } = await ProductService.getCategoryProducts(slug, {
+    page,
+    limit,
     sort: resolvedSearchParams.sort,
     minPrice: resolvedSearchParams.minPrice
       ? Number(resolvedSearchParams.minPrice)
@@ -148,11 +152,19 @@ export default async function CategoryPage({
 
               <div className="flex items-center gap-3 pt-1 text-xs text-neutral-500 font-medium flex-wrap">
                 <span className="px-3 py-1 rounded-full bg-white/85 border border-amber-200/70 text-amber-900 font-semibold text-[11px] shadow-2xs">
-                  {products.length} {products.length === 1 ? "Curated Silhouette" : "Curated Silhouettes"}
+                  {pagination?.total ?? products.length}{" "}
+                  {(pagination?.total ?? products.length) === 1
+                    ? "Curated Silhouette"
+                    : "Curated Silhouettes"}
                 </span>
                 {catDetails?.parent && (
                   <span className="text-neutral-500">
                     Department: <strong className="text-neutral-800">{catDetails.parent.name}</strong>
+                  </span>
+                )}
+                {pagination && pagination.totalPages > 1 && (
+                  <span className="text-neutral-500 font-mono text-[11px]">
+                    Page {pagination.page} of {pagination.totalPages}
                   </span>
                 )}
               </div>
@@ -201,10 +213,25 @@ export default async function CategoryPage({
             </Link>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-            {products.map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+              {products.map((product) => (
+                <ProductCard key={product.id} product={product} />
+              ))}
+            </div>
+
+            {/* Category Products Pagination */}
+            {pagination && pagination.totalPages > 1 && (
+              <Pagination
+                currentPage={pagination.page || page}
+                totalPages={pagination.totalPages}
+                totalItems={pagination.total}
+                pageSize={pagination.limit || limit}
+                basePath={`/categories/${encodeURIComponent(slug)}`}
+                queryParams={resolvedSearchParams}
+                itemLabel="silhouettes"
+              />
+            )}
           </div>
         )}
       </div>

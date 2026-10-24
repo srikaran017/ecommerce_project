@@ -14,6 +14,7 @@ import {
   Search,
 } from "lucide-react";
 import { ProductCard } from "@/components/product/ProductCard";
+import { Pagination } from "@/components/ui/Pagination";
 import { ProductData } from "@/data/products.data";
 import { storeConfig } from "@/config/store.config";
 import { INITIAL_CATEGORIES, INITIAL_OCCASIONS } from "@/config/category.config";
@@ -63,6 +64,16 @@ export function ProductsCatalogClient({
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [categorySearchQuery, setCategorySearchQuery] = useState("");
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState<number>(() => {
+    const p = searchParams.get("page");
+    return p ? Math.max(1, parseInt(p, 10) || 1) : 1;
+  });
+  const [pageSize, setPageSize] = useState<number>(() => {
+    const l = searchParams.get("limit");
+    return l ? parseInt(l, 10) || 12 : 12;
+  });
+
   // Keep state in sync if URL searchParams change
   useEffect(() => {
     setSelectedCategory(searchParams.get("category") || category || "");
@@ -71,6 +82,18 @@ export function ProductsCatalogClient({
     setSelectedColor(searchParams.get("color") || "");
     setInStockOnly(searchParams.get("inStock") === "true");
     setSelectedSort(searchParams.get("sort") || sort || "featured");
+
+    const pageParam = searchParams.get("page");
+    if (pageParam) {
+      setCurrentPage(Math.max(1, parseInt(pageParam, 10) || 1));
+    } else {
+      setCurrentPage(1);
+    }
+
+    const limitParam = searchParams.get("limit");
+    if (limitParam) {
+      setPageSize(parseInt(limitParam, 10) || 12);
+    }
   }, [searchParams, category, occasion, sort]);
 
   const [allProducts, setAllProducts] = useState<ProductData[]>(initialProducts);
@@ -598,8 +621,33 @@ export function ProductsCatalogClient({
     selectedSort,
   ]);
 
-  const updateFilters = (overrides: Record<string, string | null>) => {
+  // Derived Pagination Calculations
+  const totalCount = displayProducts.length;
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+  const safePage = Math.min(Math.max(1, currentPage), totalPages);
+
+  const paginatedProducts = useMemo(() => {
+    const start = (safePage - 1) * pageSize;
+    return displayProducts.slice(start, start + pageSize);
+  }, [displayProducts, safePage, pageSize]);
+
+  // Reset page if filtered results shrink below currentPage
+  useEffect(() => {
+    if (currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
+  const updateFilters = (
+    overrides: Record<string, string | null>,
+    resetPage = true
+  ) => {
     const current = new URLSearchParams(searchParams.toString());
+
+    if (resetPage && !("page" in overrides)) {
+      current.delete("page");
+      setCurrentPage(1);
+    }
 
     Object.entries(overrides).forEach(([key, val]) => {
       if (val === null || val === "") {
@@ -610,6 +658,27 @@ export function ProductsCatalogClient({
     });
 
     router.push(`/products?${current.toString()}`);
+  };
+
+  const handlePageChange = (newPage: number) => {
+    setCurrentPage(newPage);
+    updateFilters({ page: String(newPage) }, false);
+
+    // Smooth scroll to top of catalog
+    if (typeof window !== "undefined") {
+      const el = document.getElementById("catalog-results");
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+      } else {
+        window.scrollTo({ top: 300, behavior: "smooth" });
+      }
+    }
+  };
+
+  const handlePageSizeChange = (newSize: number) => {
+    setPageSize(newSize);
+    setCurrentPage(1);
+    updateFilters({ limit: String(newSize), page: "1" }, false);
   };
 
   const handleCategoryChange = (catSlug: string) => {
@@ -779,26 +848,52 @@ export function ProductsCatalogClient({
             </button>
 
             <span className="text-xs font-bold uppercase tracking-wider text-neutral-500">
-              Showing {displayProducts.length} {displayProducts.length === 1 ? "Item" : "Items"}
+              Showing{" "}
+              {displayProducts.length === 0
+                ? "0"
+                : `${(safePage - 1) * pageSize + 1}–${Math.min(
+                    safePage * pageSize,
+                    displayProducts.length
+                  )}`}{" "}
+              of {displayProducts.length}{" "}
+              {displayProducts.length === 1 ? "Silhouette" : "Silhouettes"}
             </span>
           </div>
 
-          {/* Right: Quick Sort */}
-          <div className="flex items-center gap-2 text-xs">
-            <span className="font-bold text-neutral-700 uppercase tracking-wider">
-              Sort:
-            </span>
-            <select
-              value={selectedSort}
-              onChange={handleSortChange}
-              className="bg-neutral-100 text-neutral-900 border border-neutral-200 rounded-xl px-3 py-1.5 text-xs font-bold uppercase tracking-wider focus:outline-none focus:border-neutral-900 cursor-pointer"
-            >
-              {sortOptions.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
+          {/* Right: Items Per Page & Quick Sort */}
+          <div className="flex items-center gap-3 text-xs flex-wrap">
+            <div className="flex items-center gap-1.5">
+              <span className="font-bold text-neutral-500 uppercase tracking-wider">
+                Show:
+              </span>
+              <select
+                value={pageSize}
+                onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+                className="bg-neutral-100 text-neutral-900 border border-neutral-200 rounded-xl px-2.5 py-1.5 text-xs font-bold focus:outline-none focus:border-neutral-900 cursor-pointer"
+              >
+                <option value={12}>12</option>
+                <option value={24}>24</option>
+                <option value={36}>36</option>
+                <option value={48}>48</option>
+              </select>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <span className="font-bold text-neutral-700 uppercase tracking-wider">
+                Sort:
+              </span>
+              <select
+                value={selectedSort}
+                onChange={handleSortChange}
+                className="bg-neutral-100 text-neutral-900 border border-neutral-200 rounded-xl px-3 py-1.5 text-xs font-bold uppercase tracking-wider focus:outline-none focus:border-neutral-900 cursor-pointer"
+              >
+                {sortOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
         </div>
@@ -1142,7 +1237,7 @@ export function ProductsCatalogClient({
             </div>
           </aside>
 
-          {/* Products Grid (9 Cols on Desktop, 4 products per row / 2 per row on mobile) */}
+          {/* Products Grid (9 Cols on Desktop, 3 products per row / 2 per row on mobile) */}
           <div className="lg:col-span-9">
             {displayProducts.length === 0 ? (
               <div className="py-20 text-center space-y-3 bg-white rounded-3xl border border-neutral-200 p-8 shadow-sm">
@@ -1161,10 +1256,22 @@ export function ProductsCatalogClient({
                 </button>
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-3 gap-4 sm:gap-6">
-                {displayProducts.map((product) => (
-                  <ProductCard key={product.id} product={product} />
-                ))}
+              <div id="catalog-results" className="scroll-mt-24 space-y-6">
+                <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-3 gap-4 sm:gap-6">
+                  {paginatedProducts.map((product) => (
+                    <ProductCard key={product.id} product={product} />
+                  ))}
+                </div>
+
+                {/* Pagination Controls */}
+                <Pagination
+                  currentPage={safePage}
+                  totalPages={totalPages}
+                  totalItems={totalCount}
+                  pageSize={pageSize}
+                  onPageChange={handlePageChange}
+                  itemLabel="silhouettes"
+                />
               </div>
             )}
           </div>

@@ -23,6 +23,8 @@ interface ProductsPageProps {
     inStock?: string;
     sort?: string;
     search?: string;
+    page?: string;
+    limit?: string;
   }>;
 }
 
