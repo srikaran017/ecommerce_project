@@ -262,10 +262,21 @@ export const useCartStore = create<CartState>()(
           }
         }
 
-        // Local state fallback if backend request failed
-        const existingIdx = get().items.findIndex(
-          (i) => i.productId === input.productId && i.variantId === input.variantId
-        );
+        // Local state fallback if backend request failed:
+        // Distinguish line items with different modifier configurations
+        const inputModSignature = (input.selectedModifiers || [])
+          .map((m) => `${m.id || m.modifierOptionId || m.name}:${m.textValue || (m as any).fileUrl || ""}`)
+          .sort()
+          .join("|");
+
+        const existingIdx = get().items.findIndex((i) => {
+          if (i.productId !== input.productId || i.variantId !== input.variantId) return false;
+          const iModSignature = (i.selectedModifiers || [])
+            .map((m) => `${m.id || m.modifierOptionId || m.name}:${m.textValue || (m as any).fileUrl || ""}`)
+            .sort()
+            .join("|");
+          return iModSignature === inputModSignature;
+        });
 
         if (existingIdx > -1) {
           const updated = [...get().items];

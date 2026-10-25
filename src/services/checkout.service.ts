@@ -476,6 +476,7 @@ export class CheckoutService {
           size: it.size || "Standard",
           color: it.color || "Standard",
           imageUrl: it.imageUrl,
+          modifiers: it.modifiers || [],
         })),
         subtotal: pricing.subtotal,
         shippingAmount: pricing.shippingAmount,

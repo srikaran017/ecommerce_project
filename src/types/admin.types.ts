@@ -816,6 +816,16 @@ export interface AdminOrderItem {
     sku?: string;
     stockQuantity?: number;
   };
+  modifiers?: Array<{
+    id?: string;
+    name?: string;
+    groupName?: string;
+    groupDisplayName?: string;
+    priceDelta?: number;
+    textValue?: string | null;
+    fileUrl?: string;
+    fileName?: string;
+  }>;
 }
 
 export interface CourierInfo {
