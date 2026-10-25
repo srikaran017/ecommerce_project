@@ -31,6 +31,46 @@ export interface ProductVariantData {
   }>;
 }
 
+export type ModifierType =
+  | "DROPDOWN"
+  | "RADIO_BUTTONS"
+  | "RECTANGLE_LIST"
+  | "CHECKBOX"
+  | "SHORT_TEXT"
+  | "MULTI_LINE_TEXT"
+  | "NUMBERS_ONLY_TEXT"
+  | "DATE"
+  | "FILE_UPLOAD";
+
+export interface ModifierOptionData {
+  id: string;
+  name: string;
+  priceDelta: number;
+  isDefault: boolean;
+  sortOrder?: number;
+}
+
+export interface ModifierGroupData {
+  id: string;
+  name: string;
+  displayName?: string;
+  type?: ModifierType | string;
+  isRequired: boolean;
+  minSelection: number;
+  maxSelection: number;
+  defaultValue?: string | null;
+  config?: {
+    maxLength?: number;
+    minLength?: number;
+    minValue?: number;
+    maxValue?: number;
+    placeholder?: string;
+    allowedExtensions?: string[];
+  } | null;
+  sortOrder?: number;
+  options: ModifierOptionData[];
+}
+
 export interface ProductData {
   id: string;
   name: string;
@@ -100,19 +140,7 @@ export interface ProductData {
     value: string;
     valueSlug: string;
   }>;
-  modifierGroups?: Array<{
-    id: string;
-    name: string;
-    isRequired: boolean;
-    minSelection: number;
-    maxSelection: number;
-    options: Array<{
-      id: string;
-      name: string;
-      priceDelta: number;
-      isDefault: boolean;
-    }>;
-  }>;
+  modifierGroups?: ModifierGroupData[];
 }
 
 export function ensureProductData(p: ProductData): ProductData {

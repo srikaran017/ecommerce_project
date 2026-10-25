@@ -21,9 +21,21 @@ export interface CartMetafield {
 
 export interface SelectedModifier {
   id: string;
-  name: string;
+  modifierGroupId?: string;
   groupName: string;
+  groupDisplayName?: string;
+  type?: string;
+  modifierOptionId?: string | null;
+  name: string;
+  textValue?: string | null;
   priceDelta: number;
+}
+
+export interface CartModifierInput {
+  modifierGroupId?: string;
+  modifierOptionId?: string;
+  textValue?: string;
+  fileUrl?: string;
 }
 
 export interface CartItem {
@@ -90,6 +102,7 @@ export interface AddToCartPayload {
   productId: string;
   variantId?: string | null;
   quantity?: number;
+  modifiers?: CartModifierInput[];
   modifierOptionIds?: string[];
   metafields?: Array<{
     namespace: string;
@@ -101,6 +114,7 @@ export interface AddToCartPayload {
 
 export interface UpdateCartItemPayload {
   quantity?: number;
+  modifiers?: CartModifierInput[];
   modifierOptionIds?: string[];
 }
 

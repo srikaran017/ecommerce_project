@@ -17,6 +17,12 @@ import {
   AdminProductVariantSummary,
   CreateProductInput,
   UpdateProductInput,
+  AdminModifierGroup,
+  AdminModifierOption,
+  CreateModifierGroupInput,
+  UpdateModifierGroupInput,
+  CreateModifierOptionInput,
+  UpdateModifierOptionInput,
   ProductListQueryParams,
   ProductsListResponse,
   AdminProductDetailResponse,
@@ -1374,6 +1380,28 @@ export class AdminService {
       isActive: Boolean(v.isActive),
     }));
 
+    const processedModifierGroups: AdminModifierGroup[] = (parsedInput.modifierGroups || []).map((g: any, gIdx: number) => ({
+      id: g.id || `modgrp_${Date.now()}_${gIdx}`,
+      productId: newId,
+      name: g.name,
+      displayName: g.displayName || g.name,
+      type: g.type,
+      isRequired: Boolean(g.isRequired),
+      minSelection: g.minSelection ?? (g.isRequired ? 1 : 0),
+      maxSelection: g.maxSelection ?? 1,
+      defaultValue: g.defaultValue || null,
+      config: g.config || null,
+      sortOrder: g.sortOrder ?? gIdx,
+      options: (g.options || []).map((o: any, oIdx: number) => ({
+        id: o.id || `modopt_${Date.now()}_${gIdx}_${oIdx}`,
+        modifierGroupId: g.id || `modgrp_${Date.now()}_${gIdx}`,
+        name: o.name,
+        priceDelta: Number(o.priceDelta || 0),
+        isDefault: Boolean(o.isDefault),
+        sortOrder: o.sortOrder ?? oIdx,
+      })),
+    }));
+
     const newProd: AdminProduct = {
       id: newId,
       name: parsedInput.name,
@@ -1402,6 +1430,7 @@ export class AdminService {
       variantsSummary,
       images: processedImages,
       variants: processedVariants,
+      modifierGroups: processedModifierGroups,
       collections: [],
 
       // Backward compatibility fields
@@ -1590,6 +1619,30 @@ export class AdminService {
 
     const newTotalStock = updatedVariants.reduce((sum, v) => sum + (v.stockQuantity || v.stock || 0), 0);
 
+    const normalizedModifierGroups: AdminModifierGroup[] = (parsedInput.modifierGroups || existing.modifierGroups || []).map(
+      (g: any, gIdx: number) => ({
+        id: g.id || `modgrp_${Date.now()}_${gIdx}`,
+        productId: id,
+        name: g.name,
+        displayName: g.displayName || g.name,
+        type: g.type,
+        isRequired: Boolean(g.isRequired),
+        minSelection: g.minSelection ?? (g.isRequired ? 1 : 0),
+        maxSelection: g.maxSelection ?? 1,
+        defaultValue: g.defaultValue || null,
+        config: g.config || null,
+        sortOrder: g.sortOrder ?? gIdx,
+        options: (g.options || []).map((o: any, oIdx: number) => ({
+          id: o.id || `modopt_${Date.now()}_${gIdx}_${oIdx}`,
+          modifierGroupId: g.id || `modgrp_${Date.now()}_${gIdx}`,
+          name: o.name,
+          priceDelta: Number(o.priceDelta || 0),
+          isDefault: Boolean(o.isDefault),
+          sortOrder: o.sortOrder ?? oIdx,
+        })),
+      })
+    );
+
     const updated: AdminProduct = {
       ...existing,
       ...parsedInput,
@@ -1597,6 +1650,7 @@ export class AdminService {
       salePrice: parsedInput.salePrice !== undefined ? (parsedInput.salePrice != null ? Number(parsedInput.salePrice).toFixed(2) : null) : existing.salePrice,
       costPrice: parsedInput.costPrice != null ? Number(parsedInput.costPrice).toFixed(2) : existing.costPrice,
       variants: updatedVariants,
+      modifierGroups: normalizedModifierGroups,
       stockQuantity: newTotalStock,
       totalStock: newTotalStock,
       basePrice: parsedInput.salePrice != null ? Number(parsedInput.salePrice) : (parsedInput.regularPrice != null ? Number(parsedInput.regularPrice) : existing.basePrice),
@@ -1991,6 +2045,462 @@ export class AdminService {
       success: true,
       message: "Image deleted successfully",
       data: { productId, imageId, deleted: true },
+    };
+  }
+
+  // ==========================================
+  // 2.7. BIGCOMMERCE CATALYST PRODUCT MODIFIERS ENGINE
+  // ==========================================
+
+  /**
+   * 2.7.1. GET /api/v1/admin/products/:id/modifiers
+   * List all modifier groups and options for a product
+   */
+  static async getProductModifiers(
+    productId: string
+  ): Promise<{ success: boolean; data?: AdminModifierGroup[]; message?: string; statusCode?: number }> {
+    const res = await this.request<any>(`/products/${productId}/modifiers`);
+    if (res.success && res.data) {
+      const rawData = Array.isArray(res.data) ? res.data : (res.data as any)?.data || [];
+      if (rawData.length > 0) {
+        const data: AdminModifierGroup[] = rawData.map((g: any, gIdx: number) => {
+          const gId = g.id || g._id || g.modifierGroupId || g.groupId || `modgrp_${productId}_${gIdx}`;
+          return {
+            id: gId,
+            productId: g.productId || productId,
+            name: g.name,
+            displayName: g.displayName || g.name,
+            type: g.type,
+            isRequired: Boolean(g.isRequired),
+            minSelection: g.minSelection ?? (g.isRequired ? 1 : 0),
+            maxSelection: g.maxSelection ?? 1,
+            defaultValue: g.defaultValue || null,
+            config: g.config || null,
+            sortOrder: g.sortOrder ?? gIdx,
+            options: (g.options || []).map((o: any, oIdx: number) => ({
+              id: o.id || o._id || o.modifierOptionId || o.optionId || `modopt_${gId}_${oIdx}`,
+              modifierGroupId: gId,
+              name: o.name,
+              priceDelta: Number(o.priceDelta || 0),
+              isDefault: Boolean(o.isDefault),
+              sortOrder: o.sortOrder ?? oIdx,
+            })),
+          };
+        });
+        return {
+          success: true,
+          statusCode: res.statusCode || 200,
+          data,
+          message: res.message || "Product modifiers retrieved successfully",
+        };
+      }
+    }
+
+    // Local Fallback: retrieve modifierGroups stored directly on the product
+    const products = this.getLocalProducts();
+    const prod = products.find((p) => p.id === productId);
+    return {
+      success: true,
+      statusCode: 200,
+      data: prod?.modifierGroups || [],
+      message: "Product modifiers retrieved (local storage)",
+    };
+  }
+
+  /**
+   * 2.7.2. POST /api/v1/admin/products/:id/modifiers
+   * Create Modifier Group
+   */
+  static async createModifierGroup(
+    productId: string,
+    input: CreateModifierGroupInput
+  ): Promise<{ success: boolean; data?: AdminModifierGroup; message?: string; statusCode?: number }> {
+    const res = await this.request<any>(`/products/${productId}/modifiers`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+    if (res.success && res.data) {
+      const raw = (res.data as any)?.data || (res.data as any)?.modifierGroup || res.data;
+      const gId = raw.id || raw._id || raw.modifierGroupId || raw.groupId || `modgrp_${Date.now()}`;
+      const group: AdminModifierGroup = {
+        id: gId,
+        productId: raw.productId || productId,
+        name: raw.name || input.name,
+        displayName: raw.displayName || input.displayName || raw.name || input.name,
+        type: raw.type || input.type,
+        isRequired: raw.isRequired !== undefined ? Boolean(raw.isRequired) : Boolean(input.isRequired),
+        minSelection: raw.minSelection ?? input.minSelection ?? (input.isRequired ? 1 : 0),
+        maxSelection: raw.maxSelection ?? input.maxSelection ?? 1,
+        defaultValue: raw.defaultValue || input.defaultValue || null,
+        config: raw.config || input.config || null,
+        sortOrder: raw.sortOrder ?? input.sortOrder ?? 0,
+        options: (raw.options || []).map((o: any, oIdx: number) => ({
+          id: o.id || o._id || o.modifierOptionId || o.optionId || `modopt_${gId}_${oIdx}`,
+          modifierGroupId: gId,
+          name: o.name,
+          priceDelta: Number(o.priceDelta || 0),
+          isDefault: Boolean(o.isDefault),
+          sortOrder: o.sortOrder ?? oIdx,
+        })),
+      };
+
+      // Sync into local products store to ensure persistence
+      const products = this.getLocalProducts();
+      const prod = products.find((p) => p.id === productId);
+      if (prod) {
+        if (!prod.modifierGroups) prod.modifierGroups = [];
+        const existingIdx = prod.modifierGroups.findIndex((g: any) => (g.id || g._id) === gId || g.name === group.name);
+        if (existingIdx !== -1) {
+          prod.modifierGroups[existingIdx] = group;
+        } else {
+          prod.modifierGroups.push(group);
+        }
+        setLocalData(STORAGE_KEYS.PRODUCTS, products);
+      }
+
+      return {
+        success: true,
+        statusCode: res.statusCode || 201,
+        data: group,
+        message: res.message || "Modifier group created successfully",
+      };
+    }
+
+    // Local Fallback
+    const products = this.getLocalProducts();
+    const prod = products.find((p) => p.id === productId);
+    if (!prod) {
+      return { success: false, statusCode: 404, message: "Product not found" };
+    }
+    const newGroup: AdminModifierGroup = {
+      id: `modgrp_${Date.now()}`,
+      productId,
+      name: input.name,
+      displayName: input.displayName || input.name,
+      type: input.type,
+      isRequired: Boolean(input.isRequired),
+      minSelection: input.minSelection ?? (input.isRequired ? 1 : 0),
+      maxSelection: input.maxSelection ?? 1,
+      defaultValue: input.defaultValue || null,
+      config: input.config || null,
+      sortOrder: input.sortOrder ?? (prod.modifierGroups?.length || 0),
+      options: (input.options || []).map((opt, i) => ({
+        id: `modopt_${Date.now()}_${i}`,
+        modifierGroupId: `modgrp_${Date.now()}`,
+        name: opt.name,
+        priceDelta: Number(opt.priceDelta || 0),
+        isDefault: Boolean(opt.isDefault),
+        sortOrder: opt.sortOrder ?? i,
+      })),
+    };
+    if (!prod.modifierGroups) prod.modifierGroups = [];
+    prod.modifierGroups.push(newGroup);
+    setLocalData(STORAGE_KEYS.PRODUCTS, products);
+
+    return {
+      success: true,
+      statusCode: 201,
+      data: newGroup,
+      message: "Modifier group created successfully",
+    };
+  }
+
+  /**
+   * 2.7.3. PUT /api/v1/admin/products/:id/modifiers/:groupId
+   * Update Modifier Group
+   */
+  static async updateModifierGroup(
+    productId: string,
+    groupId: string,
+    input: UpdateModifierGroupInput
+  ): Promise<{ success: boolean; data?: AdminModifierGroup; message?: string; statusCode?: number }> {
+    const isInvalidServerId =
+      !groupId ||
+      groupId === "undefined" ||
+      groupId === "null" ||
+      groupId.startsWith("modgrp_") ||
+      groupId.startsWith("temp_");
+
+    if (!isInvalidServerId) {
+      const res = await this.request<any>(`/products/${productId}/modifiers/${groupId}`, {
+        method: "PUT",
+        body: JSON.stringify(input),
+      });
+      if (res.success && res.data) {
+        const group = (res.data as any)?.data || res.data;
+        return {
+          success: true,
+          statusCode: res.statusCode || 200,
+          data: group,
+          message: res.message || "Modifier group updated successfully",
+        };
+      }
+    }
+
+    // Local Fallback
+    const products = this.getLocalProducts();
+    const prod = products.find((p) => p.id === productId);
+    const grp = prod?.modifierGroups?.find((g: any) => (g.id || g._id) === groupId);
+    if (!grp) {
+      return { success: false, statusCode: 404, message: "Modifier group not found" };
+    }
+    Object.assign(grp, input);
+    setLocalData(STORAGE_KEYS.PRODUCTS, products);
+
+    return {
+      success: true,
+      statusCode: 200,
+      data: grp,
+      message: "Modifier group updated successfully",
+    };
+  }
+
+  /**
+   * 2.7.4. DELETE /api/v1/admin/products/:id/modifiers/:groupId
+   * Delete Modifier Group
+   */
+  static async deleteModifierGroup(
+    productId: string,
+    groupId: string
+  ): Promise<{ success: boolean; message?: string; statusCode?: number }> {
+    const isInvalidServerId =
+      !groupId ||
+      groupId === "undefined" ||
+      groupId === "null" ||
+      groupId.startsWith("modgrp_") ||
+      groupId.startsWith("temp_");
+
+    if (!isInvalidServerId) {
+      const res = await this.request<any>(`/products/${productId}/modifiers/${groupId}`, {
+        method: "DELETE",
+      });
+      if (res.success) {
+        const products = this.getLocalProducts();
+        const prod = products.find((p) => p.id === productId);
+        if (prod && prod.modifierGroups) {
+          prod.modifierGroups = prod.modifierGroups.filter(
+            (g: any) => g.id !== groupId && g._id !== groupId
+          );
+          setLocalData(STORAGE_KEYS.PRODUCTS, products);
+        }
+        return {
+          success: true,
+          statusCode: res.statusCode || 200,
+          message: res.message || "Modifier group deleted successfully",
+        };
+      }
+    }
+
+    // Local Fallback
+    const products = this.getLocalProducts();
+    const prod = products.find((p) => p.id === productId);
+    if (prod && prod.modifierGroups) {
+      prod.modifierGroups = prod.modifierGroups.filter(
+        (g: any) => g.id !== groupId && g._id !== groupId
+      );
+      setLocalData(STORAGE_KEYS.PRODUCTS, products);
+    }
+    return {
+      success: true,
+      statusCode: 200,
+      message: "Modifier group deleted successfully",
+    };
+  }
+
+  /**
+   * 2.7.5. POST /api/v1/admin/products/:id/modifiers/:groupId/options
+   * Create Option under Modifier Group
+   */
+  static async createModifierOption(
+    productId: string,
+    groupId: string,
+    input: CreateModifierOptionInput
+  ): Promise<{ success: boolean; data?: AdminModifierOption; message?: string; statusCode?: number }> {
+    const isInvalidServerId =
+      !groupId ||
+      groupId === "undefined" ||
+      groupId === "null" ||
+      groupId.startsWith("modgrp_") ||
+      groupId.startsWith("temp_");
+
+    if (!isInvalidServerId) {
+      const res = await this.request<any>(`/products/${productId}/modifiers/${groupId}/options`, {
+        method: "POST",
+        body: JSON.stringify(input),
+      });
+      if (res.success && res.data) {
+        const raw = (res.data as any)?.data || (res.data as any)?.option || res.data;
+        const optId = raw.id || raw._id || raw.modifierOptionId || raw.optionId || `modopt_${Date.now()}`;
+        const opt: AdminModifierOption = {
+          id: optId,
+          modifierGroupId: raw.modifierGroupId || groupId,
+          name: raw.name || input.name,
+          priceDelta: Number(raw.priceDelta ?? input.priceDelta ?? 0),
+          isDefault: Boolean(raw.isDefault ?? input.isDefault),
+          sortOrder: raw.sortOrder ?? input.sortOrder ?? 0,
+        };
+
+        // Always sync option into local products copy
+        const products = this.getLocalProducts();
+        const prod = products.find((p) => p.id === productId);
+        if (prod && prod.modifierGroups) {
+          const grp = prod.modifierGroups.find((g: any) => (g.id || g._id) === groupId);
+          if (grp) {
+            if (!grp.options) grp.options = [];
+            const existingOptIdx = grp.options.findIndex((o: any) => (o.id || o._id) === opt.id || o.name === opt.name);
+            if (existingOptIdx !== -1) {
+              grp.options[existingOptIdx] = opt;
+            } else {
+              grp.options.push(opt);
+            }
+            setLocalData(STORAGE_KEYS.PRODUCTS, products);
+          }
+        }
+
+        return {
+          success: true,
+          statusCode: res.statusCode || 201,
+          data: opt,
+          message: res.message || "Modifier option created successfully",
+        };
+      }
+    }
+
+    // Local Fallback
+    const products = this.getLocalProducts();
+    const prod = products.find((p) => p.id === productId);
+    const grp = prod?.modifierGroups?.find((g: any) => (g.id || g._id) === groupId);
+    if (!grp) {
+      return { success: false, statusCode: 404, message: "Modifier group not found" };
+    }
+    const newOpt: AdminModifierOption = {
+      id: `modopt_${Date.now()}`,
+      modifierGroupId: groupId,
+      name: input.name,
+      priceDelta: Number(input.priceDelta || 0),
+      isDefault: Boolean(input.isDefault),
+      sortOrder: input.sortOrder ?? (grp.options?.length || 0),
+    };
+    if (!grp.options) grp.options = [];
+    grp.options.push(newOpt);
+    setLocalData(STORAGE_KEYS.PRODUCTS, products);
+
+    return {
+      success: true,
+      statusCode: 201,
+      data: newOpt,
+      message: "Modifier option created successfully",
+    };
+  }
+
+  /**
+   * 2.7.6. PUT /api/v1/admin/products/:id/modifiers/:groupId/options/:optionId
+   * Update Modifier Option
+   */
+  static async updateModifierOption(
+    productId: string,
+    groupId: string,
+    optionId: string,
+    input: UpdateModifierOptionInput
+  ): Promise<{ success: boolean; data?: AdminModifierOption; message?: string; statusCode?: number }> {
+    const isInvalidServerId =
+      !groupId ||
+      groupId === "undefined" ||
+      groupId === "null" ||
+      groupId.startsWith("modgrp_") ||
+      !optionId ||
+      optionId === "undefined" ||
+      optionId === "null" ||
+      optionId.startsWith("modopt_");
+
+    if (!isInvalidServerId) {
+      const res = await this.request<any>(`/products/${productId}/modifiers/${groupId}/options/${optionId}`, {
+        method: "PUT",
+        body: JSON.stringify(input),
+      });
+      if (res.success && res.data) {
+        const opt = (res.data as any)?.data || res.data;
+        return {
+          success: true,
+          statusCode: res.statusCode || 200,
+          data: opt,
+          message: res.message || "Modifier option updated successfully",
+        };
+      }
+    }
+
+    // Local Fallback
+    const products = this.getLocalProducts();
+    const prod = products.find((p) => p.id === productId);
+    const grp = prod?.modifierGroups?.find((g: any) => (g.id || g._id) === groupId);
+    const opt = grp?.options?.find((o: any) => (o.id || o._id) === optionId);
+    if (!opt) {
+      return { success: false, statusCode: 404, message: "Modifier option not found" };
+    }
+    Object.assign(opt, input);
+    setLocalData(STORAGE_KEYS.PRODUCTS, products);
+
+    return {
+      success: true,
+      statusCode: 200,
+      data: opt,
+      message: "Modifier option updated successfully",
+    };
+  }
+
+  /**
+   * 2.7.7. DELETE /api/v1/admin/products/:id/modifiers/:groupId/options/:optionId
+   * Delete Modifier Option
+   */
+  static async deleteModifierOption(
+    productId: string,
+    groupId: string,
+    optionId: string
+  ): Promise<{ success: boolean; message?: string; statusCode?: number }> {
+    const isInvalidServerId =
+      !groupId ||
+      groupId === "undefined" ||
+      groupId === "null" ||
+      groupId.startsWith("modgrp_") ||
+      !optionId ||
+      optionId === "undefined" ||
+      optionId === "null" ||
+      optionId.startsWith("modopt_");
+
+    if (!isInvalidServerId) {
+      const res = await this.request<any>(`/products/${productId}/modifiers/${groupId}/options/${optionId}`, {
+        method: "DELETE",
+      });
+      if (res.success) {
+        const products = this.getLocalProducts();
+        const prod = products.find((p) => p.id === productId);
+        if (prod && prod.modifierGroups) {
+          const grp = prod.modifierGroups.find((g: any) => (g.id || g._id) === groupId);
+          if (grp && grp.options) {
+            grp.options = grp.options.filter((o: any) => (o.id || o._id) !== optionId);
+            setLocalData(STORAGE_KEYS.PRODUCTS, products);
+          }
+        }
+        return {
+          success: true,
+          statusCode: res.statusCode || 200,
+          message: res.message || "Modifier option deleted successfully",
+        };
+      }
+    }
+
+    // Local Fallback
+    const products = this.getLocalProducts();
+    const prod = products.find((p) => p.id === productId);
+    const grp = prod?.modifierGroups?.find((g: any) => (g.id || g._id) === groupId);
+    if (grp && grp.options) {
+      grp.options = grp.options.filter((o: any) => (o.id || o._id) !== optionId);
+      setLocalData(STORAGE_KEYS.PRODUCTS, products);
+    }
+    return {
+      success: true,
+      statusCode: 200,
+      message: "Modifier option deleted successfully",
     };
   }
 

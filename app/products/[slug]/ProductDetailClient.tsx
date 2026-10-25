@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -29,6 +29,9 @@ import {
   Image as ImageIcon,
   Trash2,
   Loader2,
+  ChevronDown,
+  Calendar,
+  FileText,
 } from "lucide-react";
 import { storeConfig } from "@/config/store.config";
 import { featureConfig } from "@/config/feature.config";
@@ -159,26 +162,278 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
   const [submitReviewError, setSubmitReviewError] = useState<string | null>(null);
   const [submitReviewSuccess, setSubmitReviewSuccess] = useState<string | null>(null);
 
-  // Selected modifier options: { [groupId: string]: optionId }
-  const [selectedModifiers, setSelectedModifiers] = useState<Record<string, string>>(() => {
-    const initial: Record<string, string> = {};
+  // BigCommerce Catalyst Product Modifiers State
+  // Supports all 9 types: DROPDOWN, RADIO_BUTTONS, RECTANGLE_LIST, CHECKBOX, SHORT_TEXT, MULTI_LINE_TEXT, NUMBERS_ONLY_TEXT, DATE, FILE_UPLOAD
+  interface ModifierSelectionValue {
+    optionId?: string;
+    textValue?: string;
+    fileUrl?: string;
+    fileName?: string;
+  }
+
+  const [selectedModifiers, setSelectedModifiers] = useState<Record<string, ModifierSelectionValue>>(() => {
+    const initial: Record<string, ModifierSelectionValue> = {};
     if (product.modifierGroups) {
       product.modifierGroups.forEach((g) => {
-        const defaultOpt = g.options.find((o) => o.isDefault) || g.options[0];
-        if (defaultOpt) {
-          initial[g.id] = defaultOpt.id;
+        const type = (g.type || "RECTANGLE_LIST").toUpperCase();
+        if (type === "SHORT_TEXT" || type === "MULTI_LINE_TEXT" || type === "NUMBERS_ONLY_TEXT" || type === "DATE") {
+          if (g.defaultValue) {
+            initial[g.id] = { textValue: String(g.defaultValue) };
+          }
+        } else if (type === "CHECKBOX") {
+          const defaultOpt = g.options?.find((o) => o.isDefault);
+          if (defaultOpt) {
+            initial[g.id] = { optionId: defaultOpt.id };
+          }
+        } else {
+          // DROPDOWN, RADIO_BUTTONS, RECTANGLE_LIST
+          const defaultOpt = g.options?.find((o) => o.isDefault) || (g.isRequired ? g.options?.[0] : undefined);
+          if (defaultOpt) {
+            initial[g.id] = { optionId: defaultOpt.id };
+          }
         }
       });
     }
     return initial;
   });
 
-  // Calculate modifier price delta
-  const modifierDelta = Object.entries(selectedModifiers).reduce((sum, [groupId, optId]) => {
-    const group = product.modifierGroups?.find((g) => g.id === groupId);
-    const option = group?.options.find((o) => o.id === optId);
-    return sum + (option?.priceDelta || 0);
-  }, 0);
+  const [modifierErrors, setModifierErrors] = useState<Record<string, string>>({});
+
+  // 1. Base Item Price: activeVariant overrides product
+  const basePrice = useMemo(() => {
+    if (selectedVariant) {
+      return Number(
+        selectedVariant.priceObject?.effective ??
+        selectedVariant.price ??
+        product.priceObject?.effective ??
+        product.price
+      );
+    }
+    return Number(product.priceObject?.effective ?? product.price);
+  }, [selectedVariant, product]);
+
+  // Active valid modifier groups (filters out option-based groups where no options have been configured yet)
+  const activeModifierGroups = useMemo(() => {
+    if (!product.modifierGroups) return [];
+    return product.modifierGroups.filter((g) => {
+      const type = (g.type || "RECTANGLE_LIST").toUpperCase();
+      const isOptionBased = ["DROPDOWN", "RADIO_BUTTONS", "RECTANGLE_LIST", "CHECKBOX"].includes(type);
+      if (isOptionBased && (!g.options || g.options.length === 0)) {
+        return false;
+      }
+      return true;
+    });
+  }, [product.modifierGroups]);
+
+  // 2. Modifiers Delta: Sum of selectedModifierOption.priceDelta
+  const modifierDelta = useMemo(() => {
+    let delta = 0;
+    if (!activeModifierGroups) return 0;
+    for (const group of activeModifierGroups) {
+      const selection = selectedModifiers[group.id];
+      if (selection?.optionId) {
+        const opt = group.options?.find((o) => o.id === selection.optionId);
+        if (opt) delta += Number(opt.priceDelta || 0);
+      }
+    }
+    return delta;
+  }, [activeModifierGroups, selectedModifiers]);
+
+  // 3. Effective Unit Price: Base Price + Modifier Total
+  const finalDisplayPrice = basePrice + modifierDelta;
+
+  const handleSelectOption = (groupId: string, optionId: string | null) => {
+    setSelectedModifiers((prev) => {
+      const next = { ...prev };
+      if (!optionId) {
+        delete next[groupId];
+      } else {
+        next[groupId] = { ...next[groupId], optionId };
+      }
+      return next;
+    });
+    setModifierErrors((prev) => {
+      if (!prev[groupId]) return prev;
+      const next = { ...prev };
+      delete next[groupId];
+      return next;
+    });
+  };
+
+  const handleToggleCheckbox = (groupId: string, optionId: string) => {
+    setSelectedModifiers((prev) => {
+      const next = { ...prev };
+      if (next[groupId]?.optionId === optionId) {
+        delete next[groupId];
+      } else {
+        next[groupId] = { optionId };
+      }
+      return next;
+    });
+    setModifierErrors((prev) => {
+      if (!prev[groupId]) return prev;
+      const next = { ...prev };
+      delete next[groupId];
+      return next;
+    });
+  };
+
+  const handleTextChange = (groupId: string, textValue: string) => {
+    setSelectedModifiers((prev) => ({
+      ...prev,
+      [groupId]: { ...prev[groupId], textValue },
+    }));
+    setModifierErrors((prev) => {
+      if (!prev[groupId]) return prev;
+      const next = { ...prev };
+      delete next[groupId];
+      return next;
+    });
+  };
+
+  const handleFileUpload = (groupId: string, file: File | null) => {
+    if (!file) {
+      setSelectedModifiers((prev) => {
+        const next = { ...prev };
+        delete next[groupId];
+        return next;
+      });
+      return;
+    }
+    const fakeUrl = URL.createObjectURL(file);
+    setSelectedModifiers((prev) => ({
+      ...prev,
+      [groupId]: {
+        ...prev[groupId],
+        fileUrl: fakeUrl,
+        fileName: file.name,
+        textValue: file.name,
+      },
+    }));
+    setModifierErrors((prev) => {
+      if (!prev[groupId]) return prev;
+      const next = { ...prev };
+      delete next[groupId];
+      return next;
+    });
+  };
+
+  const validateModifiers = (): boolean => {
+    const errors: Record<string, string> = {};
+    if (!activeModifierGroups || activeModifierGroups.length === 0) return true;
+
+    for (const group of activeModifierGroups) {
+      const groupId = group.id || "";
+      const selection = selectedModifiers[groupId];
+      const type = (group.type || "RECTANGLE_LIST").toUpperCase();
+      const groupName = group.displayName || group.name;
+
+      if (group.isRequired) {
+        if (type === "SHORT_TEXT" || type === "MULTI_LINE_TEXT" || type === "DATE") {
+          if (!selection?.textValue || !selection.textValue.trim()) {
+            errors[groupId] = `Please enter required customization for "${groupName}".`;
+          }
+        } else if (type === "NUMBERS_ONLY_TEXT") {
+          if (!selection?.textValue || isNaN(Number(selection.textValue))) {
+            errors[groupId] = `Please enter a valid numeric value for "${groupName}".`;
+          }
+        } else if (type === "FILE_UPLOAD") {
+          if (!selection?.fileUrl && !selection?.textValue) {
+            errors[groupId] = `Please upload or attach reference for "${groupName}".`;
+          }
+        } else {
+          // DROPDOWN, RADIO_BUTTONS, RECTANGLE_LIST, CHECKBOX
+          const hasOptions = Boolean(group.options && group.options.length > 0);
+          if (hasOptions && !selection?.optionId) {
+            errors[groupId] = `Please select an option for "${groupName}".`;
+          }
+        }
+      }
+
+      // Text length validations
+      if (selection?.textValue && (type === "SHORT_TEXT" || type === "MULTI_LINE_TEXT")) {
+        const valLen = selection.textValue.trim().length;
+        if (group.config?.minLength && valLen < group.config.minLength) {
+          errors[groupId] = `"${groupName}" must be at least ${group.config.minLength} characters.`;
+        } else if (group.config?.maxLength && valLen > group.config.maxLength) {
+          errors[groupId] = `"${groupName}" cannot exceed ${group.config.maxLength} characters.`;
+        }
+      }
+
+      // Numeric bounds validation
+      if (selection?.textValue && type === "NUMBERS_ONLY_TEXT") {
+        const valNum = Number(selection.textValue);
+        if (isNaN(valNum)) {
+          errors[groupId] = `Please enter a valid number for "${groupName}".`;
+        } else if (group.config?.minValue !== undefined && valNum < group.config.minValue) {
+          errors[groupId] = `"${groupName}" cannot be less than ${group.config.minValue}.`;
+        } else if (group.config?.maxValue !== undefined && valNum > group.config.maxValue) {
+          errors[groupId] = `"${groupName}" cannot exceed ${group.config.maxValue}.`;
+        }
+      }
+    }
+
+    setModifierErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const buildModifierPayloads = () => {
+    const chosenModifiers: any[] = [];
+    const payloadModifiers: any[] = [];
+    const optionIds: string[] = [];
+
+    if (activeModifierGroups) {
+      for (const group of activeModifierGroups) {
+        const selection = selectedModifiers[group.id];
+        if (!selection) continue;
+
+        const groupType = (group.type || "RECTANGLE_LIST").toUpperCase();
+        const groupName = group.displayName || group.name;
+
+        if (selection.optionId) {
+          const opt = group.options?.find((o) => o.id === selection.optionId);
+          if (opt) {
+            optionIds.push(opt.id);
+            payloadModifiers.push({
+              modifierGroupId: group.id,
+              modifierOptionId: opt.id,
+            });
+            chosenModifiers.push({
+              id: opt.id,
+              modifierGroupId: group.id,
+              groupName: group.name,
+              groupDisplayName: groupName,
+              type: groupType,
+              modifierOptionId: opt.id,
+              name: opt.name,
+              textValue: null,
+              priceDelta: opt.priceDelta || 0,
+            });
+          }
+        } else if (selection.textValue || selection.fileUrl) {
+          const val = selection.textValue || selection.fileUrl || "";
+          payloadModifiers.push({
+            modifierGroupId: group.id,
+            textValue: selection.textValue || undefined,
+            fileUrl: selection.fileUrl || undefined,
+          });
+          chosenModifiers.push({
+            id: `${group.id}_val`,
+            modifierGroupId: group.id,
+            groupName: group.name,
+            groupDisplayName: groupName,
+            type: groupType,
+            modifierOptionId: null,
+            name: groupName,
+            textValue: val,
+            priceDelta: 0,
+          });
+        }
+      }
+    }
+
+    return { chosenModifiers, payloadModifiers, optionIds };
+  };
 
   // Group unique colors & sizes
   const uniqueColors = Array.from(
@@ -201,7 +456,6 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
         : 0,
   };
 
-  const finalDisplayPrice = activePrice.effective + modifierDelta;
   const hasOffer = activePrice.offer !== null && activePrice.offer !== undefined;
 
   // Update active image when variant color changes
@@ -231,20 +485,9 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
 
   const handleAddToCart = async () => {
     if (selectedVariant.stock <= 0 || isAdding) return;
+    if (!validateModifiers()) return;
 
-    const chosenModifiers = Object.entries(selectedModifiers)
-      .map(([groupId, optId]) => {
-        const group = product.modifierGroups?.find((g) => g.id === groupId);
-        const opt = group?.options.find((o) => o.id === optId);
-        if (!opt) return null;
-        return {
-          id: opt.id,
-          name: opt.name,
-          groupName: group?.name || "Add-on",
-          priceDelta: opt.priceDelta,
-        };
-      })
-      .filter(Boolean) as any[];
+    const { chosenModifiers, payloadModifiers, optionIds } = buildModifierPayloads();
 
     setIsAdding(true);
     try {
@@ -261,7 +504,8 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
         sku: selectedVariant.sku,
         quantity,
         maxStock: selectedVariant.stock,
-        modifierOptionIds: Object.values(selectedModifiers).filter(Boolean),
+        modifiers: payloadModifiers,
+        modifierOptionIds: optionIds,
         selectedModifiers: chosenModifiers,
       });
 
@@ -282,20 +526,9 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
 
   const handleBuyNow = async () => {
     if (selectedVariant.stock <= 0 || isAdding) return;
+    if (!validateModifiers()) return;
 
-    const chosenModifiers = Object.entries(selectedModifiers)
-      .map(([groupId, optId]) => {
-        const group = product.modifierGroups?.find((g) => g.id === groupId);
-        const opt = group?.options.find((o) => o.id === optId);
-        if (!opt) return null;
-        return {
-          id: opt.id,
-          name: opt.name,
-          groupName: group?.name || "Add-on",
-          priceDelta: opt.priceDelta,
-        };
-      })
-      .filter(Boolean) as any[];
+    const { chosenModifiers, payloadModifiers, optionIds } = buildModifierPayloads();
 
     setIsAdding(true);
     try {
@@ -312,7 +545,8 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
         sku: selectedVariant.sku,
         quantity,
         maxStock: selectedVariant.stock,
-        modifierOptionIds: Object.values(selectedModifiers).filter(Boolean),
+        modifiers: payloadModifiers,
+        modifierOptionIds: optionIds,
         selectedModifiers: chosenModifiers,
       });
 
@@ -654,19 +888,25 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
                 {product.name}
               </h1>
 
-              {/* 3-Tier Price Display */}
+              {/* 3-Tier Dynamic Price Display */}
               <div className="flex items-baseline gap-3 mt-3 flex-wrap">
                 <span className="text-xl sm:text-2xl font-bold text-[var(--foreground)]">
                   {storeConfig.currency.symbol}{finalDisplayPrice.toLocaleString()}
                 </span>
                 {activePrice.regular > activePrice.effective && (
                   <span className="text-sm text-[var(--muted-foreground)] line-through">
-                    {storeConfig.currency.symbol}{activePrice.regular.toLocaleString()}
+                    {storeConfig.currency.symbol}{(activePrice.regular + modifierDelta).toLocaleString()}
                   </span>
                 )}
                 {activePrice.discountPercentage > 0 && (
                   <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-600 text-white shadow-sm">
                     -{activePrice.discountPercentage}% OFF
+                  </span>
+                )}
+                {modifierDelta > 0 && (
+                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-500/10 text-amber-900 border border-amber-300 shadow-xs flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 text-amber-600" />
+                    Includes +{storeConfig.currency.symbol}{modifierDelta.toLocaleString()} customizations
                   </span>
                 )}
                 {hasOffer && (
@@ -761,49 +1001,350 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
               </div>
             </div>
 
-            {/* Modifier Groups (e.g. Luxury Gift Box, Custom Tailoring) */}
-            {product.modifierGroups && product.modifierGroups.length > 0 && (
-              <div className="space-y-4 pt-4 border-t border-[var(--border)]">
-                {product.modifierGroups.map((group) => (
-                  <div key={group.id} className="space-y-2">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-bold uppercase tracking-wider text-[var(--foreground)] flex items-center gap-1.5">
-                        <span>{group.name}</span>
-                        {group.isRequired && (
-                          <span className="text-rose-500 font-normal">*Required</span>
-                        )}
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {group.options.map((opt) => {
-                        const isSelected = selectedModifiers[group.id] === opt.id;
-                        return (
-                          <button
-                            key={opt.id}
-                            type="button"
-                            onClick={() =>
-                              setSelectedModifiers((prev) => ({
-                                ...prev,
-                                [group.id]: opt.id,
-                              }))
-                            }
-                            className={`p-3 rounded-[var(--radius)] border text-left text-xs transition-all cursor-pointer flex items-center justify-between ${
-                              isSelected
-                                ? "border-[var(--foreground)] bg-[var(--muted)]/50 ring-1 ring-[var(--foreground)] shadow-sm"
-                                : "border-[var(--border)] hover:border-[var(--foreground)]"
-                            }`}
-                          >
-                            <span className="font-medium text-[var(--foreground)]">{opt.name}</span>
-                            <span className="text-[11px] font-bold text-amber-700">
-                              {opt.priceDelta > 0 ? `+${storeConfig.currency.symbol}${opt.priceDelta}` : "Included"}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
+            {/* Catalyst Product Modifiers Engine — 9 Control Types */}
+            {activeModifierGroups && activeModifierGroups.length > 0 && (
+              <div className="space-y-5 pt-4 border-t border-[var(--border)]">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                    <span className="text-xs font-bold uppercase tracking-wider text-[var(--foreground)]">
+                      Bespoke Customizations
+                    </span>
                   </div>
-                ))}
+                  <span className="text-[10px] uppercase tracking-wider font-semibold text-amber-700 bg-amber-50 border border-amber-200/60 px-2 py-0.5 rounded-full">
+                    Catalyst Engine
+                  </span>
+                </div>
+
+                {activeModifierGroups.map((group, groupIdx) => {
+                  const type = (group.type || "RECTANGLE_LIST").toUpperCase();
+                  const groupKey = group.id ? `modgrp-${group.id}` : `modgrp-idx-${groupIdx}-${group.name || "group"}`;
+                  const groupId = group.id || `modgrp_${groupIdx}`;
+                  const selection = selectedModifiers[groupId];
+                  const hasError = Boolean(modifierErrors[groupId]);
+
+                  return (
+                    <div
+                      key={groupKey}
+                      className={`p-3.5 rounded-[var(--radius)] border bg-[var(--background)] space-y-2.5 transition-all ${
+                        hasError
+                          ? "border-rose-300 ring-1 ring-rose-200 bg-rose-50/20"
+                          : "border-[var(--border)]"
+                      }`}
+                    >
+                      {/* Group Header */}
+                      <div className="flex items-center justify-between text-xs">
+                        <label className="font-bold uppercase tracking-wider text-[var(--foreground)] flex items-center gap-1.5">
+                          <span>{group.displayName || group.name}</span>
+                          {group.isRequired ? (
+                            <span className="text-rose-500 font-semibold text-[10px]">*Required</span>
+                          ) : (
+                            <span className="text-[var(--muted-foreground)] font-normal text-[10px]">(Optional)</span>
+                          )}
+                        </label>
+                      </div>
+
+                      {/* 1. DROPDOWN */}
+                      {type === "DROPDOWN" && (
+                        <div className="relative">
+                          <select
+                            value={selection?.optionId || ""}
+                            onChange={(e) => handleSelectOption(groupId, e.target.value || null)}
+                            className="w-full appearance-none bg-[var(--background)] border border-[var(--border)] focus:border-[var(--foreground)] focus:ring-1 focus:ring-[var(--foreground)] rounded-[var(--radius)] px-3.5 py-2.5 text-xs text-[var(--foreground)] pr-9 cursor-pointer transition-colors"
+                          >
+                            <option value="">
+                              {group.isRequired
+                                ? `-- Select ${group.displayName || group.name} * --`
+                                : `-- Select Optional ${group.displayName || group.name} --`}
+                            </option>
+                            {group.options.map((opt, optIdx) => (
+                              <option key={opt.id ? `opt-${opt.id}` : `opt-${groupIdx}-${optIdx}`} value={opt.id}>
+                                {opt.name}{" "}
+                                {opt.priceDelta > 0
+                                  ? `(+${storeConfig.currency.symbol}${opt.priceDelta.toLocaleString()})`
+                                  : "(Included)"}
+                              </option>
+                            ))}
+                          </select>
+                          <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--muted-foreground)]">
+                            <ChevronDown className="w-4 h-4" />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 2. RADIO_BUTTONS */}
+                      {type === "RADIO_BUTTONS" && (
+                        <div className="space-y-2">
+                          {group.options.map((opt, optIdx) => {
+                            const isSelected = selection?.optionId === opt.id;
+                            const optKey = opt.id ? `radio-${opt.id}` : `radio-${groupIdx}-${optIdx}`;
+                            return (
+                              <div
+                                key={optKey}
+                                onClick={() =>
+                                  handleSelectOption(
+                                    groupId,
+                                    isSelected && !group.isRequired ? null : opt.id
+                                  )
+                                }
+                                className={`flex items-center justify-between p-3 rounded-[var(--radius)] border text-xs cursor-pointer transition-all ${
+                                  isSelected
+                                    ? "border-[var(--foreground)] bg-[var(--muted)]/50 ring-1 ring-[var(--foreground)] shadow-xs"
+                                    : "border-[var(--border)] hover:border-[var(--foreground)]/60 bg-[var(--background)]"
+                                }`}
+                              >
+                                <div className="flex items-center gap-2.5">
+                                  <div
+                                    className={`w-4 h-4 rounded-full border flex items-center justify-center transition-all ${
+                                      isSelected
+                                        ? "border-[var(--foreground)] bg-[var(--foreground)]"
+                                        : "border-neutral-400"
+                                    }`}
+                                  >
+                                    {isSelected && (
+                                      <div className="w-1.5 h-1.5 rounded-full bg-[var(--background)]" />
+                                    )}
+                                  </div>
+                                  <span className="font-medium text-[var(--foreground)]">{opt.name}</span>
+                                </div>
+                                <span
+                                  className={`text-[11px] font-bold ${
+                                    opt.priceDelta > 0 ? "text-amber-700" : "text-neutral-500"
+                                  }`}
+                                >
+                                  {opt.priceDelta > 0
+                                    ? `+${storeConfig.currency.symbol}${opt.priceDelta.toLocaleString()}`
+                                    : "Included"}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* 3. RECTANGLE_LIST / SWATCH TILES */}
+                      {type === "RECTANGLE_LIST" && (
+                        <div className="flex flex-wrap gap-2">
+                          {group.options.map((opt, optIdx) => {
+                            const isSelected = selection?.optionId === opt.id;
+                            const optKey = opt.id ? `swatch-${opt.id}` : `swatch-${groupIdx}-${optIdx}`;
+                            return (
+                              <button
+                                key={optKey}
+                                type="button"
+                                onClick={() =>
+                                  handleSelectOption(
+                                    groupId,
+                                    isSelected && !group.isRequired ? null : opt.id
+                                  )
+                                }
+                                className={`px-3.5 py-2.5 rounded-[var(--radius)] border text-xs font-medium transition-all cursor-pointer flex items-center gap-2 ${
+                                  isSelected
+                                    ? "border-[var(--foreground)] bg-[var(--foreground)] text-[var(--background)] shadow-sm"
+                                    : "border-[var(--border)] bg-[var(--background)] text-[var(--foreground)] hover:border-[var(--foreground)]"
+                                }`}
+                              >
+                                <span>{opt.name}</span>
+                                <span
+                                  className={`text-[10px] font-bold ${
+                                    isSelected ? "opacity-80" : "text-amber-700"
+                                  }`}
+                                >
+                                  {opt.priceDelta > 0
+                                    ? `+${storeConfig.currency.symbol}${opt.priceDelta.toLocaleString()}`
+                                    : "Included"}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* 4. CHECKBOX */}
+                      {type === "CHECKBOX" && (
+                        <div className="space-y-2">
+                          {group.options.map((opt, optIdx) => {
+                            const isChecked = selection?.optionId === opt.id;
+                            const optKey = opt.id ? `chk-${opt.id}` : `chk-${groupIdx}-${optIdx}`;
+                            return (
+                              <div
+                                key={optKey}
+                                onClick={() => handleToggleCheckbox(groupId, opt.id)}
+                                className={`flex items-center justify-between p-3 rounded-[var(--radius)] border text-xs cursor-pointer transition-all select-none ${
+                                  isChecked
+                                    ? "border-[var(--foreground)] bg-amber-500/5 ring-1 ring-[var(--foreground)] shadow-xs"
+                                    : "border-[var(--border)] hover:border-[var(--foreground)] bg-[var(--background)]"
+                                }`}
+                              >
+                                <div className="flex items-center gap-2.5">
+                                  <div
+                                    className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${
+                                      isChecked
+                                        ? "border-[var(--foreground)] bg-[var(--foreground)] text-[var(--background)]"
+                                        : "border-neutral-400"
+                                    }`}
+                                  >
+                                    {isChecked && <Check className="w-3 h-3 stroke-[3]" />}
+                                  </div>
+                                  <span className="font-medium text-[var(--foreground)]">{opt.name}</span>
+                                </div>
+                                <span
+                                  className={`text-[11px] font-bold ${
+                                    opt.priceDelta > 0 ? "text-amber-700" : "text-neutral-500"
+                                  }`}
+                                >
+                                  {opt.priceDelta > 0
+                                    ? `+${storeConfig.currency.symbol}${opt.priceDelta.toLocaleString()}`
+                                    : "Free"}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* 5. SHORT_TEXT (e.g. Monogram Embroidery) */}
+                      {type === "SHORT_TEXT" && (
+                        <div className="space-y-1">
+                          <div className="relative">
+                            <input
+                              type="text"
+                              value={selection?.textValue || ""}
+                              onChange={(e) => handleTextChange(group.id, e.target.value)}
+                              maxLength={group.config?.maxLength || 30}
+                              placeholder={group.config?.placeholder || "e.g. Priya or P&R"}
+                              className="w-full bg-[var(--background)] border border-[var(--border)] focus:border-[var(--foreground)] focus:ring-1 focus:ring-[var(--foreground)] rounded-[var(--radius)] px-3.5 py-2 text-xs text-[var(--foreground)] placeholder:text-[var(--muted-foreground)]/60 transition-colors uppercase tracking-wider font-mono"
+                            />
+                            {group.config?.maxLength && (
+                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-[var(--muted-foreground)] font-mono pointer-events-none">
+                                {(selection?.textValue || "").length}/{group.config.maxLength}
+                              </span>
+                            )}
+                          </div>
+                          {group.config?.minLength && (
+                            <p className="text-[10px] text-[var(--muted-foreground)]">
+                              Minimum {group.config.minLength} characters required.
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      {/* 6. MULTI_LINE_TEXT (e.g. Custom Tailoring Notes) */}
+                      {type === "MULTI_LINE_TEXT" && (
+                        <div className="space-y-1">
+                          <div className="relative">
+                            <textarea
+                              rows={3}
+                              value={selection?.textValue || ""}
+                              onChange={(e) => handleTextChange(group.id, e.target.value)}
+                              maxLength={group.config?.maxLength || 300}
+                              placeholder={
+                                group.config?.placeholder ||
+                                "Enter tailoring specifications, blouse neckline notes, or measurements..."
+                              }
+                              className="w-full bg-[var(--background)] border border-[var(--border)] focus:border-[var(--foreground)] focus:ring-1 focus:ring-[var(--foreground)] rounded-[var(--radius)] p-3 text-xs text-[var(--foreground)] placeholder:text-[var(--muted-foreground)]/60 transition-colors"
+                            />
+                            {group.config?.maxLength && (
+                              <span className="absolute right-3 bottom-2 text-[10px] text-[var(--muted-foreground)] font-mono pointer-events-none">
+                                {(selection?.textValue || "").length}/{group.config.maxLength}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 7. NUMBERS_ONLY_TEXT (e.g. Custom Length in cm) */}
+                      {type === "NUMBERS_ONLY_TEXT" && (
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="number"
+                              value={selection?.textValue ?? ""}
+                              onChange={(e) => handleTextChange(group.id, e.target.value)}
+                              min={group.config?.minValue}
+                              max={group.config?.maxValue}
+                              placeholder={
+                                group.config?.placeholder ||
+                                (group.config?.minValue !== undefined && group.config?.maxValue !== undefined
+                                  ? `${group.config.minValue} - ${group.config.maxValue}`
+                                  : "Enter value")
+                              }
+                              className="w-36 bg-[var(--background)] border border-[var(--border)] focus:border-[var(--foreground)] focus:ring-1 focus:ring-[var(--foreground)] rounded-[var(--radius)] px-3.5 py-2 text-xs text-[var(--foreground)] font-mono"
+                            />
+                            {(group.config?.minValue !== undefined || group.config?.maxValue !== undefined) && (
+                              <span className="text-[11px] text-[var(--muted-foreground)]">
+                                (Allowed range: {group.config.minValue ?? 0} to {group.config.maxValue ?? "∞"})
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 8. DATE (Target Event / Wedding Date) */}
+                      {type === "DATE" && (
+                        <div className="space-y-1">
+                          <div className="relative max-w-xs">
+                            <input
+                              type="date"
+                              min={new Date().toISOString().split("T")[0]}
+                              value={selection?.textValue || ""}
+                              onChange={(e) => handleTextChange(group.id, e.target.value)}
+                              className="w-full bg-[var(--background)] border border-[var(--border)] focus:border-[var(--foreground)] focus:ring-1 focus:ring-[var(--foreground)] rounded-[var(--radius)] px-3.5 py-2 text-xs text-[var(--foreground)] cursor-pointer"
+                            />
+                          </div>
+                          <p className="text-[10px] text-[var(--muted-foreground)]">
+                            Event/wedding date for scheduled atelier dispatch.
+                          </p>
+                        </div>
+                      )}
+
+                      {/* 9. FILE_UPLOAD (Pattern / Sketch Reference) */}
+                      {type === "FILE_UPLOAD" && (
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-3">
+                            <label className="inline-flex items-center gap-2 px-3.5 py-2 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--background)] hover:border-[var(--foreground)] text-xs font-medium cursor-pointer text-[var(--foreground)] transition-colors">
+                              <UploadCloud className="w-4 h-4 text-amber-600" />
+                              <span>{selection?.fileName ? "Change Attachment" : "Upload Reference Image"}</span>
+                              <input
+                                type="file"
+                                accept={
+                                  group.config?.allowedExtensions?.map((ext) => `.${ext}`).join(",") ||
+                                  "image/*,.pdf"
+                                }
+                                onChange={(e) => handleFileUpload(group.id, e.target.files?.[0] || null)}
+                                className="hidden"
+                              />
+                            </label>
+                            {selection?.fileName && (
+                              <div className="flex items-center gap-1.5 text-xs text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">
+                                <Check className="w-3.5 h-3.5" />
+                                <span className="truncate max-w-[180px] font-mono">{selection?.fileName}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleFileUpload(group.id, null)}
+                                  className="text-neutral-400 hover:text-neutral-700 ml-1 p-0.5 cursor-pointer"
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-[var(--muted-foreground)]">
+                            Attach reference pattern or fit photo (PNG, JPG, PDF up to 10MB).
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Inline Error */}
+                      {hasError && (
+                        <div className="text-[11px] text-rose-600 flex items-center gap-1 font-medium pt-1">
+                          <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                          <span>{modifierErrors[group.id]}</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
 
@@ -843,6 +1384,21 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
               </div>
             )}
 
+            {/* Validation Feedback Banner */}
+            {Object.keys(modifierErrors).length > 0 && (
+              <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-[var(--radius)] flex items-start gap-2.5 text-rose-900 text-xs">
+                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <span className="font-bold">Please complete required customizations:</span>
+                  <ul className="list-disc list-inside text-[11px] text-rose-700 space-y-0.5">
+                    {Object.entries(modifierErrors).map(([gid, err]) => (
+                      <li key={gid}>{err}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            )}
+
             {/* Quantity Selector & Action Buttons */}
             <div className="space-y-3 pt-4 border-t border-[var(--border)]">
               <div className="flex items-center gap-4">
@@ -867,7 +1423,7 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
                     ? "ADDED TO BAG"
                     : isOutOfStock
                     ? "OUT OF STOCK"
-                    : "ADD TO BAG"}
+                    : `ADD TO BAG — ${storeConfig.currency.symbol}${finalDisplayPrice.toLocaleString()}`}
                 </Button>
 
                 {/* Wishlist Button */}
@@ -892,7 +1448,7 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
                   onClick={handleBuyNow}
                   className="w-full"
                 >
-                  BUY IT NOW
+                  BUY IT NOW — {storeConfig.currency.symbol}{finalDisplayPrice.toLocaleString()}
                 </Button>
               )}
             </div>

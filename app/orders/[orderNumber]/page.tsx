@@ -350,6 +350,29 @@ export default function OrderDetailPage() {
                         {item.size ? `Size: ${item.size} • ` : ""}
                         Qty: {item.quantity}
                       </p>
+                      {(item as any).modifiers && (item as any).modifiers.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                          {(item as any).modifiers.map((mod: any, mIdx: number) => {
+                            const groupLabel = mod.groupDisplayName || mod.groupName;
+                            const isText = Boolean(mod.textValue);
+                            const displayText = isText
+                              ? `${groupLabel ? `${groupLabel}: ` : ""}"${mod.textValue}"`
+                              : mod.optionName || mod.name || "Customization";
+                            const deltaText = mod.priceDelta > 0
+                              ? ` (+${storeConfig.currency.symbol}${mod.priceDelta.toLocaleString()})`
+                              : "";
+
+                            return (
+                              <span
+                                key={mod.id || mIdx}
+                                className="text-[10px] text-amber-900 bg-amber-500/10 border border-amber-300/80 px-2 py-0.5 rounded font-medium inline-block"
+                              >
+                                {displayText}{deltaText}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      )}
                       {item.productSlug && (
                         <Link
                           href={`/products/${item.productSlug}`}

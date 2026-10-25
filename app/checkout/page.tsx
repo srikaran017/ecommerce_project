@@ -1256,14 +1256,25 @@ export default function CheckoutPage() {
                         </p>
                         {item.modifiers && item.modifiers.length > 0 && (
                           <div className="flex flex-wrap gap-1 mt-1">
-                            {item.modifiers.map((mod: any) => (
-                              <span
-                                key={mod.id || mod.name}
-                                className="text-[9px] text-amber-800 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded font-medium"
-                              >
-                                +{mod.name} (+{storeConfig.currency.symbol}{mod.priceDelta})
-                              </span>
-                            ))}
+                            {item.modifiers.map((mod: any, mIdx: number) => {
+                              const groupLabel = mod.groupDisplayName || mod.groupName;
+                              const isText = Boolean(mod.textValue);
+                              const displayText = isText
+                                ? `${groupLabel ? `${groupLabel}: ` : ""}"${mod.textValue}"`
+                                : `+${mod.name || mod.optionName || "Customization"}`;
+                              const deltaText = mod.priceDelta > 0
+                                ? ` (+${storeConfig.currency.symbol}${mod.priceDelta.toLocaleString()})`
+                                : "";
+
+                              return (
+                                <span
+                                  key={mod.id || mIdx}
+                                  className="text-[9px] text-amber-900 bg-amber-500/10 border border-amber-300/80 px-2 py-0.5 rounded font-medium"
+                                >
+                                  {displayText}{deltaText}
+                                </span>
+                              );
+                            })}
                           </div>
                         )}
                       </div>

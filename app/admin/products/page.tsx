@@ -38,6 +38,9 @@ import {
   CreateProductInput,
   AdminCategory,
   ProductListQueryParams,
+  AdminModifierGroup,
+  AdminModifierOption,
+  AdminModifierType,
 } from "@/types/admin.types";
 import { useAuthStore } from "@/stores/auth.store";
 import { rbac } from "@/lib/rbac";
@@ -103,6 +106,282 @@ export default function AdminProductsPage() {
   const [drawerImageUrl, setDrawerImageUrl] = useState("");
   const [drawerIsThumbnail, setDrawerIsThumbnail] = useState(false);
   const drawerFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Catalyst Modifiers Drawer State
+  const [isAddingModifierGroup, setIsAddingModifierGroup] = useState(false);
+  const [newGroupData, setNewGroupData] = useState<{
+    name: string;
+    displayName: string;
+    type: AdminModifierType;
+    isRequired: boolean;
+    placeholder: string;
+    minLength?: number;
+    maxLength?: number;
+    minValue?: number;
+    maxValue?: number;
+  }>({
+    name: "",
+    displayName: "",
+    type: "RECTANGLE_LIST",
+    isRequired: false,
+    placeholder: "",
+  });
+
+  const [activeGroupIdForOption, setActiveGroupIdForOption] = useState<string | null>(null);
+  const [newOptionData, setNewOptionData] = useState({
+    name: "",
+    priceDelta: "0",
+    isDefault: false,
+  });
+  const [isSavingModifier, setIsSavingModifier] = useState(false);
+  const [modifierFeedback, setModifierFeedback] = useState<{ type: "success" | "error" | "warning"; message: string } | null>(null);
+
+  // Auto-fetch product modifiers & full details when drawer is opened
+  useEffect(() => {
+    if (viewingProduct?.id) {
+      const pId = viewingProduct.id;
+
+      // 1. Fetch full product record from backend (which includes embedded modifierGroups)
+      AdminService.getProductById(pId)
+        .then((fullProd) => {
+          if (fullProd && fullProd.modifierGroups && fullProd.modifierGroups.length > 0) {
+            setViewingProduct((prev) => (prev && prev.id === pId ? { ...prev, modifierGroups: fullProd.modifierGroups } : prev));
+            setProducts((prev) =>
+              prev.map((p) => (p.id === pId ? { ...p, modifierGroups: fullProd.modifierGroups } : p))
+            );
+          }
+        })
+        .catch((err) => console.warn("Could not load full product:", err));
+
+      // 2. Fetch from dedicated modifiers endpoint if available
+      AdminService.getProductModifiers(pId)
+        .then((res) => {
+          if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+            setViewingProduct((prev) =>
+              prev && prev.id === pId ? { ...prev, modifierGroups: res.data } : prev
+            );
+            setProducts((prev) =>
+              prev.map((p) => (p.id === pId ? { ...p, modifierGroups: res.data } : p))
+            );
+          }
+        })
+        .catch((err) => console.warn("Could not load modifiers for product:", err));
+    }
+  }, [viewingProduct?.id]);
+
+  const handleCreateModifierGroup = async () => {
+    if (!viewingProduct || !newGroupData.name.trim()) return;
+    setIsSavingModifier(true);
+    try {
+      const config: any = {};
+      if (newGroupData.placeholder.trim()) config.placeholder = newGroupData.placeholder.trim();
+      if (newGroupData.minLength !== undefined && !isNaN(newGroupData.minLength)) config.minLength = Number(newGroupData.minLength);
+      if (newGroupData.maxLength !== undefined && !isNaN(newGroupData.maxLength)) config.maxLength = Number(newGroupData.maxLength);
+      if (newGroupData.minValue !== undefined && !isNaN(newGroupData.minValue)) config.minValue = Number(newGroupData.minValue);
+      if (newGroupData.maxValue !== undefined && !isNaN(newGroupData.maxValue)) config.maxValue = Number(newGroupData.maxValue);
+
+      const res = await AdminService.createModifierGroup(viewingProduct.id, {
+        name: newGroupData.name.trim(),
+        displayName: newGroupData.displayName.trim() || newGroupData.name.trim(),
+        type: newGroupData.type,
+        isRequired: newGroupData.isRequired,
+        config: Object.keys(config).length > 0 ? config : null,
+      });
+
+      if (res.success && res.data) {
+        const createdGroup = res.data;
+        const currentGroups = viewingProduct.modifierGroups || [];
+        const updatedGroups = [...currentGroups, createdGroup];
+
+        // 1. Persist updated inline modifierGroups onto the product in the backend
+        await AdminService.updateProduct(viewingProduct.id, {
+          modifierGroups: updatedGroups,
+        });
+
+        // 2. Update viewing product state
+        setViewingProduct((prev) => (prev ? { ...prev, modifierGroups: updatedGroups } : null));
+
+        // 3. Update main products table list so when drawer is closed and reopened, it is retained
+        setProducts((prev) =>
+          prev.map((p) => (p.id === viewingProduct.id ? { ...p, modifierGroups: updatedGroups } : p))
+        );
+
+        setIsAddingModifierGroup(false);
+        setNewGroupData({
+          name: "",
+          displayName: "",
+          type: "RECTANGLE_LIST",
+          isRequired: false,
+          placeholder: "",
+        });
+
+        const isOptionBased = ["RECTANGLE_LIST", "DROPDOWN", "RADIO_BUTTONS", "CHECKBOX"].includes(
+          createdGroup.type
+        );
+        if (isOptionBased && createdGroup.id) {
+          setActiveGroupIdForOption(createdGroup.id);
+          setModifierFeedback({
+            type: "success",
+            message: `Modifier group "${createdGroup.name}" created! Add your first option choice below.`,
+          });
+        } else {
+          setModifierFeedback({
+            type: "success",
+            message: `Modifier group "${createdGroup.name}" created successfully!`,
+          });
+        }
+        setTimeout(() => setModifierFeedback(null), 4000);
+      } else {
+        setModifierFeedback({ type: "error", message: res.message || "Failed to create modifier group" });
+        setTimeout(() => setModifierFeedback(null), 4000);
+      }
+    } catch (err: any) {
+      setModifierFeedback({ type: "error", message: err.message || "Error creating modifier group" });
+      setTimeout(() => setModifierFeedback(null), 4000);
+    } finally {
+      setIsSavingModifier(false);
+    }
+  };
+
+  const handleDeleteModifierGroup = async (group: AdminModifierGroup, groupIdx: number) => {
+    if (!viewingProduct) return;
+    setIsSavingModifier(true);
+    try {
+      const gId = group.id || (group as any)._id || "";
+      const remainingGroups = (viewingProduct.modifierGroups || []).filter(
+        (g, idx) => (gId ? (g.id !== gId && (g as any)._id !== gId) : idx !== groupIdx)
+      );
+
+      // 1. Try granular delete if valid server id exists
+      if (gId && !gId.startsWith("modgrp_") && gId !== "undefined" && gId !== "null") {
+        await AdminService.deleteModifierGroup(viewingProduct.id, gId);
+      }
+
+      // 2. Also persist updated inline modifierGroups onto the product
+      await AdminService.updateProduct(viewingProduct.id, {
+        modifierGroups: remainingGroups,
+      });
+
+      // 3. Update viewing state and main products table list
+      setViewingProduct((prev) => (prev ? { ...prev, modifierGroups: remainingGroups } : null));
+      setProducts((prev) =>
+        prev.map((p) => (p.id === viewingProduct.id ? { ...p, modifierGroups: remainingGroups } : p))
+      );
+      setModifierFeedback({ type: "success", message: `Modifier group "${group.name}" deleted successfully.` });
+      setTimeout(() => setModifierFeedback(null), 4000);
+    } catch (err: any) {
+      setModifierFeedback({ type: "error", message: err.message || "Error deleting modifier group" });
+      setTimeout(() => setModifierFeedback(null), 4000);
+    } finally {
+      setIsSavingModifier(false);
+    }
+  };
+
+  const handleCreateModifierOption = async (group: AdminModifierGroup, groupIdx: number) => {
+    if (!viewingProduct || !newOptionData.name.trim()) return;
+    setIsSavingModifier(true);
+    try {
+      const gId = group.id || (group as any)._id || "";
+      let newOpt: AdminModifierOption = {
+        id: `modopt_${Date.now()}`,
+        modifierGroupId: gId || `modgrp_${groupIdx}`,
+        name: newOptionData.name.trim(),
+        priceDelta: Number(newOptionData.priceDelta || 0),
+        isDefault: newOptionData.isDefault,
+        sortOrder: group.options?.length || 0,
+      };
+
+      if (gId && !gId.startsWith("modgrp_") && gId !== "undefined" && gId !== "null") {
+        const res = await AdminService.createModifierOption(viewingProduct.id, gId, {
+          name: newOptionData.name.trim(),
+          priceDelta: Number(newOptionData.priceDelta || 0),
+          isDefault: newOptionData.isDefault,
+        });
+        if (res.success && res.data) {
+          newOpt = res.data;
+        }
+      }
+
+      const updatedGroups = (viewingProduct.modifierGroups || []).map((g, idx) => {
+        const matches = gId ? (g.id === gId || (g as any)._id === gId) : idx === groupIdx;
+        if (!matches) return g;
+        return {
+          ...g,
+          options: [...(g.options || []), newOpt],
+        };
+      });
+
+      await AdminService.updateProduct(viewingProduct.id, {
+        modifierGroups: updatedGroups,
+      });
+
+      setViewingProduct((prev) => (prev ? { ...prev, modifierGroups: updatedGroups } : null));
+      setProducts((prev) =>
+        prev.map((p) => (p.id === viewingProduct.id ? { ...p, modifierGroups: updatedGroups } : p))
+      );
+      setActiveGroupIdForOption(null);
+      setNewOptionData({ name: "", priceDelta: "0", isDefault: false });
+      setModifierFeedback({ type: "success", message: `Option "${newOpt.name}" added successfully!` });
+      setTimeout(() => setModifierFeedback(null), 4000);
+    } catch (err: any) {
+      setModifierFeedback({ type: "error", message: err.message || "Error adding modifier option" });
+      setTimeout(() => setModifierFeedback(null), 4000);
+    } finally {
+      setIsSavingModifier(false);
+    }
+  };
+
+  const handleDeleteModifierOption = async (
+    group: AdminModifierGroup,
+    groupIdx: number,
+    option: AdminModifierOption,
+    optIdx: number
+  ) => {
+    if (!viewingProduct) return;
+    setIsSavingModifier(true);
+    try {
+      const gId = group.id || (group as any)._id || "";
+      const oId = option.id || (option as any)._id || "";
+
+      const updatedGroups = (viewingProduct.modifierGroups || []).map((g, idx) => {
+        const matches = gId ? (g.id === gId || (g as any)._id === gId) : idx === groupIdx;
+        if (!matches) return g;
+        return {
+          ...g,
+          options: (g.options || []).filter(
+            (o, oIdx) => (oId ? (o.id !== oId && (o as any)._id !== oId) : oIdx !== optIdx)
+          ),
+        };
+      });
+
+      if (
+        gId &&
+        oId &&
+        !gId.startsWith("modgrp_") &&
+        !oId.startsWith("modopt_") &&
+        gId !== "undefined" &&
+        oId !== "undefined"
+      ) {
+        await AdminService.deleteModifierOption(viewingProduct.id, gId, oId);
+      }
+
+      await AdminService.updateProduct(viewingProduct.id, {
+        modifierGroups: updatedGroups,
+      });
+
+      setViewingProduct((prev) => (prev ? { ...prev, modifierGroups: updatedGroups } : null));
+      setProducts((prev) =>
+        prev.map((p) => (p.id === viewingProduct.id ? { ...p, modifierGroups: updatedGroups } : p))
+      );
+      setModifierFeedback({ type: "success", message: `Option "${option.name}" removed successfully.` });
+      setTimeout(() => setModifierFeedback(null), 4000);
+    } catch (err: any) {
+      setModifierFeedback({ type: "error", message: err.message || "Error deleting option" });
+      setTimeout(() => setModifierFeedback(null), 4000);
+    } finally {
+      setIsSavingModifier(false);
+    }
+  };
 
   // Load Categories for Filter Dropdown & Category Selector
   useEffect(() => {
@@ -1259,7 +1538,11 @@ export default function AdminProductsPage() {
                   <h2 className="text-lg font-bold text-white">{viewingProduct.name}</h2>
                 </div>
                 <button
-                  onClick={() => setViewingProduct(null)}
+                  onClick={() => {
+                    setViewingProduct(null);
+                    setModifierFeedback(null);
+                    setDrawerFeedback(null);
+                  }}
                   className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-900 cursor-pointer"
                 >
                   <X className="w-5 h-5" />
@@ -1364,6 +1647,419 @@ export default function AdminProductsPage() {
                     </tbody>
                   </table>
                 </div>
+              </div>
+
+              {/* BigCommerce Catalyst Modifiers & Customization Section */}
+              <div className="space-y-4 pt-2 border-t border-slate-800">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-amber-400" />
+                      <span>Product Modifiers & Personalization</span>
+                    </h3>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Catalyst Dynamic Variant Pricing Engine (9 UI Control Types)
+                    </p>
+                  </div>
+
+                  {rbac.canWriteProducts(user?.role) && !isAddingModifierGroup && (
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingModifierGroup(true)}
+                      className="px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Add Modifier Group</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* Modifier-Specific Feedback Banner */}
+                {modifierFeedback && (
+                  <div
+                    className={`p-3 rounded-xl border text-xs font-semibold flex items-center justify-between gap-2.5 animate-in fade-in duration-200 ${
+                      modifierFeedback.type === "success"
+                        ? "bg-emerald-950/80 border-emerald-500/50 text-emerald-300"
+                        : modifierFeedback.type === "warning"
+                        ? "bg-amber-950/80 border-amber-500/50 text-amber-300"
+                        : "bg-rose-950/80 border-rose-500/50 text-rose-300"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      {modifierFeedback.type === "success" && <Check className="w-4 h-4 text-emerald-400 shrink-0" />}
+                      {modifierFeedback.type === "warning" && <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />}
+                      {modifierFeedback.type === "error" && <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0" />}
+                      <span>{modifierFeedback.message}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setModifierFeedback(null)}
+                      className="text-slate-400 hover:text-white cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+
+                {/* Add Modifier Group Inline Form */}
+                {isAddingModifierGroup && (
+                  <div className="p-4 bg-slate-900 border border-slate-800 rounded-2xl space-y-3 animate-in fade-in text-xs">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                      <span className="font-bold text-white text-xs">Create New Modifier Group</span>
+                      <button
+                        type="button"
+                        onClick={() => setIsAddingModifierGroup(false)}
+                        className="text-slate-400 hover:text-white cursor-pointer"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-slate-400 block text-[10px] uppercase font-bold mb-1">
+                          Group Name *
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Matching Dupatta Style"
+                          value={newGroupData.name}
+                          onChange={(e) => setNewGroupData((p) => ({ ...p, name: e.target.value }))}
+                          className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white text-xs focus:border-amber-400 focus:outline-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-slate-400 block text-[10px] uppercase font-bold mb-1">
+                          Display Label (Customer Facing)
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Select Matching Dupatta Style"
+                          value={newGroupData.displayName}
+                          onChange={(e) => setNewGroupData((p) => ({ ...p, displayName: e.target.value }))}
+                          className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white text-xs focus:border-amber-400 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-slate-400 block text-[10px] uppercase font-bold mb-1">
+                          Control Type (9 Catalyst Types)
+                        </label>
+                        <select
+                          value={newGroupData.type}
+                          onChange={(e) => setNewGroupData((p) => ({ ...p, type: e.target.value as AdminModifierType }))}
+                          className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white text-xs focus:border-amber-400 focus:outline-none cursor-pointer"
+                        >
+                          <option value="RECTANGLE_LIST">RECTANGLE_LIST (Swatch / Pill Tiles)</option>
+                          <option value="DROPDOWN">DROPDOWN (Selection Dropdown)</option>
+                          <option value="RADIO_BUTTONS">RADIO_BUTTONS (Radio Group)</option>
+                          <option value="CHECKBOX">CHECKBOX (Single Checkbox Toggle)</option>
+                          <option value="SHORT_TEXT">SHORT_TEXT (Monogram / Embroidery Initials)</option>
+                          <option value="MULTI_LINE_TEXT">MULTI_LINE_TEXT (Custom Tailoring Notes)</option>
+                          <option value="NUMBERS_ONLY_TEXT">NUMBERS_ONLY_TEXT (Numeric Measurements cm/in)</option>
+                          <option value="DATE">DATE (Event / Wedding Date Picker)</option>
+                          <option value="FILE_UPLOAD">FILE_UPLOAD (Embroidery Pattern / Reference Photo)</option>
+                        </select>
+                      </div>
+
+                      <div className="flex items-center pt-5">
+                        <label className="flex items-center gap-2 cursor-pointer text-slate-300">
+                          <input
+                            type="checkbox"
+                            checked={newGroupData.isRequired}
+                            onChange={(e) => setNewGroupData((p) => ({ ...p, isRequired: e.target.checked }))}
+                            className="rounded border-slate-700 bg-slate-950 text-amber-500 focus:ring-0"
+                          />
+                          <span className="font-semibold text-xs">Required Selection for Customer</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* Type-Specific Configurations */}
+                    {(newGroupData.type === "SHORT_TEXT" || newGroupData.type === "MULTI_LINE_TEXT") && (
+                      <div className="grid grid-cols-3 gap-3 pt-1">
+                        <div>
+                          <label className="text-slate-400 block text-[10px] uppercase font-bold mb-1">Placeholder</label>
+                          <input
+                            type="text"
+                            placeholder="e.g. Priya or P&R"
+                            value={newGroupData.placeholder}
+                            onChange={(e) => setNewGroupData((p) => ({ ...p, placeholder: e.target.value }))}
+                            className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-slate-400 block text-[10px] uppercase font-bold mb-1">Min Length</label>
+                          <input
+                            type="number"
+                            placeholder="2"
+                            value={newGroupData.minLength ?? ""}
+                            onChange={(e) => setNewGroupData((p) => ({ ...p, minLength: e.target.value ? Number(e.target.value) : undefined }))}
+                            className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-slate-400 block text-[10px] uppercase font-bold mb-1">Max Length</label>
+                          <input
+                            type="number"
+                            placeholder="12"
+                            value={newGroupData.maxLength ?? ""}
+                            onChange={(e) => setNewGroupData((p) => ({ ...p, maxLength: e.target.value ? Number(e.target.value) : undefined }))}
+                            className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white text-xs"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {newGroupData.type === "NUMBERS_ONLY_TEXT" && (
+                      <div className="grid grid-cols-3 gap-3 pt-1">
+                        <div>
+                          <label className="text-slate-400 block text-[10px] uppercase font-bold mb-1">Placeholder</label>
+                          <input
+                            type="text"
+                            placeholder="e.g. 135"
+                            value={newGroupData.placeholder}
+                            onChange={(e) => setNewGroupData((p) => ({ ...p, placeholder: e.target.value }))}
+                            className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-slate-400 block text-[10px] uppercase font-bold mb-1">Min Value</label>
+                          <input
+                            type="number"
+                            placeholder="100"
+                            value={newGroupData.minValue ?? ""}
+                            onChange={(e) => setNewGroupData((p) => ({ ...p, minValue: e.target.value ? Number(e.target.value) : undefined }))}
+                            className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-slate-400 block text-[10px] uppercase font-bold mb-1">Max Value</label>
+                          <input
+                            type="number"
+                            placeholder="160"
+                            value={newGroupData.maxValue ?? ""}
+                            onChange={(e) => setNewGroupData((p) => ({ ...p, maxValue: e.target.value ? Number(e.target.value) : undefined }))}
+                            className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-white text-xs"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+                      <button
+                        type="button"
+                        onClick={() => setIsAddingModifierGroup(false)}
+                        className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold rounded-xl text-xs cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!newGroupData.name.trim() || isSavingModifier}
+                        onClick={handleCreateModifierGroup}
+                        className="px-4 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs flex items-center gap-1.5 disabled:opacity-40 cursor-pointer"
+                      >
+                        {isSavingModifier && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                        <span>Save Modifier Group</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Existing Modifier Groups List */}
+                {(!viewingProduct.modifierGroups || viewingProduct.modifierGroups.length === 0) ? (
+                  <div className="p-4 bg-slate-900/30 border border-dashed border-slate-800 rounded-2xl text-center text-xs text-slate-500">
+                    No customization modifiers configured for this garment yet. Click &quot;Add Modifier Group&quot; to define dupatta styles, custom sizing, embroidery notes, or monogram options.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {viewingProduct.modifierGroups.map((group, groupIdx) => {
+                      const isOptionBased = ["RECTANGLE_LIST", "DROPDOWN", "RADIO_BUTTONS", "CHECKBOX"].includes(
+                        group.type
+                      );
+                      const groupKey = group.id ? `modgrp-${group.id}` : `modgrp-idx-${groupIdx}-${group.name || "group"}`;
+                      const groupId = group.id || `modgrp_${groupIdx}`;
+
+                      return (
+                        <div
+                          key={groupKey}
+                          className="bg-slate-900/40 border border-slate-800 rounded-2xl p-4 space-y-3 text-xs"
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="space-y-0.5">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-bold text-white text-xs">{group.name}</span>
+                                <span className="font-mono text-[9px] uppercase px-2 py-0.5 rounded bg-slate-800 text-amber-400 font-semibold border border-slate-700">
+                                  {group.type}
+                                </span>
+                                {group.isRequired ? (
+                                  <span className="text-[9px] uppercase px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-400 font-bold border border-rose-500/30">
+                                    Required
+                                  </span>
+                                ) : (
+                                  <span className="text-[9px] uppercase px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">
+                                    Optional
+                                  </span>
+                                )}
+                              </div>
+                              {group.displayName && group.displayName !== group.name && (
+                                <p className="text-[11px] text-slate-400 italic">&quot;{group.displayName}&quot;</p>
+                              )}
+                              {group.config?.placeholder && (
+                                <p className="text-[10px] text-slate-500">Placeholder: {group.config.placeholder}</p>
+                              )}
+                            </div>
+
+                            {rbac.canDeleteProducts(user?.role) && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteModifierGroup(group, groupIdx)}
+                                className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                                title="Delete Modifier Group"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Options Table for Option-Based Groups */}
+                          {isOptionBased && (
+                            <div className="space-y-2 pt-2 border-t border-slate-800/80">
+                              <div className="flex items-center justify-between text-[11px]">
+                                <span className="text-slate-400 font-semibold">
+                                  Options ({group.options?.length || 0})
+                                </span>
+                                {rbac.canWriteProducts(user?.role) && activeGroupIdForOption !== groupId && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setActiveGroupIdForOption(groupId);
+                                      setNewOptionData({ name: "", priceDelta: "0", isDefault: false });
+                                    }}
+                                    className="text-amber-400 hover:underline font-semibold text-[10px] flex items-center gap-1 cursor-pointer"
+                                  >
+                                    <Plus className="w-3 h-3" />
+                                    <span>Add Option</span>
+                                  </button>
+                                )}
+                              </div>
+
+                              {/* Inline Add Option Form */}
+                              {activeGroupIdForOption === groupId && (
+                                <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2 animate-in fade-in">
+                                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                    <div className="sm:col-span-2">
+                                      <input
+                                        type="text"
+                                        placeholder="Option Name (e.g. Heavy Zari Organza)"
+                                        value={newOptionData.name}
+                                        onChange={(e) => setNewOptionData((p) => ({ ...p, name: e.target.value }))}
+                                        className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-white text-xs"
+                                      />
+                                    </div>
+                                    <div>
+                                      <input
+                                        type="number"
+                                        placeholder="Price Delta (₹)"
+                                        value={newOptionData.priceDelta}
+                                        onChange={(e) => setNewOptionData((p) => ({ ...p, priceDelta: e.target.value }))}
+                                        className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-white text-xs font-mono"
+                                      />
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center justify-between pt-1">
+                                    <label className="flex items-center gap-1.5 text-[10px] text-slate-400 cursor-pointer">
+                                      <input
+                                        type="checkbox"
+                                        checked={newOptionData.isDefault}
+                                        onChange={(e) => setNewOptionData((p) => ({ ...p, isDefault: e.target.checked }))}
+                                        className="rounded border-slate-700 bg-slate-900 text-amber-500 focus:ring-0"
+                                      />
+                                      <span>Selected by Default</span>
+                                    </label>
+                                    <div className="flex gap-1.5">
+                                      <button
+                                        type="button"
+                                        onClick={() => setActiveGroupIdForOption(null)}
+                                        className="px-2.5 py-1 bg-slate-800 text-slate-300 rounded text-[10px] cursor-pointer"
+                                      >
+                                        Cancel
+                                      </button>
+                                      <button
+                                        type="button"
+                                        disabled={!newOptionData.name.trim() || isSavingModifier}
+                                        onClick={() => handleCreateModifierOption(group, groupIdx)}
+                                        className="px-3 py-1 bg-amber-500 text-slate-950 font-bold rounded text-[10px] disabled:opacity-40 cursor-pointer flex items-center gap-1"
+                                      >
+                                        {isSavingModifier && <RefreshCw className="w-3 h-3 animate-spin" />}
+                                        <span>Add Option</span>
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Options List */}
+                              {group.options && group.options.length > 0 ? (
+                                <div className="divide-y border border-slate-800/60 rounded-xl overflow-hidden bg-slate-950/40">
+                                  {group.options.map((opt, optIdx) => {
+                                    const optKey = opt.id ? `modopt-${opt.id}` : `modopt-idx-${groupIdx}-${optIdx}-${opt.name || "opt"}`;
+                                    return (
+                                      <div
+                                        key={optKey}
+                                        className="px-3 py-2 flex items-center justify-between text-[11px] hover:bg-slate-900/30"
+                                      >
+                                        <div className="flex items-center gap-2">
+                                          <span className="font-medium text-slate-200">{opt.name}</span>
+                                          {opt.isDefault && (
+                                            <span className="px-1.5 py-0.2 rounded bg-amber-400/10 text-amber-400 text-[9px] font-bold border border-amber-400/20">
+                                              Default
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                          <span className="font-mono text-amber-400 font-bold">
+                                            {opt.priceDelta > 0
+                                              ? `+${storeConfig.currency.symbol}${Number(opt.priceDelta).toLocaleString()}`
+                                              : "₹0"}
+                                          </span>
+                                          {rbac.canWriteProducts(user?.role) && (
+                                            <button
+                                              type="button"
+                                              onClick={() => handleDeleteModifierOption(group, groupIdx, opt, optIdx)}
+                                              className="text-slate-500 hover:text-rose-400 p-1 cursor-pointer"
+                                              title="Delete option"
+                                            >
+                                              <Trash2 className="w-3 h-3" />
+                                            </button>
+                                          )}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              ) : (
+                                <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl space-y-1 text-xs">
+                                  <div className="flex items-center gap-1.5 text-amber-400 font-semibold text-[11px]">
+                                    <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                                    <span>No choices added to &quot;{group.name}&quot; yet</span>
+                                  </div>
+                                  <p className="text-[10px] text-slate-400">
+                                    Click &quot;Add Option&quot; above to add selectable choices (e.g., choice name, price delta). Option-based groups need at least one choice before customers can select them on the product page.
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               {/* Cloud-Only Image Gallery Pipeline */}

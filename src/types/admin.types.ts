@@ -243,6 +243,106 @@ export interface AdminProductCollectionRef {
   slug: string;
 }
 
+export type AdminModifierType =
+  | "DROPDOWN"
+  | "RADIO_BUTTONS"
+  | "RECTANGLE_LIST"
+  | "CHECKBOX"
+  | "SHORT_TEXT"
+  | "MULTI_LINE_TEXT"
+  | "NUMBERS_ONLY_TEXT"
+  | "DATE"
+  | "FILE_UPLOAD";
+
+export interface AdminModifierOption {
+  id: string;
+  modifierGroupId?: string;
+  name: string;
+  priceDelta: number;
+  isDefault: boolean;
+  sortOrder?: number;
+}
+
+export interface AdminModifierGroup {
+  id: string;
+  productId?: string;
+  name: string;
+  displayName?: string;
+  type: AdminModifierType | string;
+  isRequired: boolean;
+  minSelection?: number;
+  maxSelection?: number;
+  defaultValue?: string | null;
+  config?: {
+    maxLength?: number;
+    minLength?: number;
+    minValue?: number;
+    maxValue?: number;
+    placeholder?: string;
+    allowedExtensions?: string[];
+  } | null;
+  sortOrder?: number;
+  options: AdminModifierOption[];
+}
+
+export interface CreateModifierGroupInput {
+  name: string;
+  displayName?: string;
+  type: AdminModifierType | string;
+  isRequired?: boolean;
+  minSelection?: number;
+  maxSelection?: number;
+  defaultValue?: string | null;
+  config?: {
+    maxLength?: number;
+    minLength?: number;
+    minValue?: number;
+    maxValue?: number;
+    placeholder?: string;
+    allowedExtensions?: string[];
+  } | null;
+  sortOrder?: number;
+  options?: Array<{
+    name: string;
+    priceDelta?: number;
+    isDefault?: boolean;
+    sortOrder?: number;
+  }>;
+}
+
+export interface UpdateModifierGroupInput {
+  name?: string;
+  displayName?: string;
+  type?: AdminModifierType | string;
+  isRequired?: boolean;
+  minSelection?: number;
+  maxSelection?: number;
+  defaultValue?: string | null;
+  config?: {
+    maxLength?: number;
+    minLength?: number;
+    minValue?: number;
+    maxValue?: number;
+    placeholder?: string;
+    allowedExtensions?: string[];
+  } | null;
+  sortOrder?: number;
+}
+
+export interface CreateModifierOptionInput {
+  name: string;
+  priceDelta?: number;
+  isDefault?: boolean;
+  sortOrder?: number;
+}
+
+export interface UpdateModifierOptionInput {
+  name?: string;
+  priceDelta?: number;
+  isDefault?: boolean;
+  sortOrder?: number;
+}
+
 export interface AdminProduct {
   id: string;
   name: string;
@@ -268,6 +368,7 @@ export interface AdminProduct {
   variantsSummary?: AdminProductVariantSummary[];
   images: AdminProductImage[];
   variants: AdminProductVariant[];
+  modifierGroups?: AdminModifierGroup[];
   collections?: AdminProductCollectionRef[];
 
   // Backward compatibility fields for storefront & existing modules
@@ -376,6 +477,7 @@ export interface CreateProductInput {
     sortOrder?: number;
   }>;
   variants?: CreateProductVariantInput[];
+  modifierGroups?: Array<CreateModifierGroupInput | AdminModifierGroup>;
 }
 
 export interface UpdateProductInput {
@@ -408,6 +510,7 @@ export interface UpdateProductInput {
     sortOrder?: number;
   }>;
   variants?: Array<Partial<CreateProductVariantInput> & { id?: string }>;
+  modifierGroups?: Array<CreateModifierGroupInput | AdminModifierGroup>;
 }
 
 export interface ProductStatusToggleInput {

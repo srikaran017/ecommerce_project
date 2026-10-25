@@ -111,15 +111,28 @@ export interface ApiModifierOption {
   name: string;
   priceDelta: number;
   isDefault: boolean;
+  sortOrder?: number;
 }
 
 // Modifier Group
 export interface ApiModifierGroup {
   id: string;
   name: string;
+  displayName?: string;
+  type?: string;
   isRequired: boolean;
   minSelection: number;
   maxSelection: number;
+  defaultValue?: string | null;
+  config?: {
+    maxLength?: number;
+    minLength?: number;
+    minValue?: number;
+    maxValue?: number;
+    placeholder?: string;
+    allowedExtensions?: string[];
+  } | null;
+  sortOrder?: number;
   options: ApiModifierOption[];
 }
 

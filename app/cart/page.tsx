@@ -324,15 +324,27 @@ export default function CartPage() {
 
                         {/* Modifiers / Add-ons chips */}
                         {item.selectedModifiers && item.selectedModifiers.length > 0 && (
-                          <div className="flex flex-wrap gap-1 pt-1">
-                            {item.selectedModifiers.map((mod) => (
-                              <span
-                                key={mod.id}
-                                className="text-[10px] text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded font-medium"
-                              >
-                                +{mod.name} (+{storeConfig.currency.symbol}{mod.priceDelta})
-                              </span>
-                            ))}
+                          <div className="flex flex-wrap gap-1.5 pt-1.5">
+                            {item.selectedModifiers.map((mod, idx) => {
+                              const groupLabel = mod.groupDisplayName || mod.groupName;
+                              const isText = Boolean(mod.textValue);
+                              const displayText = isText
+                                ? `${groupLabel ? `${groupLabel}: ` : ""}"${mod.textValue}"`
+                                : mod.name;
+                              const deltaText = mod.priceDelta > 0
+                                ? ` (+${storeConfig.currency.symbol}${mod.priceDelta.toLocaleString()})`
+                                : "";
+
+                              return (
+                                <span
+                                  key={mod.id || idx}
+                                  className="text-[10px] text-amber-900 bg-amber-500/10 border border-amber-300/80 px-2.5 py-0.5 rounded-full font-medium inline-flex items-center gap-1 shadow-2xs"
+                                >
+                                  <Sparkles className="w-2.5 h-2.5 text-amber-600 shrink-0" />
+                                  <span>{displayText}{deltaText}</span>
+                                </span>
+                              );
+                            })}
                           </div>
                         )}
 

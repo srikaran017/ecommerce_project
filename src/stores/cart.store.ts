@@ -6,6 +6,7 @@ import {
   CartItem as ApiCartItem,
   CartApi,
   SelectedModifier,
+  CartModifierInput,
   AvailabilityStatus,
   CartMetafield,
   getSavedGuestCartToken,
@@ -64,6 +65,7 @@ export interface AddItemInput {
   sku?: string;
   quantity?: number;
   maxStock?: number;
+  modifiers?: CartModifierInput[];
   modifierOptionIds?: string[];
   selectedModifiers?: SelectedModifier[];
   metafields?: Array<{
@@ -228,13 +230,17 @@ export const useCartStore = create<CartState>()(
         if (isUuid(input.productId)) {
           try {
             const sanitizedVariantId = isUuid(input.variantId) ? input.variantId : null;
-            const sanitizedModifiers = (input.modifierOptionIds || []).filter(isUuid);
+            const sanitizedOptionIds = (input.modifierOptionIds || []).filter(isUuid);
+            const payloadModifiers = input.modifiers && input.modifiers.length > 0
+              ? input.modifiers
+              : sanitizedOptionIds.map((id) => ({ modifierOptionId: id }));
 
             const updatedCart = await CartApi.addItem({
               productId: input.productId,
               variantId: sanitizedVariantId,
               quantity: qty,
-              modifierOptionIds: sanitizedModifiers,
+              modifiers: payloadModifiers,
+              modifierOptionIds: sanitizedOptionIds,
               metafields: input.metafields,
             });
 
