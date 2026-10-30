@@ -15,6 +15,12 @@ interface CategoryPageProps {
     minPrice?: string;
     maxPrice?: string;
     search?: string;
+    color?: string;
+    size?: string;
+    fabric?: string;
+    brand?: string;
+    rating?: string;
+    inStock?: string;
   }>;
 }
 
@@ -56,6 +62,12 @@ export default async function CategoryPage({
       ? Number(resolvedSearchParams.maxPrice)
       : undefined,
     search: resolvedSearchParams.search,
+    color: resolvedSearchParams.color,
+    size: resolvedSearchParams.size,
+    fabric: resolvedSearchParams.fabric,
+    brand: resolvedSearchParams.brand,
+    rating: resolvedSearchParams.rating,
+    inStock: resolvedSearchParams.inStock,
   });
 
   const catDetails = category || (await ProductService.getCategoryBySlug(slug));

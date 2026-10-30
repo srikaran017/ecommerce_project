@@ -20,6 +20,10 @@ interface ProductsPageProps {
     fabric?: string;
     size?: string;
     color?: string;
+    brand?: string;
+    minPrice?: string;
+    maxPrice?: string;
+    rating?: string;
     inStock?: string;
     sort?: string;
     search?: string;
@@ -30,9 +34,24 @@ interface ProductsPageProps {
 
 export default async function ProductsPage({ searchParams }: ProductsPageProps) {
   const resolvedParams = await searchParams;
-  const { category, gender, collection, occasion, fabric, size, color, inStock, sort, search } = resolvedParams;
+  const {
+    category,
+    gender,
+    collection,
+    occasion,
+    fabric,
+    size,
+    color,
+    brand,
+    minPrice,
+    maxPrice,
+    rating,
+    inStock,
+    sort,
+    search,
+  } = resolvedParams;
 
-  const [products, categoriesTree] = await Promise.all([
+  const [products, categoriesTree, catalogFilters] = await Promise.all([
     ProductService.getAllProducts({
       category,
       gender,
@@ -41,17 +60,31 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
       fabric,
       size,
       color,
+      brand,
+      minPrice: minPrice ? Number(minPrice) : undefined,
+      maxPrice: maxPrice ? Number(maxPrice) : undefined,
+      rating: rating ? Number(rating) : undefined,
       inStockOnly: inStock === "true",
       sort,
       search,
     }),
     ProductService.getCategoryTree(),
+    ProductService.getCatalogFilters({
+      category,
+      search,
+      brand,
+      minPrice: minPrice ? Number(minPrice) : undefined,
+      maxPrice: maxPrice ? Number(maxPrice) : undefined,
+      inStock: inStock === "true" ? true : undefined,
+      rating: rating ? Number(rating) : undefined,
+    }),
   ]);
 
   return (
     <ProductsCatalogClient
       initialProducts={products}
       initialCategories={categoriesTree}
+      initialFilters={catalogFilters}
       category={category}
       gender={gender}
       collection={collection}

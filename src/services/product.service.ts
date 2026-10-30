@@ -12,17 +12,34 @@ import {
   fetchCategoryProducts as apiFetchCategoryProducts,
   fetchCategoryTree as apiFetchCategoryTree,
   fetchCategoryBySlug as apiFetchCategoryBySlug,
+  fetchCatalogFilters,
+  fetchCategoryFilters,
   transformApiCardToProduct,
   transformApiDetailToProduct,
   ApiPagination,
   ApiCategory,
+  CatalogFilterResponse,
+  CatalogFilterQueryParams,
+  FilterBrand,
+  FilterCategory,
+  AttributeFilterGroup,
+  AttributeFilterValue,
 } from "@/services/catalogApi";
 import { CollectionService } from "@/services/collection.service";
 import { AdminService } from "@/services/admin.service";
 import { AdminProduct } from "@/types/admin.types";
 
 export { FALLBACK_PRODUCTS, FALLBACK_COLLECTIONS };
-export type { ProductData, ProductVariantData };
+export type {
+  ProductData,
+  ProductVariantData,
+  CatalogFilterResponse,
+  CatalogFilterQueryParams,
+  FilterBrand,
+  FilterCategory,
+  AttributeFilterGroup,
+  AttributeFilterValue,
+};
 
 /**
  * Transforms an AdminProduct (from Admin panel or local admin storage)
@@ -173,6 +190,7 @@ export class ProductService {
     minPrice?: number;
     maxPrice?: number;
     inStockOnly?: boolean;
+    rating?: number;
     collection?: string;
     occasion?: string;
     fabric?: string;
@@ -195,6 +213,8 @@ export class ProductService {
       if (filters?.brand) apiParams.brand = filters.brand;
       if (filters?.minPrice !== undefined) apiParams.minPrice = filters.minPrice;
       if (filters?.maxPrice !== undefined) apiParams.maxPrice = filters.maxPrice;
+      if (filters?.inStockOnly) apiParams.inStock = true;
+      if (filters?.rating !== undefined) apiParams.rating = filters.rating;
       if (filters?.featured) apiParams.isFeatured = true;
       if (filters?.page) apiParams.page = filters.page;
       if (filters?.limit) apiParams.limit = filters.limit;
@@ -208,7 +228,7 @@ export class ProductService {
         apiParams.sort = "bestselling";
       }
 
-      // Dynamic attribute filters supported by backend
+      // Dynamic attribute filters supported by backend (supports multi-select comma separation)
       if (filters?.color) apiParams.color = filters.color;
       if (filters?.size) apiParams.size = filters.size;
       if (filters?.fabric) apiParams.fabric = filters.fabric;
@@ -260,7 +280,7 @@ export class ProductService {
       }
     }
 
-    // Client-side filter refinements
+    // Client-side filter refinements (for local admin items or resilient fallback)
     if (filters?.inStockOnly) {
       transformed = transformed.filter((p) => (p.stockQuantity ?? p.stock) > 0);
     }
@@ -271,6 +291,100 @@ export class ProductService {
           p.categorySlug === filters.category ||
           p.categoryData?.slug === filters.category ||
           p.categoryData?.id === filters.category
+      );
+    }
+
+    if (filters?.brand) {
+      const targetBrands = filters.brand
+        .toLowerCase()
+        .split(",")
+        .map((b) => b.trim())
+        .filter(Boolean);
+      transformed = transformed.filter((p) =>
+        targetBrands.some((tb) => p.brand?.toLowerCase() === tb)
+      );
+    }
+
+    if (filters?.minPrice !== undefined) {
+      transformed = transformed.filter(
+        (p) => (p.priceObject?.effective ?? p.price ?? 0) >= filters.minPrice!
+      );
+    }
+
+    if (filters?.maxPrice !== undefined) {
+      transformed = transformed.filter(
+        (p) => (p.priceObject?.effective ?? p.price ?? 0) <= filters.maxPrice!
+      );
+    }
+
+    if (filters?.rating !== undefined) {
+      transformed = transformed.filter(
+        (p) => (p.averageRating ?? 5) >= filters.rating!
+      );
+    }
+
+    if (filters?.size) {
+      const targetSizes = filters.size
+        .toLowerCase()
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      transformed = transformed.filter((p) =>
+        p.variants?.some((v) => targetSizes.includes(v.size?.toLowerCase() || ""))
+      );
+    }
+
+    if (filters?.color) {
+      const targetColors = filters.color
+        .toLowerCase()
+        .split(",")
+        .map((c) => c.trim())
+        .filter(Boolean);
+      transformed = transformed.filter(
+        (p) =>
+          p.variants?.some((v) =>
+            targetColors.some(
+              (tc) =>
+                v.colorName?.toLowerCase().includes(tc) ||
+                v.colorHex?.toLowerCase() === tc
+            )
+          ) ||
+          p.tags?.some((t) => targetColors.some((tc) => t.toLowerCase().includes(tc)))
+      );
+    }
+
+    if (filters?.fabric) {
+      const targetFabrics = filters.fabric
+        .toLowerCase()
+        .split(",")
+        .map((f) => f.trim())
+        .filter(Boolean);
+      transformed = transformed.filter((p) =>
+        targetFabrics.some(
+          (tf) =>
+            p.fabric?.toLowerCase().includes(tf) ||
+            p.tags?.some((t) => t.toLowerCase().includes(tf)) ||
+            (p as any).dynamicAttributes?.some(
+              (a: any) =>
+                a.attributeSlug === "fabric" && targetFabrics.includes(a.valueSlug)
+            )
+        )
+      );
+    }
+
+    if (filters?.occasion) {
+      const targetOccasions = filters.occasion
+        .toLowerCase()
+        .split(",")
+        .map((o) => o.trim())
+        .filter(Boolean);
+      transformed = transformed.filter((p) =>
+        targetOccasions.some(
+          (to) =>
+            p.occasionSlugs?.includes(to) ||
+            p.tags?.some((t) => t.toLowerCase().includes(to)) ||
+            p.description?.toLowerCase().includes(to)
+        )
       );
     }
 
@@ -421,7 +535,10 @@ export class ProductService {
         pagination: res.pagination,
       };
     } catch {
-      const all = await this.getAllProducts({ category: slug });
+      const all = await this.getAllProducts({
+        category: slug,
+        ...params,
+      });
       const page = Number(params.page) || 1;
       const limit = Number(params.limit) || 12;
       const start = (page - 1) * limit;
@@ -478,5 +595,34 @@ export class ProductService {
       // Live database collections only
     }
     return null;
+  }
+
+  /**
+   * Fetches dynamic catalog filter options (facets, attributes, price bounds, brands, subcategories)
+   */
+  static async getCatalogFilters(
+    params?: CatalogFilterQueryParams
+  ): Promise<CatalogFilterResponse | null> {
+    try {
+      return await fetchCatalogFilters(params);
+    } catch (err) {
+      console.warn("[ProductService.getCatalogFilters] Live fetch failed:", err);
+      return null;
+    }
+  }
+
+  /**
+   * Fetches dynamic category filter options scoped to a category slug and its descendants
+   */
+  static async getCategoryFilters(
+    slug: string,
+    params?: Omit<CatalogFilterQueryParams, "category">
+  ): Promise<CatalogFilterResponse | null> {
+    try {
+      return await fetchCategoryFilters(slug, params);
+    } catch (err) {
+      console.warn("[ProductService.getCategoryFilters] Live fetch failed:", err);
+      return null;
+    }
   }
 }

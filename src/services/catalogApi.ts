@@ -53,6 +53,66 @@ export interface ApiCategory {
   } | null;
 }
 
+// Dynamic Filter Facets & Filter Engine Types (Document 32)
+export interface FilterCategory {
+  id: string;
+  name: string;
+  slug: string;
+  imageUrl: string | null;
+  productCount: number;
+}
+
+export interface FilterBrand {
+  name: string;
+  count: number;
+}
+
+export interface AttributeFilterValue {
+  id: string;
+  name: string;
+  slug: string;
+  count: number;
+}
+
+export interface AttributeFilterGroup {
+  id: string;
+  name: string;
+  slug: string;
+  values: AttributeFilterValue[];
+}
+
+export interface FilterRating {
+  rating: number;
+  label: string;
+  count: number;
+}
+
+export interface FilterAvailability {
+  inStock: number;
+  outOfStock: number;
+}
+
+export interface CatalogFilterResponse {
+  totalProducts: number;
+  category: { id: string; name: string; slug: string } | null;
+  priceRange: { min: number; max: number };
+  categories: FilterCategory[];
+  brands: FilterBrand[];
+  attributes: AttributeFilterGroup[];
+  ratings: FilterRating[];
+  availability: FilterAvailability;
+}
+
+export interface CatalogFilterQueryParams {
+  category?: string;
+  search?: string;
+  brand?: string;
+  minPrice?: number;
+  maxPrice?: number;
+  inStock?: boolean | string;
+  rating?: number | string;
+}
+
 // Lightweight Product Card (Listing / PLP)
 export interface ApiProductCard {
   id: string;
@@ -363,6 +423,61 @@ export const fetchProductBySlug = async (
   const data = await res.json();
   if (!res.ok) {
     throw new Error(data.message || "Product not found");
+  }
+  return data.data;
+};
+
+// 6. Fetch Dynamic Catalog Filter Options (Facets, Price Bounds, Brands, Attributes)
+export const fetchCatalogFilters = async (
+  params?: CatalogFilterQueryParams
+): Promise<CatalogFilterResponse> => {
+  const query = new URLSearchParams();
+  if (params?.category) query.set("category", params.category);
+  if (params?.search) query.set("search", params.search);
+  if (params?.brand) query.set("brand", params.brand);
+  if (params?.minPrice !== undefined) query.set("minPrice", String(params.minPrice));
+  if (params?.maxPrice !== undefined) query.set("maxPrice", String(params.maxPrice));
+  if (params?.inStock !== undefined) query.set("inStock", String(params.inStock));
+  if (params?.rating !== undefined) query.set("rating", String(params.rating));
+
+  const queryString = query.toString() ? `?${query.toString()}` : "";
+  const res = await fetch(`${getBaseUrl()}/products/filters${queryString}`, {
+    headers: getHeaders(),
+    next: { revalidate: 300 },
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.message || "Failed to load catalog filters");
+  }
+  return data.data;
+};
+
+// 7. Fetch Dynamic Category Filter Options (Scoped to specific category & descendants)
+export const fetchCategoryFilters = async (
+  slug: string,
+  params?: Omit<CatalogFilterQueryParams, "category">
+): Promise<CatalogFilterResponse> => {
+  const query = new URLSearchParams();
+  if (params?.search) query.set("search", params.search);
+  if (params?.brand) query.set("brand", params.brand);
+  if (params?.minPrice !== undefined) query.set("minPrice", String(params.minPrice));
+  if (params?.maxPrice !== undefined) query.set("maxPrice", String(params.maxPrice));
+  if (params?.inStock !== undefined) query.set("inStock", String(params.inStock));
+  if (params?.rating !== undefined) query.set("rating", String(params.rating));
+
+  const queryString = query.toString() ? `?${query.toString()}` : "";
+  const res = await fetch(
+    `${getBaseUrl()}/categories/${encodeURIComponent(slug)}/filters${queryString}`,
+    {
+      headers: getHeaders(),
+      next: { revalidate: 300 },
+    }
+  );
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.message || "Failed to load category filters");
   }
   return data.data;
 };
