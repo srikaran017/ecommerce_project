@@ -190,6 +190,7 @@ export class ProductService {
     minPrice?: number;
     maxPrice?: number;
     inStockOnly?: boolean;
+    inStock?: boolean | string;
     rating?: number;
     collection?: string;
     occasion?: string;
@@ -214,6 +215,7 @@ export class ProductService {
       if (filters?.minPrice !== undefined) apiParams.minPrice = filters.minPrice;
       if (filters?.maxPrice !== undefined) apiParams.maxPrice = filters.maxPrice;
       if (filters?.inStockOnly) apiParams.inStock = true;
+      if (filters?.inStock !== undefined) apiParams.inStock = filters.inStock;
       if (filters?.rating !== undefined) apiParams.rating = filters.rating;
       if (filters?.featured) apiParams.isFeatured = true;
       if (filters?.page) apiParams.page = filters.page;
@@ -281,7 +283,7 @@ export class ProductService {
     }
 
     // Client-side filter refinements (for local admin items or resilient fallback)
-    if (filters?.inStockOnly) {
+    if (filters?.inStockOnly || filters?.inStock === true || filters?.inStock === "true") {
       transformed = transformed.filter((p) => (p.stockQuantity ?? p.stock) > 0);
     }
 
@@ -329,8 +331,14 @@ export class ProductService {
         .split(",")
         .map((s) => s.trim())
         .filter(Boolean);
-      transformed = transformed.filter((p) =>
-        p.variants?.some((v) => targetSizes.includes(v.size?.toLowerCase() || ""))
+      transformed = transformed.filter(
+        (p) =>
+          p.variants?.some((v) => targetSizes.includes(v.size?.toLowerCase() || "")) ||
+          (p as any).dynamicAttributes?.some(
+            (a: any) =>
+              (a.attributeSlug === "size" || a.attributeName?.toLowerCase() === "size") &&
+              targetSizes.some((s) => a.valueSlug?.toLowerCase() === s || a.value?.toLowerCase() === s)
+          )
       );
     }
 
@@ -349,7 +357,12 @@ export class ProductService {
                 v.colorHex?.toLowerCase() === tc
             )
           ) ||
-          p.tags?.some((t) => targetColors.some((tc) => t.toLowerCase().includes(tc)))
+          p.tags?.some((t) => targetColors.some((tc) => t.toLowerCase().includes(tc))) ||
+          (p as any).dynamicAttributes?.some(
+            (a: any) =>
+              (a.attributeSlug === "color" || a.attributeName?.toLowerCase() === "color") &&
+              targetColors.some((c) => a.valueSlug?.toLowerCase() === c || a.value?.toLowerCase().includes(c))
+          )
       );
     }
 
@@ -366,7 +379,8 @@ export class ProductService {
             p.tags?.some((t) => t.toLowerCase().includes(tf)) ||
             (p as any).dynamicAttributes?.some(
               (a: any) =>
-                a.attributeSlug === "fabric" && targetFabrics.includes(a.valueSlug)
+                (a.attributeSlug === "fabric" || a.attributeName?.toLowerCase() === "fabric") &&
+                targetFabrics.includes(a.valueSlug?.toLowerCase())
             )
         )
       );
@@ -383,7 +397,12 @@ export class ProductService {
           (to) =>
             p.occasionSlugs?.includes(to) ||
             p.tags?.some((t) => t.toLowerCase().includes(to)) ||
-            p.description?.toLowerCase().includes(to)
+            p.description?.toLowerCase().includes(to) ||
+            (p as any).dynamicAttributes?.some(
+              (a: any) =>
+                (a.attributeSlug === "occasion" || a.attributeName?.toLowerCase() === "occasion") &&
+                targetOccasions.some((o) => a.valueSlug?.toLowerCase() === o || a.value?.toLowerCase().includes(o))
+            )
         )
       );
     }

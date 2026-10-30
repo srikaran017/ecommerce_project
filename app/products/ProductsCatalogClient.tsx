@@ -767,7 +767,12 @@ export function ProductsCatalogClient({
           (occ) =>
             p.occasionSlugs?.includes(occ) ||
             p.tags?.some((t) => t.toLowerCase().includes(occ)) ||
-            p.description?.toLowerCase().includes(occ)
+            p.description?.toLowerCase().includes(occ) ||
+            (p as any).dynamicAttributes?.some(
+              (a: any) =>
+                (a.attributeSlug === "occasion" || a.attributeName?.toLowerCase() === "occasion") &&
+                (a.valueSlug?.toLowerCase() === occ || a.value?.toLowerCase().includes(occ))
+            )
         )
       );
     }
@@ -777,6 +782,11 @@ export function ProductsCatalogClient({
       list = list.filter((p) =>
         p.variants?.some((v) =>
           v.size && selectedSizes.includes(v.size.toLowerCase())
+        ) ||
+        (p as any).dynamicAttributes?.some(
+          (a: any) =>
+            (a.attributeSlug === "size" || a.attributeName?.toLowerCase() === "size") &&
+            selectedSizes.some((s) => a.valueSlug?.toLowerCase() === s || a.value?.toLowerCase() === s)
         )
       );
     }
@@ -791,7 +801,12 @@ export function ProductsCatalogClient({
               v.colorHex?.toLowerCase() === c
           )
         ) ||
-        p.tags?.some((t) => selectedColors.some((c) => t.toLowerCase().includes(c)))
+        p.tags?.some((t) => selectedColors.some((c) => t.toLowerCase().includes(c))) ||
+        (p as any).dynamicAttributes?.some(
+          (a: any) =>
+            (a.attributeSlug === "color" || a.attributeName?.toLowerCase() === "color") &&
+            selectedColors.some((c) => a.valueSlug?.toLowerCase() === c || a.value?.toLowerCase().includes(c))
+        )
       );
     }
 
