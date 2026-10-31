@@ -12,6 +12,7 @@ import { useAuthStore } from "@/stores/auth.store";
 import { ProductData, ProductVariantData } from "@/data/products.data";
 import { QuickViewModal } from "./QuickViewModal";
 import { resolveProductImage, getProductFallbackImage } from "@/utils/image.utils";
+import { ProductService } from "@/services/product.service";
 
 export interface ProductCardProps {
   product: ProductData;
@@ -27,13 +28,39 @@ export function ProductCard({ product }: ProductCardProps) {
 
   const resolvedImages = useMemo(() => resolveProductImage(product), [product]);
   const [currentImg, setCurrentImg] = useState<string>(resolvedImages.primary);
+  const [hoverImg, setHoverImg] = useState<string>(resolvedImages.hover);
   const [isHovered, setIsHovered] = useState(false);
 
   useEffect(() => {
     setCurrentImg(resolvedImages.primary);
-  }, [resolvedImages.primary]);
+    setHoverImg(resolvedImages.hover);
+  }, [resolvedImages.primary, resolvedImages.hover]);
 
-  const displayImg = isHovered && resolvedImages.hover ? resolvedImages.hover : currentImg;
+  // If the product card does not have a confirmed uploaded image (only static fallback),
+  // fetch the product details from the live backend (the exact same endpoint powering "Choose Options" / PDP)
+  // so the user's uploaded image displays seamlessly on the card.
+  useEffect(() => {
+    if (resolvedImages.hasRealImage) return;
+    if (!product.slug) return;
+
+    let active = true;
+    ProductService.getProductBySlug(product.slug)
+      .then((detail) => {
+        if (!active || !detail) return;
+        const detailRes = resolveProductImage(detail);
+        if (detailRes.hasRealImage && detailRes.primary) {
+          setCurrentImg(detailRes.primary);
+          setHoverImg(detailRes.hover || detailRes.primary);
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      active = false;
+    };
+  }, [product.slug, resolvedImages.hasRealImage]);
+
+  const displayImg = isHovered && hoverImg ? hoverImg : currentImg;
 
   const handleImageError = () => {
     const fallback = getProductFallbackImage(product);

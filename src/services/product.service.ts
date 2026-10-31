@@ -279,7 +279,14 @@ export class ProductService {
           localAdmin.forEach((adminP) => {
             if (adminP.isActive && adminP.status !== "ARCHIVED") {
               const prodData = transformAdminProductToProductData(adminP);
-              const idx = transformed.findIndex((p) => p.id === adminP.id || p.slug === adminP.slug);
+              const adminSlug = adminP.slug || adminP.name?.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+              const idx = transformed.findIndex(
+                (p) =>
+                  p.id === adminP.id ||
+                  p.slug === adminP.slug ||
+                  (adminSlug && p.slug === adminSlug) ||
+                  p.name?.toLowerCase().trim() === adminP.name?.toLowerCase().trim()
+              );
               if (idx !== -1) {
                 const existing = transformed[idx];
                 const existingHasRealImg =
@@ -302,13 +309,21 @@ export class ProductService {
                   ? existing.images
                   : prodData.images || existing.images;
 
+                const finalCatName =
+                  existing.categoryName && existing.categoryName !== "Apparel"
+                    ? existing.categoryName
+                    : prodData.categoryName && prodData.categoryName !== "Apparel"
+                    ? prodData.categoryName
+                    : existing.categoryName || prodData.categoryName;
+
                 transformed[idx] = {
                   ...existing,
                   ...prodData,
+                  categoryName: finalCatName,
                   thumbnail: finalThumbnail,
                   images: finalImages,
                 };
-              } else {
+              } else if (prodData.thumbnail && !isFallbackImageUrl(prodData.thumbnail)) {
                 transformed.unshift(prodData);
               }
             }

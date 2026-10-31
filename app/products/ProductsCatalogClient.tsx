@@ -232,8 +232,13 @@ export function ProductsCatalogClient({
         localAdminProducts.forEach((adminP) => {
           if (adminP.isActive && adminP.status !== "ARCHIVED") {
             const transformed = transformAdminProductToProductData(adminP);
+            const adminSlug = adminP.slug || adminP.name?.toLowerCase().replace(/[^a-z0-9]+/g, "-");
             const idx = updated.findIndex(
-              (p) => p.id === adminP.id || p.slug === adminP.slug
+              (p) =>
+                p.id === adminP.id ||
+                p.slug === adminP.slug ||
+                (adminSlug && p.slug === adminSlug) ||
+                p.name?.toLowerCase().trim() === adminP.name?.toLowerCase().trim()
             );
             if (idx !== -1) {
               const existing = updated[idx];
@@ -259,9 +264,17 @@ export function ProductsCatalogClient({
                 ? existing.images
                 : transformed.images || existing.images;
 
+              const finalCatName =
+                existing.categoryName && existing.categoryName !== "Apparel"
+                  ? existing.categoryName
+                  : transformed.categoryName && transformed.categoryName !== "Apparel"
+                  ? transformed.categoryName
+                  : existing.categoryName || transformed.categoryName;
+
               updated[idx] = {
                 ...existing,
                 ...transformed,
+                categoryName: finalCatName,
                 thumbnail: finalThumbnail,
                 images: finalImages,
               };
@@ -270,7 +283,13 @@ export function ProductsCatalogClient({
               if (existingHasRealImg && !transformedHasRealImg) {
                 try {
                   const storedProducts = AdminService.getLocalProducts();
-                  const storedIdx = storedProducts.findIndex((p) => p.id === adminP.id || p.slug === adminP.slug);
+                  const storedIdx = storedProducts.findIndex(
+                    (p) =>
+                      p.id === adminP.id ||
+                      p.slug === adminP.slug ||
+                      (adminSlug && p.slug === adminSlug) ||
+                      p.name?.toLowerCase().trim() === adminP.name?.toLowerCase().trim()
+                  );
                   if (storedIdx !== -1) {
                     const realImgUrl = existing.thumbnail || existing.images?.[0]?.url;
                     if (realImgUrl) {
@@ -285,7 +304,8 @@ export function ProductsCatalogClient({
                   }
                 } catch {}
               }
-            } else {
+            } else if (transformed.thumbnail && !isFallbackImageUrl(transformed.thumbnail)) {
+              // Only unshift dynamic items if they have an actual verified uploaded image
               updated.unshift(transformed);
             }
           }
