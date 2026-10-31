@@ -56,6 +56,37 @@ export const LUXURY_FALLBACK_IMAGES = {
   },
 };
 
+export const KNOWN_FALLBACK_IMAGE_PATTERNS = [
+  "1507679799987-c73779587ccf", // Blazers primary
+  "1594938298603-c8148c4dae35", // Blazers hover / Sherwanis primary
+  "1610030469983-98e550d6193c", // Sarees primary
+  "1617627143750-d86bc21e42bb", // Sarees hover
+  "1583391733956-3750e0ff4e8b", // Lehengas primary
+  "1595777457583-95e059d581b8", // Lehengas hover
+  "1566174053879-31528523f8ae", // Gowns primary
+  "1515886657613-9f3515b0c78f", // Gowns hover / Default primary
+];
+
+/**
+ * Checks if a given image URL matches any of the static Unsplash fallback photos.
+ * Returns false for any user-uploaded images (e.g. Cloudinary, local uploads, blobs, data URIs).
+ */
+export function isFallbackImageUrl(url: unknown): boolean {
+  if (!url || typeof url !== "string") return false;
+  const trimmed = url.trim();
+  if (!trimmed) return false;
+  // User uploaded assets (Cloudinary, local, data, blob) are NEVER fallbacks
+  if (
+    trimmed.includes("cloudinary.com") ||
+    trimmed.includes("/uploads/") ||
+    trimmed.startsWith("blob:") ||
+    trimmed.startsWith("data:")
+  ) {
+    return false;
+  }
+  return KNOWN_FALLBACK_IMAGE_PATTERNS.some((pattern) => trimmed.includes(pattern));
+}
+
 /**
  * Validates and cleans a raw image URL string.
  * Rejects empty strings, "null", "undefined", or invalid whitespace strings.
@@ -165,6 +196,7 @@ export function getProductFallbackImage(product?: ProductLike | null): string {
  * 4. product.image / product.imageUrl
  * 5. product.variants[0].imageUrl
  *
+ * Prioritizes actual user-uploaded images over static fallback placeholders.
  * If no valid URL exists, falls back gracefully to a category-matched luxury image.
  * Guarantees zero regression on products with valid URLs.
  */
@@ -183,48 +215,58 @@ export function resolveProductImage(product?: ProductLike | null): {
     };
   }
 
-  // 1. Gather all candidate images from product.images
+  // 1. Gather all candidate images from all sources
   const candidateUrls: string[] = [];
 
+  const addCandidate = (url: unknown) => {
+    const clean = sanitizeImageUrl(url);
+    if (clean && !candidateUrls.includes(clean)) {
+      candidateUrls.push(clean);
+    }
+  };
+
+  // Check thumbnail first (usually set directly on the product record)
+  addCandidate(product.thumbnail);
+
+  // Check product.images
   if (Array.isArray(product.images)) {
     for (const item of product.images) {
       if (typeof item === "string") {
-        const clean = sanitizeImageUrl(item);
-        if (clean) candidateUrls.push(clean);
+        addCandidate(item);
       } else if (item && typeof item === "object") {
-        const clean = sanitizeImageUrl(item.url);
-        if (clean) candidateUrls.push(clean);
+        addCandidate(item.url);
       }
     }
   }
 
-  // 2. Candidate from thumbnail
-  const cleanThumb = sanitizeImageUrl(product.thumbnail);
-  if (cleanThumb && !candidateUrls.includes(cleanThumb)) {
-    candidateUrls.unshift(cleanThumb); // thumbnail is often the primary preview
-  }
+  // Check image / imageUrl
+  addCandidate(product.image);
+  addCandidate(product.imageUrl);
 
-  // 3. Candidate from image / imageUrl
-  const cleanImg = sanitizeImageUrl(product.image || product.imageUrl);
-  if (cleanImg && !candidateUrls.includes(cleanImg)) {
-    candidateUrls.push(cleanImg);
-  }
-
-  // 4. Candidate from variants
+  // Check variant images
   if (Array.isArray(product.variants)) {
-    for (const variant of product.variants) {
-      const cleanVarImg = sanitizeImageUrl(variant?.imageUrl);
-      if (cleanVarImg && !candidateUrls.includes(cleanVarImg)) {
-        candidateUrls.push(cleanVarImg);
-      }
+    for (const v of product.variants) {
+      addCandidate(v?.imageUrl);
     }
   }
 
-  if (candidateUrls.length > 0) {
+  // Prioritize real user uploaded / non-fallback images
+  const realCandidates = candidateUrls.filter((url) => !isFallbackImageUrl(url));
+  const fallbackCandidates = candidateUrls.filter((url) => isFallbackImageUrl(url));
+
+  if (realCandidates.length > 0) {
     return {
-      primary: candidateUrls[0],
-      hover: candidateUrls[1] || candidateUrls[0],
+      primary: realCandidates[0],
+      hover: realCandidates[1] || realCandidates[0],
       hasRealImage: true,
+    };
+  }
+
+  if (fallbackCandidates.length > 0) {
+    return {
+      primary: fallbackCandidates[0],
+      hover: fallbackCandidates[1] || fallbackCandidates[0],
+      hasRealImage: false,
     };
   }
 

@@ -830,6 +830,10 @@ export class AdminService {
     return getLocalData<AdminProduct[]>(STORAGE_KEYS.PRODUCTS, getInitialProducts());
   }
 
+  static setLocalProducts(products: AdminProduct[]): void {
+    setLocalData(STORAGE_KEYS.PRODUCTS, products);
+  }
+
   /**
    * Helper: Gather a category and all of its descendant IDs/slugs recursively
    */
@@ -1190,8 +1194,21 @@ export class AdminService {
           const filesData = new FormData();
           files.forEach((f) => filesData.append("images", f));
           const uploadRes = await this.uploadProductImages(targetId, filesData);
-          if (uploadRes?.data?.images && targetProduct) {
-            targetProduct.images = uploadRes.data.images;
+          if (uploadRes?.data?.images) {
+            const uploadedImgs = uploadRes.data.images;
+            const primaryUrl = uploadedImgs[0]?.url;
+            if (targetProduct) {
+              targetProduct.images = uploadedImgs;
+              if (primaryUrl) targetProduct.thumbnail = primaryUrl;
+            }
+            if (res.data) {
+              if ((res.data as any).product) {
+                (res.data as any).product.images = uploadedImgs;
+                if (primaryUrl) (res.data as any).product.thumbnail = primaryUrl;
+              }
+              (res.data as any).images = uploadedImgs;
+              if (primaryUrl) (res.data as any).thumbnail = primaryUrl;
+            }
           }
         } catch (uploadErr) {
           console.warn("[UploadProductImages error]:", uploadErr);

@@ -28,7 +28,7 @@ import {
 import { CollectionService } from "@/services/collection.service";
 import { AdminService } from "@/services/admin.service";
 import { AdminProduct } from "@/types/admin.types";
-import { getProductFallbackImage } from "@/utils/image.utils";
+import { getProductFallbackImage, isFallbackImageUrl } from "@/utils/image.utils";
 
 export { FALLBACK_PRODUCTS, FALLBACK_COLLECTIONS };
 export type {
@@ -281,7 +281,33 @@ export class ProductService {
               const prodData = transformAdminProductToProductData(adminP);
               const idx = transformed.findIndex((p) => p.id === adminP.id || p.slug === adminP.slug);
               if (idx !== -1) {
-                transformed[idx] = { ...transformed[idx], ...prodData };
+                const existing = transformed[idx];
+                const existingHasRealImg =
+                  (existing.thumbnail && !isFallbackImageUrl(existing.thumbnail)) ||
+                  (existing.images && existing.images.some((img) => !isFallbackImageUrl(img.url)));
+
+                const prodDataHasRealImg =
+                  (prodData.thumbnail && !isFallbackImageUrl(prodData.thumbnail)) ||
+                  (prodData.images && prodData.images.some((img) => !isFallbackImageUrl(img.url)));
+
+                const finalThumbnail = prodDataHasRealImg
+                  ? prodData.thumbnail
+                  : existingHasRealImg
+                  ? existing.thumbnail
+                  : prodData.thumbnail || existing.thumbnail;
+
+                const finalImages = prodDataHasRealImg
+                  ? prodData.images
+                  : existingHasRealImg
+                  ? existing.images
+                  : prodData.images || existing.images;
+
+                transformed[idx] = {
+                  ...existing,
+                  ...prodData,
+                  thumbnail: finalThumbnail,
+                  images: finalImages,
+                };
               } else {
                 transformed.unshift(prodData);
               }

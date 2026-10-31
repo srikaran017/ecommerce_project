@@ -22,6 +22,7 @@ import { storeConfig } from "@/config/store.config";
 import { INITIAL_CATEGORIES, INITIAL_OCCASIONS } from "@/config/category.config";
 import { AdminService } from "@/services/admin.service";
 import { transformAdminProductToProductData } from "@/services/product.service";
+import { isFallbackImageUrl } from "@/utils/image.utils";
 import {
   ApiCategory,
   CatalogFilterResponse,
@@ -235,7 +236,55 @@ export function ProductsCatalogClient({
               (p) => p.id === adminP.id || p.slug === adminP.slug
             );
             if (idx !== -1) {
-              updated[idx] = { ...updated[idx], ...transformed };
+              const existing = updated[idx];
+              // Check if existing product already has a real uploaded image
+              const existingHasRealImg =
+                (existing.thumbnail && !isFallbackImageUrl(existing.thumbnail)) ||
+                (existing.images && existing.images.some((img) => !isFallbackImageUrl(img.url)));
+
+              const transformedHasRealImg =
+                (transformed.thumbnail && !isFallbackImageUrl(transformed.thumbnail)) ||
+                (transformed.images && transformed.images.some((img) => !isFallbackImageUrl(img.url)));
+
+              // Preserve real uploaded image: never overwrite real server image with fallback
+              const finalThumbnail = transformedHasRealImg
+                ? transformed.thumbnail
+                : existingHasRealImg
+                ? existing.thumbnail
+                : transformed.thumbnail || existing.thumbnail;
+
+              const finalImages = transformedHasRealImg
+                ? transformed.images
+                : existingHasRealImg
+                ? existing.images
+                : transformed.images || existing.images;
+
+              updated[idx] = {
+                ...existing,
+                ...transformed,
+                thumbnail: finalThumbnail,
+                images: finalImages,
+              };
+
+              // Heal localStorage item if server has the real image
+              if (existingHasRealImg && !transformedHasRealImg) {
+                try {
+                  const storedProducts = AdminService.getLocalProducts();
+                  const storedIdx = storedProducts.findIndex((p) => p.id === adminP.id || p.slug === adminP.slug);
+                  if (storedIdx !== -1) {
+                    const realImgUrl = existing.thumbnail || existing.images?.[0]?.url;
+                    if (realImgUrl) {
+                      storedProducts[storedIdx].thumbnail = realImgUrl;
+                      if (!storedProducts[storedIdx].images || storedProducts[storedIdx].images.length === 0) {
+                        storedProducts[storedIdx].images = [
+                          { id: "img-0", url: realImgUrl, isPrimary: true, isThumbnail: true, altText: adminP.name },
+                        ];
+                      }
+                      AdminService.setLocalProducts(storedProducts);
+                    }
+                  }
+                } catch {}
+              }
             } else {
               updated.unshift(transformed);
             }

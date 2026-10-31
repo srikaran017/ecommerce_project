@@ -179,14 +179,15 @@ export function ProductCard({ product }: ProductCardProps) {
             </button>
           )}
 
-          {/* Quick View Button (Pill on image) */}
-          <button
-            onClick={handleOpenQuickView}
+          {/* Quick View Link: Direct navigation to respective product URL page */}
+          <Link
+            href={`/products/${product.slug}`}
+            onClick={(e) => e.stopPropagation()}
             className="absolute bottom-3 inset-x-3 py-2 bg-white/95 backdrop-blur-md text-neutral-900 text-xs font-bold uppercase rounded-xl opacity-0 group-hover:opacity-100 transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer hover:bg-neutral-900 hover:text-white"
           >
             <Eye className="w-3.5 h-3.5" />
             <span>Quick View</span>
-          </button>
+          </Link>
         </div>
 
         {/* Details & Clean Product Selection */}
