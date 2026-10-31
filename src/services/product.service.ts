@@ -584,7 +584,25 @@ export class ProductService {
    */
   static async getCategoryTree(options?: { tree?: boolean; rootOnly?: boolean }): Promise<ApiCategory[]> {
     try {
-      return await apiFetchCategoryTree(options);
+      const categories = await apiFetchCategoryTree(options);
+
+      // Compute recursive product counts for tree hierarchy
+      if (options?.tree && Array.isArray(categories)) {
+        const tallyProducts = (node: ApiCategory): number => {
+          let total = node.productCount || 0;
+          if (Array.isArray(node.children) && node.children.length > 0) {
+            for (const child of node.children) {
+              total += tallyProducts(child);
+            }
+          }
+          node.productCount = total;
+          return total;
+        };
+
+        categories.forEach(tallyProducts);
+      }
+
+      return categories;
     } catch {
       return [];
     }
@@ -653,7 +671,16 @@ export class ProductService {
     } catch {
       // Live database collections only
     }
-    return [];
+
+    // Fallback to pre-designed editorial lookbooks
+    return FALLBACK_COLLECTIONS.map((c) => ({
+      id: c.id,
+      name: c.name,
+      slug: c.slug,
+      description: c.description || "",
+      image: c.image || null,
+      itemCount: typeof c.itemCount === "string" ? c.itemCount : `${c.itemCount} Masterpieces`,
+    }));
   }
 
   static async getCollectionBySlug(slug: string) {
@@ -673,6 +700,20 @@ export class ProductService {
     } catch {
       // Live database collections only
     }
+
+    const found = FALLBACK_COLLECTIONS.find((c) => c.slug === slug);
+    if (found) {
+      return {
+        id: found.id,
+        name: found.name,
+        slug: found.slug,
+        description: found.description || "",
+        image: found.image || null,
+        itemCount: typeof found.itemCount === "string" ? found.itemCount : `${found.itemCount} Masterpieces`,
+        products: [],
+      };
+    }
+
     return null;
   }
 

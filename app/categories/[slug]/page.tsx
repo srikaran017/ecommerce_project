@@ -63,26 +63,29 @@ export default async function CategoryPage({
   const page = resolvedSearchParams.page ? Math.max(1, Number(resolvedSearchParams.page)) : 1;
   const limit = resolvedSearchParams.limit ? Number(resolvedSearchParams.limit) : 12;
 
-  const { category, products, pagination } = await ProductService.getCategoryProducts(slug, {
-    page,
-    limit,
-    sort: resolvedSearchParams.sort,
-    minPrice: resolvedSearchParams.minPrice
-      ? Number(resolvedSearchParams.minPrice)
-      : undefined,
-    maxPrice: resolvedSearchParams.maxPrice
-      ? Number(resolvedSearchParams.maxPrice)
-      : undefined,
-    search: resolvedSearchParams.search,
-    color: resolvedSearchParams.color,
-    size: resolvedSearchParams.size,
-    fabric: resolvedSearchParams.fabric,
-    brand: resolvedSearchParams.brand,
-    rating: resolvedSearchParams.rating,
-    inStock: resolvedSearchParams.inStock,
-  });
+  const [fullCategory, { category, products, pagination }] = await Promise.all([
+    ProductService.getCategoryBySlug(slug).catch(() => null),
+    ProductService.getCategoryProducts(slug, {
+      page,
+      limit,
+      sort: resolvedSearchParams.sort,
+      minPrice: resolvedSearchParams.minPrice
+        ? Number(resolvedSearchParams.minPrice)
+        : undefined,
+      maxPrice: resolvedSearchParams.maxPrice
+        ? Number(resolvedSearchParams.maxPrice)
+        : undefined,
+      search: resolvedSearchParams.search,
+      color: resolvedSearchParams.color,
+      size: resolvedSearchParams.size,
+      fabric: resolvedSearchParams.fabric,
+      brand: resolvedSearchParams.brand,
+      rating: resolvedSearchParams.rating,
+      inStock: resolvedSearchParams.inStock,
+    }),
+  ]);
 
-  const catDetails = category || (await ProductService.getCategoryBySlug(slug));
+  const catDetails = fullCategory || category;
   const heroImage =
     catDetails?.imageUrl ||
     DEFAULT_CATEGORY_IMAGES[slug] ||
