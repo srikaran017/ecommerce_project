@@ -114,6 +114,8 @@ export default function AdminProductsPage() {
   // Modal & Drawer State
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [viewingProduct, setViewingProduct] = useState<AdminProduct | null>(null);
+  const [isLoadingProductDetails, setIsLoadingProductDetails] = useState(false);
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
   const [deleteCandidate, setDeleteCandidate] = useState<AdminProduct | null>(null);
   const [forceDelete, setForceDelete] = useState(false);
 
@@ -179,22 +181,147 @@ export default function AdminProductsPage() {
   const [isSavingModifier, setIsSavingModifier] = useState(false);
   const [modifierFeedback, setModifierFeedback] = useState<{ type: "success" | "error" | "warning"; message: string } | null>(null);
 
-  // Auto-fetch product modifiers & full details when drawer is opened
+  // Helper to open product drawer with instant image hydration
+  const handleOpenProductDrawer = (p: AdminProduct) => {
+    let resolvedImages = Array.isArray(p.images) && p.images.length > 0 ? [...p.images] : [];
+
+    if (resolvedImages.length === 0 && p.thumbnail) {
+      resolvedImages = [
+        {
+          id: "thumb-initial",
+          url: p.thumbnail,
+          isThumbnail: true,
+          altText: p.name,
+          sortOrder: 0,
+        },
+      ];
+    }
+
+    if (resolvedImages.length === 0 && typeof window !== "undefined") {
+      try {
+        const local = AdminService.getLocalProducts();
+        const match = local.find((lp) => lp.id === p.id || lp.slug === p.slug);
+        if (match?.images && match.images.length > 0) {
+          resolvedImages = match.images;
+        } else if (match?.thumbnail) {
+          resolvedImages = [
+            {
+              id: "thumb-local",
+              url: match.thumbnail,
+              isThumbnail: true,
+              altText: match.name,
+              sortOrder: 0,
+            },
+          ];
+        }
+      } catch {}
+    }
+
+    setViewingProduct({
+      ...p,
+      images: resolvedImages,
+    });
+    setModifierFeedback(null);
+    setDrawerFeedback(null);
+  };
+
+  // Dynamic gallery images computed from images array or thumbnail fallback
+  const displayedGalleryImages = useMemo<AdminProductImage[]>(() => {
+    if (!viewingProduct) return [];
+    if (Array.isArray(viewingProduct.images) && viewingProduct.images.length > 0) {
+      return viewingProduct.images;
+    }
+    if (viewingProduct.thumbnail) {
+      return [
+        {
+          id: "thumb-primary",
+          url: viewingProduct.thumbnail,
+          isThumbnail: true,
+          altText: viewingProduct.name,
+          sortOrder: 0,
+        },
+      ];
+    }
+    return [];
+  }, [viewingProduct]);
+
+  // Auto-fetch product modifiers & full details (including cloud images) when drawer is opened
   useEffect(() => {
     if (viewingProduct?.id) {
       const pId = viewingProduct.id;
+      setIsLoadingProductDetails(true);
 
-      // 1. Fetch full product record from backend (which includes embedded modifierGroups)
+      // 1. Fetch full product record from backend (which includes complete images, variants, modifiers)
       AdminService.getProductById(pId)
         .then((fullProd) => {
-          if (fullProd && fullProd.modifierGroups && fullProd.modifierGroups.length > 0) {
-            setViewingProduct((prev) => (prev && prev.id === pId ? { ...prev, modifierGroups: fullProd.modifierGroups } : prev));
+          if (fullProd) {
+            let resolvedImages = Array.isArray(fullProd.images) && fullProd.images.length > 0
+              ? fullProd.images
+              : [];
+
+            if (resolvedImages.length === 0 && (fullProd.thumbnail || viewingProduct.thumbnail)) {
+              resolvedImages = [
+                {
+                  id: "thumb-resolved",
+                  url: fullProd.thumbnail || viewingProduct.thumbnail!,
+                  isThumbnail: true,
+                  altText: fullProd.name || viewingProduct.name,
+                  sortOrder: 0,
+                },
+              ];
+            }
+
+            if (resolvedImages.length === 0 && typeof window !== "undefined") {
+              try {
+                const local = AdminService.getLocalProducts();
+                const match = local.find((lp) => lp.id === pId || lp.slug === fullProd.slug);
+                if (match?.images && match.images.length > 0) {
+                  resolvedImages = match.images;
+                } else if (match?.thumbnail) {
+                  resolvedImages = [
+                    {
+                      id: "thumb-local",
+                      url: match.thumbnail,
+                      isThumbnail: true,
+                      altText: match.name,
+                      sortOrder: 0,
+                    },
+                  ];
+                }
+              } catch {}
+            }
+
+            setViewingProduct((prev) => {
+              if (!prev || prev.id !== pId) return prev;
+              return {
+                ...prev,
+                ...fullProd,
+                images: resolvedImages.length > 0 ? resolvedImages : prev.images || [],
+                thumbnail: fullProd.thumbnail || prev.thumbnail || resolvedImages[0]?.url,
+                modifierGroups: fullProd.modifierGroups && fullProd.modifierGroups.length > 0
+                  ? fullProd.modifierGroups
+                  : prev.modifierGroups || [],
+              };
+            });
+
+            // Update products list in table so thumbnail & image count reflect full backend data
             setProducts((prev) =>
-              prev.map((p) => (p.id === pId ? { ...p, modifierGroups: fullProd.modifierGroups } : p))
+              prev.map((p) => {
+                if (p.id === pId) {
+                  return {
+                    ...p,
+                    ...fullProd,
+                    images: resolvedImages.length > 0 ? resolvedImages : p.images || [],
+                    thumbnail: fullProd.thumbnail || p.thumbnail || resolvedImages[0]?.url,
+                  };
+                }
+                return p;
+              })
             );
           }
         })
-        .catch((err) => console.warn("Could not load full product:", err));
+        .catch((err) => console.warn("Could not load full product:", err))
+        .finally(() => setIsLoadingProductDetails(false));
 
       // 2. Fetch from dedicated modifiers endpoint if available
       AdminService.getProductModifiers(pId)
@@ -1309,11 +1436,13 @@ export default function AdminProductsPage() {
                           <img
                             src={p.thumbnail || p.images?.[0]?.url || "https://images.unsplash.com/photo-1566174053879-31528523f8ae?w=800"}
                             alt={p.name}
-                            className="w-12 h-14 object-cover rounded-xl border border-slate-800 bg-slate-900 shrink-0"
+                            onClick={() => handleOpenProductDrawer(p)}
+                            className="w-12 h-14 object-cover rounded-xl border border-slate-800 bg-slate-900 shrink-0 cursor-pointer hover:opacity-85 hover:border-amber-400/50 transition-all"
+                            title="Click to view garment details and images"
                           />
                           <div className="space-y-0.5">
                             <span
-                              onClick={() => setViewingProduct(p)}
+                              onClick={() => handleOpenProductDrawer(p)}
                               className="font-bold text-white text-xs block hover:text-amber-400 transition-colors cursor-pointer line-clamp-1"
                             >
                               {p.name}
@@ -1479,9 +1608,9 @@ export default function AdminProductsPage() {
                         <div className="flex items-center justify-end gap-1.5">
                           {/* Details & Variant Drawer */}
                           <button
-                            onClick={() => setViewingProduct(p)}
+                            onClick={() => handleOpenProductDrawer(p)}
                             className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-900 transition-colors cursor-pointer"
-                            title="View Full Garment Matrix"
+                            title="View Full Garment Matrix & Images"
                           >
                             <Eye className="w-4 h-4" />
                           </button>
@@ -1580,15 +1709,41 @@ export default function AdminProductsPage() {
             <div className="space-y-6">
               {/* Drawer Header */}
               <div className="flex items-start justify-between border-b border-slate-800 pb-4">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="font-mono text-xs text-amber-400 font-bold bg-amber-400/10 px-2 py-0.5 rounded">
-                      {viewingProduct.sku}
-                    </span>
-                    <span className="text-slate-500 text-xs">•</span>
-                    <span className="text-slate-400 text-xs">{viewingProduct.brand}</span>
+                <div className="flex items-center gap-3.5">
+                  {(viewingProduct.thumbnail || viewingProduct.images?.[0]?.url) ? (
+                    <div
+                      onClick={() => setPreviewImageUrl(viewingProduct.thumbnail || viewingProduct.images?.[0]?.url || null)}
+                      className="relative w-14 h-18 sm:w-16 sm:h-20 rounded-xl overflow-hidden border border-slate-800 bg-slate-900 shrink-0 shadow-lg cursor-pointer group hover:border-amber-400/60 transition-all"
+                      title="Click to zoom cover photo"
+                    >
+                      <img
+                        src={viewingProduct.thumbnail || viewingProduct.images?.[0]?.url}
+                        alt={viewingProduct.name}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <Eye className="w-4 h-4 text-white drop-shadow" />
+                      </div>
+                      <span className="absolute bottom-0 inset-x-0 bg-slate-950/85 text-[8px] font-bold text-center text-amber-400 py-0.5 tracking-wider uppercase border-t border-slate-800">
+                        Cover
+                      </span>
+                    </div>
+                  ) : null}
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-mono text-xs text-amber-400 font-bold bg-amber-400/10 px-2 py-0.5 rounded">
+                        {viewingProduct.sku}
+                      </span>
+                      <span className="text-slate-500 text-xs">•</span>
+                      <span className="text-slate-400 text-xs">{viewingProduct.brand}</span>
+                    </div>
+                    <h2 className="text-lg font-bold text-white line-clamp-1">{viewingProduct.name}</h2>
+                    {viewingProduct.category && (
+                      <span className="text-[11px] text-slate-400">
+                        {typeof viewingProduct.category === "object" ? viewingProduct.category.name : viewingProduct.category}
+                      </span>
+                    )}
                   </div>
-                  <h2 className="text-lg font-bold text-white">{viewingProduct.name}</h2>
                 </div>
                 <button
                   onClick={() => {
@@ -2120,34 +2275,67 @@ export default function AdminProductsPage() {
                 <div className="flex items-center justify-between">
                   <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
                     <ImageIcon className="w-4 h-4 text-amber-400" />
-                    <span>Cloud Image Gallery ({(viewingProduct.images || []).length})</span>
+                    <span>Cloud Image Gallery ({displayedGalleryImages.length})</span>
                   </h3>
+                  {isLoadingProductDetails && (
+                    <span className="text-[10px] text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-full border border-amber-400/20 flex items-center gap-1 font-mono">
+                      <RefreshCw className="w-2.5 h-2.5 animate-spin" />
+                      <span>Syncing Cloud...</span>
+                    </span>
+                  )}
                 </div>
 
-                <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-                  {(viewingProduct.images || []).map((img, i) => (
-                    <div
-                      key={img.id || i}
-                      className="group relative rounded-2xl overflow-hidden border border-slate-800 bg-slate-900 aspect-[3/4]"
-                    >
-                      <img src={img.url} alt={img.altText || viewingProduct.name} className="w-full h-full object-cover" />
-                      {img.isThumbnail && (
-                        <span className="absolute top-2 left-2 bg-amber-400 text-slate-950 text-[9px] font-bold px-1.5 py-0.5 rounded shadow">
-                          THUMBNAIL
-                        </span>
-                      )}
-                      {rbac.canWriteProducts(user?.role) && (
-                        <button
-                          onClick={() => img.id && handleDeleteDrawerImage(img.id)}
-                          className="absolute top-2 right-2 p-1.5 bg-rose-950/80 text-rose-400 hover:text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                          title="Delete photo"
+                {displayedGalleryImages.length > 0 ? (
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                    {displayedGalleryImages.map((img, i) => (
+                      <div
+                        key={img.id || i}
+                        className="group relative rounded-2xl overflow-hidden border border-slate-800 bg-slate-900 aspect-[3/4] shadow-sm hover:border-amber-400/60 transition-all"
+                      >
+                        <img
+                          src={img.url}
+                          alt={img.altText || viewingProduct.name}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 cursor-pointer"
+                          onClick={() => setPreviewImageUrl(img.url)}
+                          title="Click to zoom photo"
+                        />
+                        <div
+                          onClick={() => setPreviewImageUrl(img.url)}
+                          className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer pointer-events-none"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                          <Eye className="w-5 h-5 text-white drop-shadow-md" />
+                        </div>
+                        {img.isThumbnail && (
+                          <span className="absolute top-2 left-2 bg-amber-400 text-slate-950 text-[9px] font-bold px-1.5 py-0.5 rounded shadow flex items-center gap-1 z-10">
+                            <Sparkles className="w-2.5 h-2.5 fill-slate-950" />
+                            THUMBNAIL
+                          </span>
+                        )}
+                        {rbac.canWriteProducts(user?.role) && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (img.id) handleDeleteDrawerImage(img.id);
+                            }}
+                            className="absolute top-2 right-2 p-1.5 bg-rose-950/80 text-rose-400 hover:text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer z-10"
+                            title="Delete photo"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-6 rounded-2xl border border-dashed border-slate-800 bg-slate-900/30 text-center space-y-2">
+                    <ImageIcon className="w-8 h-8 text-slate-600 mx-auto" />
+                    <p className="text-xs text-slate-400 font-medium">No photographs found for this garment</p>
+                    <p className="text-[11px] text-slate-500">
+                      Upload a high-resolution garment photograph below to display in your storefront catalog.
+                    </p>
+                  </div>
+                )}
 
                 {/* Upload Additional Image Field (Cloudinary Integration: Mutual Exclusivity Policy) */}
                 {rbac.canWriteProducts(user?.role) && (
@@ -2310,6 +2498,48 @@ export default function AdminProductsPage() {
               >
                 Close Drawer
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Lightbox Image Preview Modal */}
+      {previewImageUrl && (
+        <div
+          onClick={() => setPreviewImageUrl(null)}
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-200 cursor-pointer"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative max-w-3xl max-h-[85vh] rounded-2xl overflow-hidden border border-slate-800 bg-slate-950 shadow-2xl flex flex-col"
+          >
+            <div className="flex items-center justify-between p-3 border-b border-slate-800 bg-slate-900/60">
+              <span className="text-xs font-mono text-slate-400">Garment Photo Preview</span>
+              <div className="flex items-center gap-2">
+                <a
+                  href={previewImageUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center gap-1.5 transition-colors"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  <span>Open Full Size</span>
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setPreviewImageUrl(null)}
+                  className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+            <div className="p-2 flex items-center justify-center bg-black/50 overflow-hidden">
+              <img
+                src={previewImageUrl}
+                alt="Product preview"
+                className="max-h-[75vh] w-auto object-contain rounded-xl"
+              />
             </div>
           </div>
         </div>
