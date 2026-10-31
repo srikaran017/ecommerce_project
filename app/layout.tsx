@@ -55,11 +55,15 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+import { ProductService } from "@/services/product.service";
+
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const initialCategories = await ProductService.getCategoryTree({ tree: true }).catch(() => []);
+
   return (
     <html
       lang="en"
@@ -71,7 +75,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col bg-[var(--background)] text-[var(--foreground)] selection:bg-[var(--primary)] selection:text-[var(--primary-foreground)]">
         <AuthInitializer />
         <AnnouncementBar />
-        <Navbar />
+        <Navbar initialCategories={initialCategories} />
         <main className="flex-1">{children}</main>
         <Footer />
         <CartDrawer />

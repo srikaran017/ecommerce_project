@@ -15,6 +15,7 @@ import {
 import { ApiCategory } from "@/services/catalogApi";
 import { CategoryConfig, INITIAL_CATEGORIES } from "@/config/category.config";
 import { Pagination } from "@/components/ui/Pagination";
+import { FALLBACK_CATEGORIES } from "@/components/layout/Navbar";
 
 interface CategoriesDirectoryClientProps {
   categoriesTree: ApiCategory[];
@@ -27,15 +28,17 @@ export function CategoriesDirectoryClient({
   const [searchPage, setSearchPage] = useState(1);
   const pageSize = 12;
 
-  // Default curated visual catalog images if backend imageUrl is null
+  // Visual catalog imagery for primary departments
   const defaultImages: Record<string, string> = {
-    women: "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=800",
     "womens-couture": "https://images.unsplash.com/photo-1566174053879-31528523f8ae?w=800",
+    "heritage-sarees": "https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=800",
+    "bridal-festive-lehengas": "https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?w=800",
+    "luxury-menswear": "https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=800",
+    "resort-vacation": "https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?w=800",
+    "accessories-stoles": "https://images.unsplash.com/photo-1611591475871-33513a9d949b?w=800",
     "evening-gowns": "https://images.unsplash.com/photo-1566174053879-31528523f8ae?w=800",
     sarees: "https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=800",
     dresses: "https://images.unsplash.com/photo-1595777457583-95e059d581b8?w=800",
-    men: "https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=800",
-    "mens-apparel": "https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=800",
     "mens-suits": "https://images.unsplash.com/photo-1594938298603-c8148c4dae35?w=800",
     "mens-shirts": "https://images.unsplash.com/photo-1602810318383-e386cc2a3ccf?w=800",
   };
@@ -45,7 +48,7 @@ export function CategoriesDirectoryClient({
       fallbackUrl ||
       defaultImages[slug] ||
       INITIAL_CATEGORIES.find((c) => c.slug === slug)?.image ||
-      "https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=800"
+      "https://images.unsplash.com/photo-1566174053879-31528523f8ae?w=800"
     );
   };
 
@@ -75,27 +78,12 @@ export function CategoriesDirectoryClient({
     }
   };
 
-  if (categoriesTree.length > 0) {
-    extractLeaves(categoriesTree);
-  } else {
-    // Fallback leaves from INITIAL_CATEGORIES
-    INITIAL_CATEGORIES.forEach((cat) => {
-      allLeafCategories.push({
-        name: cat.name,
-        slug: cat.slug,
-        description: cat.description,
-        image: cat.image,
-      });
-      cat.subcategories.forEach((sub) => {
-        allLeafCategories.push({
-          name: sub.name,
-          slug: sub.slug,
-          parentName: cat.name,
-          image: sub.image || cat.image,
-        });
-      });
-    });
-  }
+  const activeTree: ApiCategory[] =
+    categoriesTree && categoriesTree.length > 0
+      ? categoriesTree
+      : (FALLBACK_CATEGORIES as ApiCategory[]);
+
+  extractLeaves(activeTree);
 
   const filteredLeaves = searchQuery.trim()
     ? allLeafCategories.filter(
@@ -242,8 +230,8 @@ export function CategoriesDirectoryClient({
         ) : (
           /* Multi-Tier Tree Visualization */
           <div className="space-y-16">
-            {categoriesTree && categoriesTree.length > 0 ? (
-              categoriesTree.map((rootCategory) => (
+            {activeTree && activeTree.length > 0 ? (
+              activeTree.map((rootCategory) => (
                 <div
                   key={rootCategory.id}
                   className="bg-white rounded-3xl p-6 sm:p-10 border border-neutral-200/80 shadow-sm"

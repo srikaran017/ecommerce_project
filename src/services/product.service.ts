@@ -28,6 +28,7 @@ import {
 import { CollectionService } from "@/services/collection.service";
 import { AdminService } from "@/services/admin.service";
 import { AdminProduct } from "@/types/admin.types";
+import { getProductFallbackImage } from "@/utils/image.utils";
 
 export { FALLBACK_PRODUCTS, FALLBACK_COLLECTIONS };
 export type {
@@ -54,26 +55,36 @@ export function transformAdminProductToProductData(adminProd: AdminProduct): Pro
   const discountPercentage =
     regPrice > effectivePrice ? Math.round(((regPrice - effectivePrice) / regPrice) * 100) : 0;
 
-  const images = (adminProd.images || []).map((img, idx) => ({
-    id: img.id || `img-${idx}`,
-    url: img.url,
-    altText: img.altText || adminProd.name,
-    isPrimary: Boolean(img.isPrimary || img.isThumbnail || idx === 0),
-  }));
+  const validImages = (adminProd.images || [])
+    .filter((img) => img && typeof img.url === "string" && img.url.trim().length > 0 && img.url !== "null")
+    .map((img, idx) => ({
+      id: img.id || `img-${idx}`,
+      url: img.url.trim(),
+      altText: img.altText || adminProd.name,
+      isPrimary: Boolean(img.isPrimary || img.isThumbnail || idx === 0),
+    }));
 
-  if (images.length === 0 && adminProd.thumbnail) {
-    images.push({
+  if (
+    validImages.length === 0 &&
+    adminProd.thumbnail &&
+    typeof adminProd.thumbnail === "string" &&
+    adminProd.thumbnail.trim().length > 0 &&
+    adminProd.thumbnail !== "null"
+  ) {
+    validImages.push({
       id: "img-thumb",
-      url: adminProd.thumbnail,
+      url: adminProd.thumbnail.trim(),
       altText: adminProd.name,
       isPrimary: true,
     });
   }
 
-  if (images.length === 0) {
-    images.push({
+  const fallbackUrl = getProductFallbackImage(adminProd);
+
+  if (validImages.length === 0) {
+    validImages.push({
       id: "img-default",
-      url: "https://images.unsplash.com/photo-1566174053879-31528523f8ae?w=800",
+      url: fallbackUrl,
       altText: adminProd.name,
       isPrimary: true,
     });
@@ -96,7 +107,7 @@ export function transformAdminProductToProductData(adminProd: AdminProduct): Pro
       size: v.size || "Free Size",
       colorName: v.colorName || v.color || "Standard",
       colorHex: v.colorHex || "#111111",
-      imageUrl: images[0]?.url || null,
+      imageUrl: validImages[0]?.url || fallbackUrl || null,
       isActive: v.isActive !== false,
       name: v.name || `${v.size || ""} ${v.color || ""}`.trim() || adminProd.name,
       inStock: vStock > 0,
@@ -141,8 +152,8 @@ export function transformAdminProductToProductData(adminProd: AdminProduct): Pro
     stock: totalStock,
     stockQuantity: totalStock,
     inStock: totalStock > 0,
-    images,
-    thumbnail: images[0]?.url || adminProd.thumbnail || "",
+    images: validImages,
+    thumbnail: validImages[0]?.url || fallbackUrl,
     variants,
     hasVariants: variants.length > 0,
     requiresConfiguration: variants.length > 1,

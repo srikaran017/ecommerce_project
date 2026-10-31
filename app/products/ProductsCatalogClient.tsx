@@ -30,6 +30,7 @@ import {
   FilterRating,
 } from "@/services/catalogApi";
 import { AdminCategory } from "@/types/admin.types";
+import { FALLBACK_CATEGORIES } from "@/components/layout/Navbar";
 
 export interface CategoryGroup {
   id: string;
@@ -282,170 +283,110 @@ export function ProductsCatalogClient({
 
   // Hierarchical category groups (Root Departments -> Subcategories)
   const categoryGroups = useMemo<CategoryGroup[]>(() => {
-    // Curated Master Departments to organize the storefront
-    const rootDepartments: Array<{
-      id: string;
-      label: string;
-      value: string;
-      keywords: string[];
-      children: Array<{ id: string; label: string; value: string }>;
-    }> = [
-      {
-        id: "dept_women",
-        label: "Women's Couture",
-        value: "womens-couture",
-        keywords: [
-          "women",
-          "saree",
-          "gown",
-          "lehenga",
-          "kaftan",
-          "dress",
-          "anarkali",
-          "sharara",
-          "corset",
-          "blouse",
-          "co-ord",
-          "cape",
-          "robe",
-          "resort",
-        ],
-        children: [],
-      },
-      {
-        id: "dept_men",
-        label: "Men's Apparel",
-        value: "mens-apparel",
-        keywords: ["men", "suit", "blazer", "shirt", "kurta", "bespoke"],
-        children: [],
-      },
-      {
-        id: "dept_kids",
-        label: "Kids & Festive",
-        value: "kids",
-        keywords: ["kid", "child", "boy", "girl", "sub children"],
-        children: [],
-      },
-      {
-        id: "dept_accessories",
-        label: "Artisanal Accessories",
-        value: "accessories",
-        keywords: ["accessori", "jewel", "stole", "shawl", "belt", "cufflink"],
-        children: [],
-      },
-    ];
+    const rawRoots: ApiCategory[] =
+      initialCategories && initialCategories.length > 0
+        ? initialCategories
+        : (FALLBACK_CATEGORIES as ApiCategory[]);
 
+    const groups: CategoryGroup[] = [];
+    const groupMap = new Map<string, CategoryGroup>();
     const registeredSubSlugs = new Set<string>();
 
-    // 1. Ingest initialCategories from API Tree
-    if (initialCategories && initialCategories.length > 0) {
-      initialCategories.forEach((cat) => {
-        const lowerName = cat.name.toLowerCase();
-        const matchedDept = rootDepartments.find(
-          (d) =>
-            d.value === cat.slug ||
-            d.id === cat.id ||
-            d.keywords.some((kw) => lowerName.includes(kw))
-        );
+    // 1. Process root categories from API tree
+    rawRoots.forEach((cat) => {
+      const childrenList: Array<{ id: string; label: string; value: string }> = [];
 
-        if (matchedDept) {
-          (cat.children || []).forEach((sub) => {
-            if (!matchedDept.children.some((c) => c.value === sub.slug)) {
-              matchedDept.children.push({ id: sub.id, label: sub.name, value: sub.slug });
-              registeredSubSlugs.add(sub.slug);
-            }
-          });
-        } else if (cat.children && cat.children.length > 0) {
-          rootDepartments.push({
-            id: cat.id,
-            label: cat.name,
-            value: cat.slug,
-            keywords: [cat.slug.toLowerCase()],
-            children: cat.children.map((sub) => {
-              registeredSubSlugs.add(sub.slug);
-              return { id: sub.id, label: sub.name, value: sub.slug };
-            }),
-          });
-        }
-      });
-    }
-
-    // 2. Ingest INITIAL_CATEGORIES
-    INITIAL_CATEGORIES.forEach((cat) => {
-      const lowerName = cat.name.toLowerCase();
-      const matchedDept = rootDepartments.find(
-        (d) =>
-          d.value === cat.slug ||
-          d.id === cat.id ||
-          d.keywords.some((kw) => lowerName.includes(kw))
-      );
-
-      if (matchedDept) {
-        (cat.subcategories || []).forEach((sub) => {
-          if (!matchedDept.children.some((c) => c.value === sub.slug)) {
-            matchedDept.children.push({ id: sub.id, label: sub.name, value: sub.slug });
+      function extractChildren(subs?: ApiCategory[]) {
+        if (!subs) return;
+        subs.forEach((sub) => {
+          if (!childrenList.some((c) => c.value === sub.slug)) {
+            childrenList.push({ id: sub.id, label: sub.name, value: sub.slug });
             registeredSubSlugs.add(sub.slug);
+          }
+          if (sub.children && sub.children.length > 0) {
+            extractChildren(sub.children);
           }
         });
       }
+
+      extractChildren(cat.children);
+
+      const group: CategoryGroup = {
+        id: cat.id || cat.slug,
+        label: cat.name,
+        value: cat.slug,
+        children: childrenList,
+      };
+
+      groups.push(group);
+      groupMap.set(cat.slug, group);
+      if (cat.id) groupMap.set(cat.id, group);
     });
 
-    // 3. Ingest localCategories from Admin
+    // 2. Ingest localCategories from Admin portal (live updates)
     localCategories.forEach((cat) => {
       if (cat.isActive === false) return;
-      const lowerName = cat.name.toLowerCase();
-      const matchedDept = rootDepartments.find(
-        (d) =>
-          d.value === cat.slug ||
-          d.id === cat.id ||
-          d.id === cat.parentId ||
-          d.keywords.some((kw) => lowerName.includes(kw))
-      );
 
-      if (matchedDept && cat.slug !== matchedDept.value) {
-        if (!matchedDept.children.some((c) => c.value === cat.slug)) {
-          matchedDept.children.push({ id: cat.id, label: cat.name, value: cat.slug });
-          registeredSubSlugs.add(cat.slug);
+      if (cat.parentId) {
+        // Child category created in admin
+        const parentGroup =
+          groupMap.get(cat.parentId) ||
+          groups.find((g) => g.id === cat.parentId || g.value === cat.parentId);
+
+        if (parentGroup) {
+          if (!parentGroup.children.some((c) => c.value === cat.slug)) {
+            parentGroup.children.push({ id: cat.id, label: cat.name, value: cat.slug });
+            registeredSubSlugs.add(cat.slug);
+          }
+          return;
         }
+      }
+
+      // Root category created in admin
+      if (!groupMap.has(cat.slug)) {
+        const newGroup: CategoryGroup = {
+          id: cat.id,
+          label: cat.name,
+          value: cat.slug,
+          children: [],
+        };
+        groups.push(newGroup);
+        groupMap.set(cat.slug, newGroup);
+        if (cat.id) groupMap.set(cat.id, newGroup);
       }
     });
 
-    // 4. Ingest any remaining subcategories from allProducts
+    // 3. Ingest any remaining subcategories from allProducts
     allProducts.forEach((p) => {
       if (!p.categorySlug) return;
-      const isAlreadyChild = rootDepartments.some(
-        (d) => d.value === p.categorySlug || d.children.some((c) => c.value === p.categorySlug)
-      );
-      if (!isAlreadyChild) {
-        const lowerName = (p.categoryName || p.categorySlug).toLowerCase();
-        const matchedDept = rootDepartments.find((d) =>
-          d.keywords.some((kw) => lowerName.includes(kw))
-        );
-        if (matchedDept) {
-          matchedDept.children.push({
+      const isAlreadyCovered =
+        groups.some((g) => g.value === p.categorySlug) || registeredSubSlugs.has(p.categorySlug);
+
+      if (!isAlreadyCovered) {
+        // Check if product's parent category matches any group
+        const parentSlug = p.categoryData?.parent?.slug;
+        const targetGroup = parentSlug ? groupMap.get(parentSlug) : null;
+
+        if (targetGroup) {
+          targetGroup.children.push({
             id: p.categorySlug,
-            label: p.categoryName || p.categorySlug,
+            label: p.categoryName || p.categorySlug.replace(/-/g, " "),
             value: p.categorySlug,
           });
           registeredSubSlugs.add(p.categorySlug);
-        } else {
-          rootDepartments[rootDepartments.length - 1].children.push({
+        } else if (groups.length > 0) {
+          // Add as child to the first matching or last general group
+          groups[groups.length - 1].children.push({
             id: p.categorySlug,
-            label: p.categoryName || p.categorySlug,
+            label: p.categoryName || p.categorySlug.replace(/-/g, " "),
             value: p.categorySlug,
           });
+          registeredSubSlugs.add(p.categorySlug);
         }
       }
     });
 
-    return rootDepartments
-      .filter((d) => d.children.length > 0 || allProducts.some((p) => p.categorySlug === d.value))
-      .map((d) => ({
-        id: d.id,
-        label: d.label,
-        value: d.value,
-        children: d.children,
-      }));
+    return groups;
   }, [initialCategories, localCategories, allProducts]);
 
   // Flat categories list (contains All Products + all roots + all subcategories)

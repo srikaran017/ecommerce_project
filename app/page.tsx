@@ -6,6 +6,9 @@ import { PromoBanner } from "@/components/home/PromoBanner";
 import { ShopByOccasion } from "@/components/home/ShopByOccasion";
 import { BrandStory } from "@/components/home/BrandStory";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export default function HomePage() {
   return (
     <div className="flex flex-col w-full">

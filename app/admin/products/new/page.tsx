@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -25,6 +25,49 @@ export default function NewProductPage() {
   const router = useRouter();
   const { user } = useAuthStore();
   const [categories, setCategories] = useState<AdminCategory[]>([]);
+
+  // Hierarchical category tree groups for clear parent -> subcategory entitlement
+  const categoryTreeGroups = useMemo(() => {
+    if (!categories || categories.length === 0) return [];
+
+    const categoryMap = new Map<string, AdminCategory>();
+    categories.forEach((c) => categoryMap.set(c.id, c));
+
+    // Identify roots (categories without parentId or parent not found)
+    const roots: AdminCategory[] = [];
+    const childrenMap = new Map<string, AdminCategory[]>();
+
+    categories.forEach((cat) => {
+      if (cat.parentId && categoryMap.has(cat.parentId)) {
+        const existing = childrenMap.get(cat.parentId) || [];
+        existing.push(cat);
+        childrenMap.set(cat.parentId, existing);
+      } else {
+        roots.push(cat);
+      }
+    });
+
+    // Sort roots by sortOrder or name
+    roots.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name));
+
+    return roots.map((root) => {
+      const children = (childrenMap.get(root.id) || []).sort(
+        (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name)
+      );
+
+      const enrichedChildren = children.map((child) => ({
+        ...child,
+        children: (childrenMap.get(child.id) || []).sort(
+          (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name)
+        ),
+      }));
+
+      return {
+        root,
+        children: enrichedChildren,
+      };
+    });
+  }, [categories]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -350,10 +393,24 @@ export default function NewProductPage() {
               onChange={(e) => setCategoryId(e.target.value)}
               className="w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-2xl text-white font-medium focus:border-amber-400 focus:outline-none cursor-pointer"
             >
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.parentId ? `↳ ${c.name}` : c.name}
-                </option>
+              {categoryTreeGroups.map(({ root, children }) => (
+                <optgroup key={root.id} label={`📁 ${root.name.toUpperCase()}`}>
+                  <option value={root.id} className="font-semibold text-amber-300">
+                    ● {root.name} (Entire Department)
+                  </option>
+                  {children.map((sub) => (
+                    <React.Fragment key={sub.id}>
+                      <option value={sub.id} className="text-slate-200">
+                        &nbsp;&nbsp;&nbsp;&nbsp;↳ {sub.name}
+                      </option>
+                      {sub.children?.map((leaf) => (
+                        <option key={leaf.id} value={leaf.id} className="text-slate-400">
+                          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;↳ ↳ {leaf.name}
+                        </option>
+                      ))}
+                    </React.Fragment>
+                  ))}
+                </optgroup>
               ))}
             </select>
           </div>

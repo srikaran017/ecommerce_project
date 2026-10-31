@@ -49,6 +49,49 @@ export default function AdminProductsPage() {
   const { user } = useAuthStore();
   const [products, setProducts] = useState<AdminProduct[]>([]);
   const [categories, setCategories] = useState<AdminCategory[]>([]);
+
+  // Hierarchical category tree groups for clear parent -> subcategory entitlement
+  const categoryTreeGroups = useMemo(() => {
+    if (!categories || categories.length === 0) return [];
+
+    const categoryMap = new Map<string, AdminCategory>();
+    categories.forEach((c) => categoryMap.set(c.id, c));
+
+    // Identify roots (categories without parentId or parent not found)
+    const roots: AdminCategory[] = [];
+    const childrenMap = new Map<string, AdminCategory[]>();
+
+    categories.forEach((cat) => {
+      if (cat.parentId && categoryMap.has(cat.parentId)) {
+        const existing = childrenMap.get(cat.parentId) || [];
+        existing.push(cat);
+        childrenMap.set(cat.parentId, existing);
+      } else {
+        roots.push(cat);
+      }
+    });
+
+    // Sort roots by sortOrder or name
+    roots.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name));
+
+    return roots.map((root) => {
+      const children = (childrenMap.get(root.id) || []).sort(
+        (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name)
+      );
+
+      const enrichedChildren = children.map((child) => ({
+        ...child,
+        children: (childrenMap.get(child.id) || []).sort(
+          (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name)
+        ),
+      }));
+
+      return {
+        root,
+        children: enrichedChildren,
+      };
+    });
+  }, [categories]);
   const [isLoading, setIsLoading] = useState(true);
   const [feedback, setFeedback] = useState<{ type: "success" | "warning" | "error"; message: string } | null>(null);
 
@@ -394,10 +437,10 @@ export default function AdminProductsPage() {
 
   // Set default category when categories are loaded
   useEffect(() => {
-    if (categories.length > 0 && !formCategory) {
-      setFormCategory(categories[0].id);
+    if (categoryTreeGroups.length > 0 && !formCategory) {
+      setFormCategory(categoryTreeGroups[0].root.id);
     }
-  }, [categories, formCategory]);
+  }, [categoryTreeGroups, formCategory]);
 
   // Load Products with Faceted Filters & Pagination
   const loadProducts = async () => {
@@ -1064,10 +1107,20 @@ export default function AdminProductsPage() {
               className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-800 rounded-2xl text-white text-xs font-medium focus:border-amber-400 focus:outline-none cursor-pointer"
             >
               <option value="ALL">All Categories & Depths</option>
-              {categories.map((cat) => (
-                <option key={cat.id} value={cat.id}>
-                  {cat.parentId ? `↳ ${cat.name}` : cat.name}
-                </option>
+              {categoryTreeGroups.map(({ root, children }) => (
+                <optgroup key={root.id} label={`📁 ${root.name.toUpperCase()}`}>
+                  <option value={root.id}>● {root.name} (All Silhouettes)</option>
+                  {children.map((sub) => (
+                    <React.Fragment key={sub.id}>
+                      <option value={sub.id}>&nbsp;&nbsp;&nbsp;&nbsp;↳ {sub.name}</option>
+                      {sub.children?.map((leaf) => (
+                        <option key={leaf.id} value={leaf.id}>
+                          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;↳ ↳ {leaf.name}
+                        </option>
+                      ))}
+                    </React.Fragment>
+                  ))}
+                </optgroup>
               ))}
             </select>
           </div>
@@ -2389,10 +2442,24 @@ export default function AdminProductsPage() {
                     onChange={(e) => setFormCategory(e.target.value)}
                     className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-white focus:border-amber-400 focus:outline-none cursor-pointer"
                   >
-                    {categories.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.parentId ? `↳ ${c.name}` : c.name}
-                      </option>
+                    {categoryTreeGroups.map(({ root, children }) => (
+                      <optgroup key={root.id} label={`📁 ${root.name.toUpperCase()}`}>
+                        <option value={root.id} className="font-semibold text-amber-300">
+                          ● {root.name} (Entire Department)
+                        </option>
+                        {children.map((sub) => (
+                          <React.Fragment key={sub.id}>
+                            <option value={sub.id} className="text-slate-200">
+                              &nbsp;&nbsp;&nbsp;&nbsp;↳ {sub.name}
+                            </option>
+                            {sub.children?.map((leaf) => (
+                              <option key={leaf.id} value={leaf.id} className="text-slate-400">
+                                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;↳ ↳ {leaf.name}
+                              </option>
+                            ))}
+                          </React.Fragment>
+                        ))}
+                      </optgroup>
                     ))}
                   </select>
                 </div>

@@ -22,9 +22,18 @@ export async function FeaturedProducts({
     featured: type === "featured",
     newArrivals: type === "newArrivals",
     bestSellers: type === "bestSellers",
+    page: 1,
+    limit: 8,
   };
 
-  const products = await ProductService.getAllProducts(filters);
+  let products = await ProductService.getAllProducts(filters);
+  
+  // Graceful fallback: If admin hasn't flagged items as 'featured' or 'bestSellers' yet,
+  // load newest arrivals so the showcase displays active garments instead of collapsing
+  if (products.length === 0 && (filters.featured || filters.bestSellers)) {
+    products = await ProductService.getAllProducts({ page: 1, limit: 8, newArrivals: true });
+  }
+
   const displayProducts = products.slice(0, 4);
 
   if (displayProducts.length === 0) return null;

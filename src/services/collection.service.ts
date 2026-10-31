@@ -23,17 +23,17 @@ export class CollectionService {
       });
 
       if (!res.ok) {
-        return this.getFallbackSummaries();
+        return [];
       }
 
       const json: CollectionsListResponse = await res.json();
-      if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+      if (json.success && Array.isArray(json.data)) {
         return json.data;
       }
-      return this.getFallbackSummaries();
+      return [];
     } catch (err) {
       console.warn("[CollectionService] Error fetching collections:", err);
-      return this.getFallbackSummaries();
+      return [];
     }
   }
 
@@ -50,17 +50,17 @@ export class CollectionService {
       });
 
       if (!res.ok) {
-        return this.getFallbackDetail(slug);
+        return null;
       }
 
       const json: CollectionDetailResponse = await res.json();
       if (json.success && json.data) {
         return json.data;
       }
-      return this.getFallbackDetail(slug);
+      return null;
     } catch (err) {
       console.warn(`[CollectionService] Error fetching collection '${slug}':`, err);
-      return this.getFallbackDetail(slug);
+      return null;
     }
   }
 

@@ -6,6 +6,7 @@
 import { AuthService } from "@/services/auth.service";
 import { getApiBaseUrl } from "@/services/apiConfig";
 import { storeConfig } from "@/config/store.config";
+import { getProductFallbackImage } from "@/utils/image.utils";
 
 const getBaseUrl = getApiBaseUrl;
 
@@ -487,6 +488,13 @@ export function transformApiCardToProduct(card: ApiProductCard): any {
   const regular = card.price?.regular ?? card.price?.effective ?? 0;
   const effective = card.price?.effective ?? 0;
 
+  const validThumbnail =
+    card.thumbnail && typeof card.thumbnail === "string" && card.thumbnail.trim().length > 0 && card.thumbnail !== "null"
+      ? card.thumbnail.trim()
+      : null;
+
+  const resolvedThumb = validThumbnail || getProductFallbackImage(card);
+
   return {
     id: card.id,
     name: card.name,
@@ -501,8 +509,8 @@ export function transformApiCardToProduct(card: ApiProductCard): any {
     categorySlug: card.category?.slug || "",
     categoryName: card.category?.name || "Apparel",
     stock: 20,
-    images: [{ url: card.thumbnail, isPrimary: true, altText: card.name }],
-    thumbnail: card.thumbnail,
+    images: [{ url: resolvedThumb, isPrimary: true, altText: card.name }],
+    thumbnail: resolvedThumb,
     variants: [],
     hasVariants: card.hasVariants,
     hasModifiers: card.hasModifiers,
@@ -518,17 +526,19 @@ export function transformApiDetailToProduct(detail: ApiProductDetail): any {
   const regular = detail.price?.regular ?? detail.price?.effective ?? 0;
   const effective = detail.price?.effective ?? 0;
 
-  const images = (detail.images || []).map((img) => ({
-    id: img.id,
-    url: img.url,
-    altText: img.altText || detail.name,
-    isPrimary: Boolean(img.isThumbnail),
-  }));
+  const images = (detail.images || [])
+    .filter((img) => img && typeof img.url === "string" && img.url.trim().length > 0 && img.url !== "null")
+    .map((img) => ({
+      id: img.id,
+      url: img.url.trim(),
+      altText: img.altText || detail.name,
+      isPrimary: Boolean(img.isThumbnail),
+    }));
 
   if (images.length === 0) {
     images.push({
       id: "img-default",
-      url: "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=800",
+      url: getProductFallbackImage(detail),
       altText: detail.name,
       isPrimary: true,
     });

@@ -9,6 +9,9 @@ export const metadata = {
     "Explore our complete hierarchy of luxury evening gowns, royal sarees, tailored suits, and fine cotton shirts.",
 };
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export default async function CategoriesPage() {
   const categoriesTree = await ProductService.getCategoryTree({ tree: true });
 

@@ -138,6 +138,7 @@ import {
 } from "@/types/admin.types";
 import { storeConfig } from "@/config/store.config";
 import { useAuthStore } from "@/stores/auth.store";
+import { getProductFallbackImage } from "@/utils/image.utils";
 import {
   getDelegatablePermissions as getDelegatablePermsHelper,
   canCreateRole,
@@ -1371,6 +1372,19 @@ export class AdminService {
       displayOrder: img.sortOrder ?? i,
     }));
 
+    if (processedImages.length === 0) {
+      processedImages.push({
+        id: `img_${Date.now()}_fallback`,
+        productId: newId,
+        url: getProductFallbackImage(parsedInput),
+        altText: parsedInput.name,
+        isThumbnail: true,
+        isPrimary: true,
+        sortOrder: 0,
+        displayOrder: 0,
+      });
+    }
+
     const variantsSummary: AdminProductVariantSummary[] = processedVariants.map((v) => ({
       id: v.id,
       sku: v.sku,
@@ -1424,7 +1438,7 @@ export class AdminService {
       thumbnail:
         processedImages.find((img) => img.isThumbnail)?.url ||
         processedImages[0]?.url ||
-        "https://images.unsplash.com/photo-1566174053879-31528523f8ae?w=800",
+        getProductFallbackImage(parsedInput),
       imagesCount: processedImages.length,
       variantsCount: processedVariants.length,
       variantsSummary,

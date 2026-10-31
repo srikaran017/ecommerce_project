@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { X, ShoppingBag, Check, ArrowRight, Sparkles } from "lucide-react";
@@ -8,6 +8,7 @@ import { storeConfig } from "@/config/store.config";
 import { useCartStore } from "@/stores/cart.store";
 import { useAuthStore } from "@/stores/auth.store";
 import { ProductData, ProductVariantData } from "@/data/products.data";
+import { resolveProductImage, getProductFallbackImage } from "@/utils/image.utils";
 
 interface QuickViewModalProps {
   product: ProductData;
@@ -17,6 +18,8 @@ interface QuickViewModalProps {
 
 export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps) {
   const router = useRouter();
+
+  const resolvedImages = useMemo(() => resolveProductImage(product), [product]);
 
   const defaultVariant = product.variants?.[0] || {
     id: "default",
@@ -30,9 +33,7 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
   };
 
   const [selectedVariant, setSelectedVariant] = useState<ProductVariantData>(defaultVariant);
-  const [activeImg, setActiveImg] = useState(
-    product.images?.[0]?.url || product.thumbnail || ""
-  );
+  const [activeImg, setActiveImg] = useState(resolvedImages.primary);
   const [addedAnimation, setAddedAnimation] = useState(false);
   const addItem = useCartStore((state) => state.addItem);
   const { isAuthenticated } = useAuthStore();
@@ -40,9 +41,16 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
   useEffect(() => {
     if (isOpen) {
       setSelectedVariant(defaultVariant);
-      setActiveImg(product.images?.[0]?.url || product.thumbnail || "");
+      setActiveImg(resolvedImages.primary);
     }
-  }, [isOpen, product.id]);
+  }, [isOpen, product.id, resolvedImages.primary]);
+
+  const handleImageError = () => {
+    const fallback = getProductFallbackImage(product);
+    if (activeImg !== fallback) {
+      setActiveImg(fallback);
+    }
+  };
 
   const availableSizes = Array.from(
     new Set(product.variants?.map((v) => v.size).filter(Boolean) || ["S", "M", "L"])
@@ -118,6 +126,7 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
               <img
                 src={activeImg}
                 alt={product.name}
+                onError={handleImageError}
                 className="w-full h-full object-cover object-top"
               />
             ) : (

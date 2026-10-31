@@ -1,4 +1,5 @@
 import { storeConfig } from "@/config/store.config";
+import { getProductFallbackImage } from "@/utils/image.utils";
 
 export interface ProductVariantData {
   id: string;
@@ -153,10 +154,21 @@ export function ensureProductData(p: ProductData): ProductData {
       ? Math.round(((regular - effective) / regular) * 100)
       : 0;
 
+  const fallbackUrl = getProductFallbackImage(p);
+  const validImages = Array.isArray(p.images) && p.images.length > 0 && p.images.some((img) => Boolean(img?.url))
+    ? p.images.filter((img) => Boolean(img?.url))
+    : [{ url: (p.thumbnail && p.thumbnail.trim().length > 0 && p.thumbnail !== "null") ? p.thumbnail.trim() : fallbackUrl, isPrimary: true, altText: p.name }];
+
+  const resolvedThumb = (p.thumbnail && p.thumbnail.trim().length > 0 && p.thumbnail !== "null")
+    ? p.thumbnail.trim()
+    : validImages[0]?.url || fallbackUrl;
+
   return {
     ...p,
     price: effective,
     compareAtPrice: regular > effective ? regular : null,
+    images: validImages,
+    thumbnail: resolvedThumb,
     priceObject: p.priceObject || {
       regular,
       sale: p.compareAtPrice ? effective : null,
@@ -181,34 +193,34 @@ export const FALLBACK_PRODUCTS: ProductData[] = [];
 export const FALLBACK_COLLECTIONS = [
   {
     id: "col_1",
-    name: "Women's Haute Couture",
-    slug: "womens-couture",
-    description: "Exclusive luxury evening gowns, royal velvet sarees, and red-carpet ready designer dresses.",
-    image: "https://images.unsplash.com/photo-1566174053879-31528523f8ae?w=1200",
+    name: "The Royal Heritage Edit",
+    slug: "royal-heritage-lookbook",
+    description: "Exclusive heirloom ensembles, handwoven zardozi silks, and bespoke ceremonial masterworks.",
+    image: "https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=1200",
     itemCount: "Curated Masterpieces",
   },
   {
     id: "col_2",
-    name: "Luxury Men's Tailoring",
-    slug: "mens-apparel",
-    description: "Bespoke organic Irish linen suits, Savile Row cuts, and Egyptian Oxford cotton shirts.",
+    name: "Savile Row Bespoke Curation",
+    slug: "savile-row-curation",
+    description: "Hand-tailored Italian wool suits, Egyptian cotton dress shirts, and hand-embroidered sherwanis.",
     image: "https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=1200",
     itemCount: "Bespoke Attire",
   },
   {
     id: "col_3",
-    name: "Red-Carpet Evening Gowns",
-    slug: "evening-gowns",
-    description: "Handcrafted pure Mulberry silk gowns with cowl necklines and asymmetric drape.",
+    name: "Red-Carpet Soirée Edition",
+    slug: "soiree-capsule-edition",
+    description: "Handcrafted pure Mulberry silk gowns with cowl necklines, structured corsetry, and asymmetric drapes.",
     image: "https://images.unsplash.com/photo-1595777457583-95e059d581b8?w=1200",
     itemCount: "Silk Silhouettes",
   },
   {
     id: "col_4",
-    name: "Royal Crimson & Heritage Sarees",
-    slug: "sarees",
-    description: "Opulent micro-velvet and handwoven heritage sarees with antique gold zardozi embellishments.",
-    image: "https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=1200",
-    itemCount: "Heirloom Weaves",
+    name: "Noor Festive & Bridal Capsule",
+    slug: "noor-festive-edit",
+    description: "Opulent micro-velvet and handcrafted bridal lehengas adorned with antique dabka and sequins.",
+    image: "https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?w=1200",
+    itemCount: "Bridal Masterworks",
   },
 ];

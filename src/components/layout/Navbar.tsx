@@ -31,31 +31,83 @@ import { canAccessAdmin } from "@/lib/rbac";
 import { fetchCategoryTree, ApiCategory } from "@/services/catalogApi";
 
 // Curated initial fallback categories matching real database taxonomy
-const FALLBACK_CATEGORIES: ApiCategory[] = [
+export const FALLBACK_CATEGORIES: ApiCategory[] = [
   {
-    id: "women-root",
-    name: "Women",
-    slug: "women",
+    id: "3ed4e829-86a3-4e78-a89f-26c478f34aa8",
+    name: "Women's Haute Couture",
+    slug: "womens-couture",
     isFeatured: true,
     children: [
-      { id: "women-dresses", name: "Dresses & Gowns", slug: "women-dresses" },
-      { id: "women-ethnic", name: "Ethnic & Festive Couture", slug: "women-ethnic" },
-      { id: "women-coords", name: "Co-ords & Statement Tops", slug: "women-coords-tops" },
+      {
+        id: "b5a73164-792b-4bed-a3fe-983127fdb7cc",
+        name: "Evening & Gala Gowns",
+        slug: "evening-gowns",
+        children: [
+          { id: "f0d24092-ac5d-46fc-8841-758c676fe7a5", name: "Mermaid & Corset Gowns", slug: "mermaid-corset-gowns" },
+          { id: "6b6b9273-a4a7-444c-9115-d16693f7111d", name: "A-Line & Ball Gowns", slug: "a-line-ball-gowns" },
+          { id: "f3f5f6e1-4712-4421-b618-467e4b4404be", name: "Backless & Slit Evening Dresses", slug: "backless-slit-dresses" },
+        ],
+      },
+      { id: "b01fdb56-fca5-4e93-a060-ef33502a9804", name: "Cocktail & Party Dresses", slug: "cocktail-party-dresses" },
+      { id: "879b7420-5c78-42f6-9335-de916eb7569b", name: "Designer Jumpsuits & Sets", slug: "designer-jumpsuits-sets" },
     ],
   },
   {
-    id: "men-root",
-    name: "Men",
-    slug: "men",
+    id: "fea6c347-2dc4-4dd5-857c-bf2e019d4fdf",
+    name: "Traditional Heritage Sarees",
+    slug: "heritage-sarees",
     isFeatured: true,
     children: [
-      { id: "men-suits", name: "Suits & Bespoke Blazers", slug: "men-suits-blazers" },
-      { id: "men-kurtas", name: "Luxury Silk Kurta Sets", slug: "men-silk-kurta-sets" },
+      { id: "877af5b2-5883-46b4-a629-0282c5678e4f", name: "Kanjivaram Pure Silk", slug: "kanjivaram-pure-silk" },
+      { id: "1e567960-9627-4602-9a40-f587dbdbb356", name: "Banarasi Brocade & Zari", slug: "banarasi-brocade-zari" },
+      { id: "6df8992e-2a79-488e-958a-170a014541e2", name: "Chanderi & Organza Sarees", slug: "chanderi-organza-sarees" },
+      { id: "19664b48-a1a1-4595-888b-ffed738d8dcf", name: "Embroidered Velvet Sarees", slug: "embroidered-velvet-sarees" },
     ],
+  },
+  {
+    id: "3898f8b2-aa93-4542-a2dc-fcc461026eb0",
+    name: "Bridal & Festive Lehengas",
+    slug: "bridal-festive-lehengas",
+    isFeatured: true,
+    children: [
+      { id: "c9abe5ab-1f64-4c2d-816c-597a44847301", name: "Bridal Velvet Lehengas", slug: "bridal-velvet-lehengas" },
+      { id: "fe24cbee-647b-4905-b4a4-2425dc6d4a59", name: "Pastel & Floral Lehengas", slug: "pastel-floral-lehengas" },
+      { id: "7cf72cba-708a-4ca3-9b89-f32cd9fd051d", name: "Contemporary Fusion Lehengas", slug: "contemporary-fusion-lehengas" },
+    ],
+  },
+  {
+    id: "fd636b35-cb0b-470a-bb4e-57930cf410c0",
+    name: "Luxury Menswear & Sherwanis",
+    slug: "luxury-menswear",
+    isFeatured: true,
+    children: [
+      { id: "8659d6fe-7090-4926-b5c5-867b05dac636", name: "Royal Wedding Sherwanis", slug: "royal-wedding-sherwanis" },
+      { id: "cf1118e5-510e-4c1a-bfae-47b11ad436d4", name: "Bespoke Tuxedos & Blazers", slug: "bespoke-tuxedos-blazers" },
+      { id: "2aecab0d-a029-4f83-b73c-3dc872fc7a58", name: "Bandhgala & Nehru Jackets", slug: "bandhgala-nehru-jackets" },
+      { id: "d7705f91-d56a-48b3-afee-39d04884cd21", name: "Designer Kurta Sets", slug: "designer-kurta-sets" },
+    ],
+  },
+  {
+    id: "443de6fe-be5d-4c3d-8445-13dd3cadda99",
+    name: "Resort & Vacation Dresses",
+    slug: "resort-vacation-dresses",
+    isFeatured: true,
+    children: [],
+  },
+  {
+    id: "41d14023-e158-42cf-834c-9a68275d8dc2",
+    name: "Exclusive Accessories & Stoles",
+    slug: "exclusive-accessories",
+    isFeatured: true,
+    children: [],
   },
 ];
 
-export function Navbar() {
+interface NavbarProps {
+  initialCategories?: ApiCategory[];
+}
+
+export function Navbar({ initialCategories }: NavbarProps = {}) {
   const { isAuthenticated, user } = useAuthStore();
   const rawItemCount = useCartStore((state) => state.getItemCount());
   const itemCount = rawItemCount;
@@ -71,7 +123,9 @@ export function Navbar() {
   const isAdmin = Boolean(isMounted && isAuthenticated && canAccessAdmin(user?.role));
 
   // Dynamic Navigation & Categories State
-  const [categories, setCategories] = useState<ApiCategory[]>(FALLBACK_CATEGORIES);
+  const [categories, setCategories] = useState<ApiCategory[]>(
+    initialCategories && initialCategories.length > 0 ? initialCategories : FALLBACK_CATEGORIES
+  );
   const [navbarConfig, setNavbarConfig] = useState<NavbarConfig>(DEFAULT_NAVBAR_CONFIG);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [expandedMobileCategories, setExpandedMobileCategories] = useState<Record<string, boolean>>({});
@@ -90,6 +144,12 @@ export function Navbar() {
       console.warn("[Navbar] Using cached fallback categories:", err);
     }
   };
+
+  useEffect(() => {
+    if (initialCategories && initialCategories.length > 0) {
+      setCategories(initialCategories.filter((c) => c.isActive !== false));
+    }
+  }, [initialCategories]);
 
   useEffect(() => {
     setIsMounted(true);
@@ -263,24 +323,49 @@ export function Navbar() {
                         </Link>
                       </div>
 
-                      <div className="space-y-1">
-                        {cat.children!.map((subcat) => (
-                          <Link
-                            key={subcat.id}
-                            href={`/categories/${subcat.slug}`}
-                            onClick={() => setActiveDropdown(null)}
-                            className="block px-2.5 py-1.5 rounded-lg text-xs text-neutral-700 hover:text-amber-800 hover:bg-neutral-50 transition-colors font-medium"
-                          >
-                            <div className="flex items-center justify-between">
-                              <span>{subcat.name}</span>
-                              {typeof subcat.productCount === "number" && subcat.productCount > 0 && (
-                                <span className="text-[10px] text-neutral-400 font-mono">
-                                  {subcat.productCount}
-                                </span>
+                      <div className="space-y-1.5 max-h-[380px] overflow-y-auto pr-1">
+                        {cat.children!.map((subcat) => {
+                          const hasSubChildren = Array.isArray(subcat.children) && subcat.children.length > 0;
+                          return (
+                            <div key={subcat.id} className="space-y-1 pb-1">
+                              <Link
+                                href={`/categories/${subcat.slug}`}
+                                onClick={() => setActiveDropdown(null)}
+                                className="block px-2.5 py-1.5 rounded-lg text-xs text-neutral-800 hover:text-amber-800 hover:bg-neutral-50 transition-colors font-semibold"
+                              >
+                                <div className="flex items-center justify-between">
+                                  <span>{subcat.name}</span>
+                                  {typeof subcat.productCount === "number" && subcat.productCount > 0 && (
+                                    <span className="text-[10px] text-neutral-400 font-mono">
+                                      {subcat.productCount}
+                                    </span>
+                                  )}
+                                </div>
+                              </Link>
+                              {hasSubChildren && (
+                                <div className="pl-4 py-0.5 space-y-1 border-l border-amber-200/60 ml-2">
+                                  {subcat.children!.map((leaf) => (
+                                    <Link
+                                      key={leaf.id}
+                                      href={`/categories/${leaf.slug}`}
+                                      onClick={() => setActiveDropdown(null)}
+                                      className="block text-[11px] text-neutral-600 hover:text-amber-800 py-0.5 transition-colors truncate"
+                                    >
+                                      <div className="flex items-center justify-between">
+                                        <span>{leaf.name}</span>
+                                        {typeof leaf.productCount === "number" && leaf.productCount > 0 && (
+                                          <span className="text-[9px] text-neutral-400 font-mono">
+                                            {leaf.productCount}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </Link>
+                                  ))}
+                                </div>
                               )}
                             </div>
-                          </Link>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   )}
@@ -520,17 +605,35 @@ export function Navbar() {
 
                   {/* Accordion Subcategories */}
                   {hasChildren && isExpanded && (
-                    <div className="pl-4 pt-1 space-y-1.5 mt-1 border-l-2 border-amber-600/30">
-                      {cat.children!.map((subcat) => (
-                        <Link
-                          key={subcat.id}
-                          href={`/categories/${subcat.slug}`}
-                          onClick={closeMobileMenu}
-                          className="block text-xs text-neutral-600 hover:text-amber-700 py-0.5 transition-colors"
-                        >
-                          {subcat.name}
-                        </Link>
-                      ))}
+                    <div className="pl-4 pt-1 space-y-2 mt-1 border-l-2 border-amber-600/30">
+                      {cat.children!.map((subcat) => {
+                        const hasSubChildren = Array.isArray(subcat.children) && subcat.children.length > 0;
+                        return (
+                          <div key={subcat.id} className="space-y-1">
+                            <Link
+                              href={`/categories/${subcat.slug}`}
+                              onClick={closeMobileMenu}
+                              className="block text-xs font-semibold text-neutral-800 hover:text-amber-700 py-0.5 transition-colors"
+                            >
+                              {subcat.name}
+                            </Link>
+                            {hasSubChildren && (
+                              <div className="pl-3 space-y-1 border-l border-neutral-200">
+                                {subcat.children!.map((leaf) => (
+                                  <Link
+                                    key={leaf.id}
+                                    href={`/categories/${leaf.slug}`}
+                                    onClick={closeMobileMenu}
+                                    className="block text-[11px] text-neutral-500 hover:text-amber-700 py-0.5 transition-colors"
+                                  >
+                                    {leaf.name}
+                                  </Link>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                       <Link
                         href={`/categories/${cat.slug}`}
                         onClick={closeMobileMenu}

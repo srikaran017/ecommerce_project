@@ -6,6 +6,18 @@ import { Pagination } from "@/components/ui/Pagination";
 import { ChevronRight, Sparkles } from "lucide-react";
 import { storeConfig } from "@/config/store.config";
 
+const DEFAULT_CATEGORY_IMAGES: Record<string, string> = {
+  "womens-couture": "https://images.unsplash.com/photo-1566174053879-31528523f8ae?w=800&auto=format&fit=crop&q=80",
+  "heritage-sarees": "https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=800&auto=format&fit=crop&q=80",
+  "bridal-festive-lehengas": "https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?w=800&auto=format&fit=crop&q=80",
+  "luxury-menswear": "https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=800&auto=format&fit=crop&q=80",
+  "resort-vacation": "https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?w=800&auto=format&fit=crop&q=80",
+  "accessories-stoles": "https://images.unsplash.com/photo-1611591475871-33513a9d949b?w=800&auto=format&fit=crop&q=80",
+};
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 interface CategoryPageProps {
   params: Promise<{ slug: string }>;
   searchParams: Promise<{
@@ -71,6 +83,13 @@ export default async function CategoryPage({
   });
 
   const catDetails = category || (await ProductService.getCategoryBySlug(slug));
+  const heroImage =
+    catDetails?.imageUrl ||
+    DEFAULT_CATEGORY_IMAGES[slug] ||
+    (catDetails?.parent?.slug ? DEFAULT_CATEGORY_IMAGES[catDetails.parent.slug] : null);
+
+  // Subcategories to display: direct children, or siblings if this is a leaf category
+  const displayChips = catDetails?.children && catDetails.children.length > 0 ? catDetails.children : [];
 
   return (
     <div className="py-10 bg-[var(--background)] min-h-screen">
@@ -135,10 +154,10 @@ export default async function CategoryPage({
           />
 
           {/* Background ambient texture watermark on mobile */}
-          {catDetails?.imageUrl && (
+          {heroImage && (
             <div className="md:hidden absolute inset-0 overflow-hidden pointer-events-none">
               <img
-                src={catDetails.imageUrl}
+                src={heroImage}
                 alt=""
                 className="w-full h-full object-cover opacity-15 mix-blend-multiply filter blur-[0.5px]"
               />
@@ -183,31 +202,41 @@ export default async function CategoryPage({
             </div>
 
             {/* Editorial Category Image Card on Tablet & Desktop */}
-            {catDetails?.imageUrl && (
+            {heroImage && (
               <div className="hidden md:block relative w-48 h-48 lg:w-56 lg:h-56 rounded-2xl overflow-hidden shadow-sm border-2 border-white/90 flex-shrink-0 group">
                 <img
-                  src={catDetails.imageUrl}
-                  alt={catDetails.name}
+                  src={heroImage}
+                  alt={catDetails?.name || slug}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/15 via-transparent to-transparent pointer-events-none" />
+                <div className="absolute inset-0 bg-gradient-t from-black/15 via-transparent to-transparent pointer-events-none" />
               </div>
             )}
           </div>
         </div>
 
         {/* Subcategories Chips if present */}
-        {catDetails?.children && catDetails.children.length > 0 && (
-          <div className="flex items-center gap-2.5 overflow-x-auto pb-4 scrollbar-none mb-10">
-            {catDetails.children.map((child) => (
-              <Link
-                key={child.id}
-                href={`/categories/${child.slug}`}
-                className="px-5 py-2.5 rounded-full text-xs font-bold uppercase tracking-wider bg-white border border-neutral-200 text-neutral-800 hover:border-neutral-900 transition-all shadow-sm whitespace-nowrap"
-              >
-                {child.name}
-              </Link>
-            ))}
+        {displayChips.length > 0 && (
+          <div className="space-y-3 mb-10">
+            <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-neutral-500 block">
+              Subcategories & Silhouettes
+            </span>
+            <div className="flex items-center gap-2.5 overflow-x-auto pb-2 scrollbar-none">
+              {displayChips.map((child) => (
+                <Link
+                  key={child.id || child.slug}
+                  href={`/categories/${child.slug}`}
+                  className="px-5 py-2.5 rounded-full text-xs font-bold uppercase tracking-wider bg-white border border-neutral-200 text-neutral-800 hover:border-amber-600 hover:text-amber-800 transition-all shadow-sm whitespace-nowrap flex items-center gap-1.5"
+                >
+                  <span>{child.name}</span>
+                  {child.productCount !== undefined && child.productCount > 0 && (
+                    <span className="text-[10px] text-neutral-400 font-normal">
+                      ({child.productCount})
+                    </span>
+                  )}
+                </Link>
+              ))}
+            </div>
           </div>
         )}
 

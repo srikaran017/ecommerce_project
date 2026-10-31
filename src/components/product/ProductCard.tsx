@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Heart, ShoppingBag, Eye, Check, SlidersHorizontal, Sparkles } from "lucide-react";
@@ -11,6 +11,7 @@ import { useWishlistStore } from "@/stores/wishlist.store";
 import { useAuthStore } from "@/stores/auth.store";
 import { ProductData, ProductVariantData } from "@/data/products.data";
 import { QuickViewModal } from "./QuickViewModal";
+import { resolveProductImage, getProductFallbackImage } from "@/utils/image.utils";
 
 export interface ProductCardProps {
   product: ProductData;
@@ -24,11 +25,22 @@ export function ProductCard({ product }: ProductCardProps) {
     setIsMounted(true);
   }, []);
 
-  const primaryImg =
-    product.images?.[0]?.url ||
-    product.thumbnail ||
-    null;
-  const hoverImg = product.images?.[1]?.url || primaryImg;
+  const resolvedImages = useMemo(() => resolveProductImage(product), [product]);
+  const [currentImg, setCurrentImg] = useState<string>(resolvedImages.primary);
+  const [isHovered, setIsHovered] = useState(false);
+
+  useEffect(() => {
+    setCurrentImg(resolvedImages.primary);
+  }, [resolvedImages.primary]);
+
+  const displayImg = isHovered && resolvedImages.hover ? resolvedImages.hover : currentImg;
+
+  const handleImageError = () => {
+    const fallback = getProductFallbackImage(product);
+    if (currentImg !== fallback) {
+      setCurrentImg(fallback);
+    }
+  };
 
   const defaultVariant = product.variants?.[0] || {
     id: "default",
@@ -83,7 +95,7 @@ export function ProductCard({ product }: ProductCardProps) {
       size: selectedVariant.size,
       colorName: selectedVariant.colorName,
       colorHex: selectedVariant.colorHex,
-      imageUrl: primaryImg || undefined,
+      imageUrl: currentImg || resolvedImages.primary || undefined,
       sku: selectedVariant.sku,
       quantity: 1,
       maxStock: selectedVariant.stock,
@@ -117,12 +129,18 @@ export function ProductCard({ product }: ProductCardProps) {
       <div className="group flex flex-col bg-white rounded-3xl p-3 shadow-sm hover:shadow-xl transition-all duration-300 border border-amber-100/60">
         
         {/* Curvy Rounded Image Container */}
-        <div className="relative aspect-[3/4] bg-neutral-100 rounded-2xl overflow-hidden">
+        <div
+          className="relative aspect-[3/4] bg-neutral-100 rounded-2xl overflow-hidden"
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
+        >
           <Link href={`/products/${product.slug}`} className="block w-full h-full">
-            {primaryImg ? (
+            {displayImg ? (
               <img
-                src={primaryImg}
+                src={displayImg}
                 alt={product.name}
+                loading="lazy"
+                onError={handleImageError}
                 className="w-full h-full object-cover object-top transition-transform duration-500 group-hover:scale-105"
               />
             ) : (

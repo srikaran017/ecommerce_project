@@ -68,7 +68,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
       sort,
       search,
     }),
-    ProductService.getCategoryTree(),
+    ProductService.getCategoryTree({ tree: true }),
     ProductService.getCatalogFilters({
       category,
       search,
