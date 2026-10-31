@@ -56,6 +56,26 @@ export const LUXURY_FALLBACK_IMAGES = {
   },
 };
 
+export const DEFAULT_BRAND_LOGO = "/images/logo-raw-extracted.png";
+
+/**
+ * Checks if a given image URL points to the brand's logo image.
+ */
+export function isBrandLogoImage(url: unknown): boolean {
+  if (!url || typeof url !== "string") return false;
+  const trimmed = url.trim().toLowerCase();
+  return (
+    trimmed === DEFAULT_BRAND_LOGO ||
+    trimmed === "/images/logo-light.png" ||
+    trimmed === "/images/logo.jpg" ||
+    trimmed.includes("/images/logo") ||
+    trimmed.includes("logo.png") ||
+    trimmed.includes("logo-dark") ||
+    trimmed.includes("logo-light") ||
+    trimmed.includes("logo-gold")
+  );
+}
+
 export const KNOWN_FALLBACK_IMAGE_PATTERNS = [
   "1507679799987-c73779587ccf", // Blazers primary
   "1594938298603-c8148c4dae35", // Blazers hover / Sherwanis primary
@@ -65,17 +85,20 @@ export const KNOWN_FALLBACK_IMAGE_PATTERNS = [
   "1595777457583-95e059d581b8", // Lehengas hover
   "1566174053879-31528523f8ae", // Gowns primary
   "1515886657613-9f3515b0c78f", // Gowns hover / Default primary
+  "images.unsplash.com",
 ];
 
 /**
- * Checks if a given image URL matches any of the static Unsplash fallback photos.
- * Returns false for any user-uploaded images (e.g. Cloudinary, local uploads, blobs, data URIs).
+ * Checks if a given image URL matches any static fallback placeholder or brand logo.
+ * Returns false for any verified user-uploaded images (e.g. Cloudinary, local uploads, blobs, data URIs).
  */
 export function isFallbackImageUrl(url: unknown): boolean {
   if (!url || typeof url !== "string") return false;
   const trimmed = url.trim();
   if (!trimmed) return false;
-  // User uploaded assets (Cloudinary, local, data, blob) are NEVER fallbacks
+  // If it's the brand logo placeholder, treat it as fallback placeholder so it never masks a real uploaded image
+  if (isBrandLogoImage(trimmed)) return true;
+  // User uploaded assets (Cloudinary, local uploads, blobs, data) are NEVER fallbacks
   if (
     trimmed.includes("cloudinary.com") ||
     trimmed.includes("/uploads/") ||
@@ -106,85 +129,20 @@ export function sanitizeImageUrl(url: unknown): string | null {
 }
 
 /**
- * Determines the most appropriate luxury fallback images based on the product's
- * name, category, and tags.
+ * Returns the brand logo as the default product images before API image loads.
  */
 export function getProductFallbackImages(product?: ProductLike | null): { primary: string; hover: string } {
-  if (!product) return LUXURY_FALLBACK_IMAGES.default;
-
-  const categoryStr =
-    typeof product.category === "string"
-      ? product.category
-      : product.category?.name || product.category?.slug || product.categoryName || product.categorySlug || "";
-
-  const tagsStr = Array.isArray(product.tags) ? product.tags.join(" ") : "";
-  const haystack = `${product.name || ""} ${categoryStr} ${tagsStr} ${product.description || ""}`.toLowerCase();
-
-  // Blazers / Suits / Tuxedos / Jackets / Coats
-  if (
-    haystack.includes("blazer") ||
-    haystack.includes("tuxedo") ||
-    haystack.includes("suit") ||
-    haystack.includes("jacket") ||
-    haystack.includes("coat") ||
-    haystack.includes("bespoke")
-  ) {
-    return LUXURY_FALLBACK_IMAGES.blazers;
-  }
-
-  // Sarees / Silks / Kanjivaram / Banarasi
-  if (
-    haystack.includes("saree") ||
-    haystack.includes("sari") ||
-    haystack.includes("silk") ||
-    haystack.includes("kanjivaram") ||
-    haystack.includes("banarasi") ||
-    haystack.includes("zari") ||
-    haystack.includes("handloom")
-  ) {
-    return LUXURY_FALLBACK_IMAGES.sarees;
-  }
-
-  // Lehengas / Velvet / Bridal
-  if (
-    haystack.includes("lehenga") ||
-    haystack.includes("choli") ||
-    haystack.includes("bridal") ||
-    haystack.includes("velvet") ||
-    haystack.includes("wedding")
-  ) {
-    return LUXURY_FALLBACK_IMAGES.lehengas;
-  }
-
-  // Sherwani / Kurta / Men's ethnic
-  if (
-    haystack.includes("sherwani") ||
-    haystack.includes("kurta") ||
-    haystack.includes("nehru") ||
-    haystack.includes("indo-western")
-  ) {
-    return LUXURY_FALLBACK_IMAGES.sherwanis;
-  }
-
-  // Gowns / Dresses / Evening wear
-  if (
-    haystack.includes("gown") ||
-    haystack.includes("evening") ||
-    haystack.includes("dress") ||
-    haystack.includes("cocktail") ||
-    haystack.includes("couture")
-  ) {
-    return LUXURY_FALLBACK_IMAGES.gowns;
-  }
-
-  return LUXURY_FALLBACK_IMAGES.default;
+  return {
+    primary: DEFAULT_BRAND_LOGO,
+    hover: DEFAULT_BRAND_LOGO,
+  };
 }
 
 /**
- * Returns a single primary fallback image URL for a given product or category string.
+ * Returns the brand logo as the single default fallback image URL before API image loads.
  */
 export function getProductFallbackImage(product?: ProductLike | null): string {
-  return getProductFallbackImages(product).primary;
+  return DEFAULT_BRAND_LOGO;
 }
 
 /**
@@ -197,7 +155,7 @@ export function getProductFallbackImage(product?: ProductLike | null): string {
  * 5. product.variants[0].imageUrl
  *
  * Prioritizes actual user-uploaded images over static fallback placeholders.
- * If no valid URL exists, falls back gracefully to a category-matched luxury image.
+ * Before API image loads or if no uploaded URL exists, displays the brand logo image.
  * Guarantees zero regression on products with valid URLs.
  */
 export function resolveProductImage(product?: ProductLike | null): {
@@ -205,12 +163,10 @@ export function resolveProductImage(product?: ProductLike | null): {
   hover: string;
   hasRealImage: boolean;
 } {
-  const fallback = getProductFallbackImages(product);
-
   if (!product) {
     return {
-      primary: fallback.primary,
-      hover: fallback.hover,
+      primary: DEFAULT_BRAND_LOGO,
+      hover: DEFAULT_BRAND_LOGO,
       hasRealImage: false,
     };
   }
@@ -252,7 +208,6 @@ export function resolveProductImage(product?: ProductLike | null): {
 
   // Prioritize real user uploaded / non-fallback images
   const realCandidates = candidateUrls.filter((url) => !isFallbackImageUrl(url));
-  const fallbackCandidates = candidateUrls.filter((url) => isFallbackImageUrl(url));
 
   if (realCandidates.length > 0) {
     return {
@@ -262,17 +217,10 @@ export function resolveProductImage(product?: ProductLike | null): {
     };
   }
 
-  if (fallbackCandidates.length > 0) {
-    return {
-      primary: fallbackCandidates[0],
-      hover: fallbackCandidates[1] || fallbackCandidates[0],
-      hasRealImage: false,
-    };
-  }
-
+  // Before API image loading, default image to show is the brand's logo image
   return {
-    primary: fallback.primary,
-    hover: fallback.hover,
+    primary: DEFAULT_BRAND_LOGO,
+    hover: DEFAULT_BRAND_LOGO,
     hasRealImage: false,
   };
 }

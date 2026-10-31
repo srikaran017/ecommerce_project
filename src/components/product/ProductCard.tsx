@@ -11,7 +11,7 @@ import { useWishlistStore } from "@/stores/wishlist.store";
 import { useAuthStore } from "@/stores/auth.store";
 import { ProductData, ProductVariantData } from "@/data/products.data";
 import { QuickViewModal } from "./QuickViewModal";
-import { resolveProductImage, getProductFallbackImage } from "@/utils/image.utils";
+import { resolveProductImage, getProductFallbackImage, isBrandLogoImage, DEFAULT_BRAND_LOGO } from "@/utils/image.utils";
 import { ProductService } from "@/services/product.service";
 
 export interface ProductCardProps {
@@ -30,10 +30,12 @@ export function ProductCard({ product }: ProductCardProps) {
   const [currentImg, setCurrentImg] = useState<string>(resolvedImages.primary);
   const [hoverImg, setHoverImg] = useState<string>(resolvedImages.hover);
   const [isHovered, setIsHovered] = useState(false);
+  const [isImgLoaded, setIsImgLoaded] = useState(false);
 
   useEffect(() => {
     setCurrentImg(resolvedImages.primary);
     setHoverImg(resolvedImages.hover);
+    setIsImgLoaded(false);
   }, [resolvedImages.primary, resolvedImages.hover]);
 
   // If the product card does not have a confirmed uploaded image (only static fallback),
@@ -63,9 +65,11 @@ export function ProductCard({ product }: ProductCardProps) {
   const displayImg = isHovered && hoverImg ? hoverImg : currentImg;
 
   const handleImageError = () => {
-    const fallback = getProductFallbackImage(product);
+    const fallback = getProductFallbackImage(product) || DEFAULT_BRAND_LOGO;
     if (currentImg !== fallback) {
       setCurrentImg(fallback);
+      setHoverImg(fallback);
+      setIsImgLoaded(true);
     }
   };
 
@@ -157,26 +161,39 @@ export function ProductCard({ product }: ProductCardProps) {
         
         {/* Curvy Rounded Image Container */}
         <div
-          className="relative aspect-[3/4] bg-neutral-100 rounded-2xl overflow-hidden"
+          className="relative aspect-[3/4] bg-neutral-100 rounded-2xl overflow-hidden flex items-center justify-center"
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
         >
-          <Link href={`/products/${product.slug}`} className="block w-full h-full">
+          {/* Default brand logo background placeholder shown before and while API image loads */}
+          <div className="absolute inset-0 flex flex-col items-center justify-center p-8 bg-gradient-to-b from-neutral-50 to-neutral-100/90 pointer-events-none select-none">
+            <img
+              src={DEFAULT_BRAND_LOGO}
+              alt={product.brand || "Atelier"}
+              className="max-h-[50%] max-w-[70%] object-contain opacity-40 transition-opacity duration-300"
+            />
+            <span className="text-[10px] uppercase font-bold tracking-widest text-neutral-400 mt-2">
+              {product.brand || "Atelier"}
+            </span>
+          </div>
+
+          <Link href={`/products/${product.slug}`} className="block w-full h-full relative z-[1]">
             {displayImg ? (
               <img
                 src={displayImg}
                 alt={product.name}
                 loading="lazy"
+                onLoad={() => setIsImgLoaded(true)}
                 onError={handleImageError}
-                className="w-full h-full object-cover object-top transition-transform duration-500 group-hover:scale-105"
+                className={
+                  isBrandLogoImage(displayImg)
+                    ? "w-full h-full object-contain p-8 bg-neutral-50/70 transition-transform duration-500 group-hover:scale-105"
+                    : `w-full h-full object-cover object-top transition-all duration-500 group-hover:scale-105 ${
+                        isImgLoaded ? "opacity-100" : "opacity-0"
+                      }`
+                }
               />
-            ) : (
-              <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-b from-neutral-50 to-neutral-200/80 p-4 text-center">
-                <Sparkles className="w-6 h-6 mb-2 text-amber-600/60" />
-                <span className="text-[10px] uppercase font-bold tracking-widest text-neutral-500">{product.brand || "Atelier"}</span>
-                <span className="text-xs font-heading font-medium text-neutral-800 line-clamp-2 mt-1">{product.name}</span>
-              </div>
-            )}
+            ) : null}
           </Link>
 
           {/* Badges: Special Offer or Discount */}

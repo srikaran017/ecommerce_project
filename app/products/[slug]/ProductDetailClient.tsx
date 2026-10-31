@@ -48,7 +48,12 @@ import {
   ReviewSummary,
   FitFeedback,
 } from "@/services/review.service";
-import { getProductFallbackImage } from "@/utils/image.utils";
+import {
+  getProductFallbackImage,
+  isBrandLogoImage,
+  isFallbackImageUrl,
+  DEFAULT_BRAND_LOGO,
+} from "@/utils/image.utils";
 
 interface ProductDetailClientProps {
   product: ProductData;
@@ -61,12 +66,27 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
 
   const validImages = (product.images || [])
     .map((img) => img?.url)
-    .filter((url): url is string => Boolean(url && typeof url === "string" && url.trim().length > 0 && url !== "null" && url !== "undefined"));
+    .filter(
+      (url): url is string =>
+        Boolean(
+          url &&
+            typeof url === "string" &&
+            url.trim().length > 0 &&
+            url !== "null" &&
+            url !== "undefined" &&
+            !isFallbackImageUrl(url)
+        )
+    );
 
-  const fallbackImg = getProductFallbackImage(product);
-  const cleanThumb = product.thumbnail && product.thumbnail.trim().length > 0 && product.thumbnail !== "null" && product.thumbnail !== "undefined"
-    ? product.thumbnail.trim()
-    : null;
+  const fallbackImg = getProductFallbackImage(product) || DEFAULT_BRAND_LOGO;
+  const cleanThumb =
+    product.thumbnail &&
+    product.thumbnail.trim().length > 0 &&
+    product.thumbnail !== "null" &&
+    product.thumbnail !== "undefined" &&
+    !isFallbackImageUrl(product.thumbnail)
+      ? product.thumbnail.trim()
+      : null;
 
   const images = validImages.length > 0
     ? validImages
@@ -854,7 +874,11 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
                       onError={(e) => {
                         (e.target as HTMLImageElement).src = fallbackImg;
                       }}
-                      className="w-full h-full object-cover"
+                      className={
+                        isBrandLogoImage(img)
+                          ? "w-full h-full object-contain p-2 bg-neutral-50"
+                          : "w-full h-full object-cover"
+                      }
                     />
                   </button>
                 ))}
@@ -862,7 +886,16 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
             )}
 
             {/* Main Stage Image */}
-            <div className="flex-1 aspect-[3/4] bg-[var(--muted)] rounded-[var(--radius)] overflow-hidden border border-[var(--border)] relative group">
+            <div className="flex-1 aspect-[3/4] bg-[var(--muted)] rounded-[var(--radius)] overflow-hidden border border-[var(--border)] relative group flex items-center justify-center">
+              {/* Brand logo background shown before and while API image loads */}
+              <div className="absolute inset-0 flex flex-col items-center justify-center p-12 bg-gradient-to-b from-neutral-50 to-neutral-100/90 pointer-events-none select-none">
+                <img
+                  src={DEFAULT_BRAND_LOGO}
+                  alt=""
+                  className="max-h-[50%] max-w-[70%] object-contain opacity-35"
+                />
+              </div>
+
               <img
                 src={activeImage}
                 alt={product.name}
@@ -871,7 +904,11 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
                     setActiveImage(fallbackImg);
                   }
                 }}
-                className="w-full h-full object-cover object-top transition-transform duration-700 group-hover:scale-105"
+                className={
+                  isBrandLogoImage(activeImage)
+                    ? "w-full h-full object-contain p-12 relative z-[1]"
+                    : "w-full h-full object-cover object-top transition-transform duration-700 group-hover:scale-105 relative z-[1]"
+                }
               />
               {activePrice.discountPercentage > 0 && (
                 <div className="absolute top-4 left-4">

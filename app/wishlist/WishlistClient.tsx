@@ -14,6 +14,7 @@ import {
   WishlistSortOption,
   WishlistInStockFilter,
 } from "@/types/wishlist.types";
+import { DEFAULT_BRAND_LOGO, isBrandLogoImage, isFallbackImageUrl } from "@/utils/image.utils";
 import {
   Heart,
   ShoppingBag,
@@ -392,13 +393,35 @@ export function WishlistClient() {
                   className="group bg-[var(--card)] border border-[var(--border)] rounded-3xl p-4 flex flex-col justify-between hover:shadow-xl hover:border-amber-200/80 transition-all duration-300 relative"
                 >
                   {/* Top Image Card */}
-                  <div className="relative aspect-[3/4] bg-[var(--muted)] rounded-2xl overflow-hidden mb-4">
-                    <Link href={`/products/${item.slug}`} className="block w-full h-full">
+                  <div className="relative aspect-[3/4] bg-[var(--muted)] rounded-2xl overflow-hidden mb-4 flex items-center justify-center">
+                    {/* Brand logo background placeholder */}
+                    <div className="absolute inset-0 flex items-center justify-center p-8 bg-gradient-to-b from-neutral-50 to-neutral-100/90 pointer-events-none select-none">
                       <img
-                        src={item.thumbnail || item.images[0]?.url || "https://images.unsplash.com/photo-1610030469983-98e550d6193c?q=80&w=800"}
-                        alt={item.name}
-                        className="w-full h-full object-cover object-top transition-transform duration-500 group-hover:scale-105"
+                        src={DEFAULT_BRAND_LOGO}
+                        alt=""
+                        className="max-h-[50%] max-w-[70%] object-contain opacity-35"
                       />
+                    </div>
+
+                    <Link href={`/products/${item.slug}`} className="block w-full h-full relative z-[1]">
+                      {(() => {
+                        const rawImg = item.thumbnail || item.images[0]?.url;
+                        const finalImg = rawImg && !isFallbackImageUrl(rawImg) ? rawImg : DEFAULT_BRAND_LOGO;
+                        return (
+                          <img
+                            src={finalImg}
+                            alt={item.name}
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = DEFAULT_BRAND_LOGO;
+                            }}
+                            className={
+                              isBrandLogoImage(finalImg)
+                                ? "w-full h-full object-contain p-8 transition-transform duration-500 group-hover:scale-105"
+                                : "w-full h-full object-cover object-top transition-transform duration-500 group-hover:scale-105"
+                            }
+                          />
+                        );
+                      })()}
                     </Link>
 
                     {/* Stock & Discount Badges */}
@@ -536,9 +559,16 @@ export function WishlistClient() {
             {/* Modal Item Details */}
             <div className="flex items-center gap-4 p-3 bg-[var(--muted)]/50 rounded-2xl border border-[var(--border)]">
               <img
-                src={variantModalItem.thumbnail || variantModalItem.images[0]?.url}
+                src={variantModalItem.thumbnail || variantModalItem.images[0]?.url || DEFAULT_BRAND_LOGO}
                 alt={variantModalItem.name}
-                className="w-16 h-20 object-cover rounded-xl flex-shrink-0"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = DEFAULT_BRAND_LOGO;
+                }}
+                className={
+                  isBrandLogoImage(variantModalItem.thumbnail || variantModalItem.images[0]?.url)
+                    ? "w-16 h-20 object-contain p-2 bg-neutral-50 rounded-xl flex-shrink-0"
+                    : "w-16 h-20 object-cover rounded-xl flex-shrink-0"
+                }
               />
               <div className="space-y-1 text-xs">
                 <p className="font-bold text-[var(--foreground)]">

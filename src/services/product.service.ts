@@ -56,7 +56,14 @@ export function transformAdminProductToProductData(adminProd: AdminProduct): Pro
     regPrice > effectivePrice ? Math.round(((regPrice - effectivePrice) / regPrice) * 100) : 0;
 
   const validImages = (adminProd.images || [])
-    .filter((img) => img && typeof img.url === "string" && img.url.trim().length > 0 && img.url !== "null")
+    .filter(
+      (img) =>
+        img &&
+        typeof img.url === "string" &&
+        img.url.trim().length > 0 &&
+        img.url !== "null" &&
+        !isFallbackImageUrl(img.url)
+    )
     .map((img, idx) => ({
       id: img.id || `img-${idx}`,
       url: img.url.trim(),
@@ -69,7 +76,8 @@ export function transformAdminProductToProductData(adminProd: AdminProduct): Pro
     adminProd.thumbnail &&
     typeof adminProd.thumbnail === "string" &&
     adminProd.thumbnail.trim().length > 0 &&
-    adminProd.thumbnail !== "null"
+    adminProd.thumbnail !== "null" &&
+    !isFallbackImageUrl(adminProd.thumbnail)
   ) {
     validImages.push({
       id: "img-thumb",

@@ -8,6 +8,7 @@ import { ProductData } from "@/data/products.data";
 import { storeConfig } from "@/config/store.config";
 
 import { ProductService } from "@/services/product.service";
+import { DEFAULT_BRAND_LOGO, isBrandLogoImage, isFallbackImageUrl } from "@/utils/image.utils";
 
 export function SearchModal() {
   const { isSearchOpen, closeSearch } = useUIStore();
@@ -126,11 +127,24 @@ export function SearchModal() {
                         onClick={closeSearch}
                         className="flex items-center gap-3.5 p-2.5 rounded-[var(--radius)] border border-[var(--border)] hover:bg-[var(--muted)] transition-colors group"
                       >
-                        <img
-                          src={product.images[0]?.url}
-                          alt={product.name}
-                          className="w-14 h-18 object-cover rounded-[var(--radius)] flex-shrink-0"
-                        />
+                        {(() => {
+                          const rawImg = product.thumbnail || product.images?.[0]?.url;
+                          const finalImg = rawImg && !isFallbackImageUrl(rawImg) ? rawImg : DEFAULT_BRAND_LOGO;
+                          return (
+                            <img
+                              src={finalImg}
+                              alt={product.name}
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = DEFAULT_BRAND_LOGO;
+                              }}
+                              className={
+                                isBrandLogoImage(finalImg)
+                                  ? "w-14 h-18 object-contain p-2 bg-neutral-50 rounded-[var(--radius)] flex-shrink-0"
+                                  : "w-14 h-18 object-cover rounded-[var(--radius)] flex-shrink-0"
+                              }
+                            />
+                          );
+                        })()}
                         <div className="flex-1 min-w-0">
                           <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--secondary)] block truncate">
                             {product.categoryName}

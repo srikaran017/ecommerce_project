@@ -6,7 +6,7 @@
 import { AuthService } from "@/services/auth.service";
 import { getApiBaseUrl } from "@/services/apiConfig";
 import { storeConfig } from "@/config/store.config";
-import { getProductFallbackImage } from "@/utils/image.utils";
+import { getProductFallbackImage, isFallbackImageUrl } from "@/utils/image.utils";
 
 const getBaseUrl = getApiBaseUrl;
 
@@ -489,7 +489,11 @@ export function transformApiCardToProduct(card: ApiProductCard): any {
   const effective = card.price?.effective ?? 0;
 
   const validThumbnail =
-    card.thumbnail && typeof card.thumbnail === "string" && card.thumbnail.trim().length > 0 && card.thumbnail !== "null"
+    card.thumbnail &&
+    typeof card.thumbnail === "string" &&
+    card.thumbnail.trim().length > 0 &&
+    card.thumbnail !== "null" &&
+    !isFallbackImageUrl(card.thumbnail)
       ? card.thumbnail.trim()
       : null;
 
@@ -527,7 +531,14 @@ export function transformApiDetailToProduct(detail: ApiProductDetail): any {
   const effective = detail.price?.effective ?? 0;
 
   const images = (detail.images || [])
-    .filter((img) => img && typeof img.url === "string" && img.url.trim().length > 0 && img.url !== "null")
+    .filter(
+      (img) =>
+        img &&
+        typeof img.url === "string" &&
+        img.url.trim().length > 0 &&
+        img.url !== "null" &&
+        !isFallbackImageUrl(img.url)
+    )
     .map((img) => ({
       id: img.id,
       url: img.url.trim(),

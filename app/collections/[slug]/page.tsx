@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, Sparkles, Star, ShoppingBag, Eye } from "lucide-react";
 import { CollectionService } from "@/services/collection.service";
 import { storeConfig } from "@/config/store.config";
+import { DEFAULT_BRAND_LOGO, isBrandLogoImage, isFallbackImageUrl } from "@/utils/image.utils";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -164,24 +165,30 @@ export default async function CollectionDetailPage({ params }: PageProps) {
                   key={p.id}
                   className="group bg-[var(--muted)]/30 border border-[var(--border)] rounded-2xl overflow-hidden hover:shadow-xl transition-all duration-300 flex flex-col"
                 >
-                  <div className="relative aspect-[3/4] overflow-hidden bg-slate-900">
-                    {p.thumbnail ? (
+                  <div className="relative aspect-[3/4] overflow-hidden bg-neutral-100 flex items-center justify-center">
+                    {/* Brand logo background placeholder */}
+                    <div className="absolute inset-0 flex items-center justify-center p-8 bg-gradient-to-b from-neutral-50 to-neutral-100/90 pointer-events-none select-none">
                       <img
-                        src={p.thumbnail}
-                        alt={p.name}
-                        className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700"
+                        src={DEFAULT_BRAND_LOGO}
+                        alt=""
+                        className="max-h-[50%] max-w-[70%] object-contain opacity-35"
                       />
-                    ) : (
-                      <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900 text-slate-400 p-4 text-center">
-                        <Sparkles className="w-8 h-8 mb-2 text-amber-500/60" />
-                        <span className="text-[10px] uppercase font-bold tracking-widest text-slate-500">
-                          {p.brand || "Maison"}
-                        </span>
-                        <span className="text-xs font-heading font-medium text-slate-300 line-clamp-2 mt-1">
-                          {p.name}
-                        </span>
-                      </div>
-                    )}
+                    </div>
+
+                    {(() => {
+                      const finalImg = p.thumbnail && !isFallbackImageUrl(p.thumbnail) ? p.thumbnail : DEFAULT_BRAND_LOGO;
+                      return (
+                        <img
+                          src={finalImg}
+                          alt={p.name}
+                          className={
+                            isBrandLogoImage(finalImg)
+                              ? "w-full h-full object-contain p-8 relative z-[1]"
+                              : "w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700 relative z-[1]"
+                          }
+                        />
+                      );
+                    })()}
 
                     {discount > 0 && (
                       <span className="absolute top-3 left-3 bg-rose-600 text-white text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider shadow">

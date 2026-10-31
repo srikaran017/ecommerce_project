@@ -24,6 +24,7 @@ import { featureConfig } from "@/config/feature.config";
 import { useAuthStore } from "@/stores/auth.store";
 import { CheckoutService } from "@/services/checkout.service";
 import { Button } from "@/components/ui/Button";
+import { DEFAULT_BRAND_LOGO, isBrandLogoImage } from "@/utils/image.utils";
 
 export default function CartPage() {
   const router = useRouter();
@@ -286,11 +287,18 @@ export default function CartPage() {
                   >
                     {/* Item Thumbnail & Details (col 6) */}
                     <div className="sm:col-span-6 flex gap-4 w-full">
-                      <div className="w-24 h-32 bg-[var(--muted)] flex-shrink-0 rounded-xl overflow-hidden relative border border-[var(--border)]">
+                      <div className="w-24 h-32 bg-[var(--muted)] flex-shrink-0 rounded-xl overflow-hidden relative border border-[var(--border)] flex items-center justify-center">
                         <img
-                          src={item.imageUrl}
+                          src={item.imageUrl || DEFAULT_BRAND_LOGO}
                           alt={item.name}
-                          className="w-full h-full object-cover object-top"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = DEFAULT_BRAND_LOGO;
+                          }}
+                          className={
+                            isBrandLogoImage(item.imageUrl)
+                              ? "w-full h-full object-contain p-2 bg-neutral-50"
+                              : "w-full h-full object-cover object-top"
+                          }
                         />
                         {isOutOfStock && (
                           <div className="absolute inset-0 bg-black/60 flex items-center justify-center p-1 text-center">

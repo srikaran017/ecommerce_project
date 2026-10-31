@@ -8,7 +8,7 @@ import { storeConfig } from "@/config/store.config";
 import { useCartStore } from "@/stores/cart.store";
 import { useAuthStore } from "@/stores/auth.store";
 import { ProductData, ProductVariantData } from "@/data/products.data";
-import { resolveProductImage, getProductFallbackImage } from "@/utils/image.utils";
+import { resolveProductImage, getProductFallbackImage, isBrandLogoImage, DEFAULT_BRAND_LOGO } from "@/utils/image.utils";
 
 interface QuickViewModalProps {
   product: ProductData;
@@ -34,6 +34,7 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
 
   const [selectedVariant, setSelectedVariant] = useState<ProductVariantData>(defaultVariant);
   const [activeImg, setActiveImg] = useState(resolvedImages.primary);
+  const [isImgLoaded, setIsImgLoaded] = useState(false);
   const [addedAnimation, setAddedAnimation] = useState(false);
   const addItem = useCartStore((state) => state.addItem);
   const { isAuthenticated } = useAuthStore();
@@ -42,13 +43,15 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
     if (isOpen) {
       setSelectedVariant(defaultVariant);
       setActiveImg(resolvedImages.primary);
+      setIsImgLoaded(false);
     }
   }, [isOpen, product.id, resolvedImages.primary]);
 
   const handleImageError = () => {
-    const fallback = getProductFallbackImage(product);
+    const fallback = getProductFallbackImage(product) || DEFAULT_BRAND_LOGO;
     if (activeImg !== fallback) {
       setActiveImg(fallback);
+      setIsImgLoaded(true);
     }
   };
 
@@ -121,21 +124,34 @@ export function QuickViewModal({ product, isOpen, onClose }: QuickViewModalProps
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-center">
           
           {/* Left Curvy Photo */}
-          <div className="aspect-[3/4] bg-neutral-100 rounded-2xl overflow-hidden shadow-inner">
+          <div className="aspect-[3/4] bg-neutral-100 rounded-2xl overflow-hidden shadow-inner relative flex items-center justify-center">
+            {/* Brand logo background placeholder shown before and while API image loads */}
+            <div className="absolute inset-0 flex flex-col items-center justify-center p-8 bg-gradient-to-b from-neutral-50 to-neutral-100/90 pointer-events-none select-none">
+              <img
+                src={DEFAULT_BRAND_LOGO}
+                alt={product.brand || "Maison"}
+                className="max-h-[50%] max-w-[70%] object-contain opacity-40"
+              />
+              <span className="text-[10px] uppercase font-bold tracking-widest text-neutral-400 mt-2">
+                {product.brand || "Maison"}
+              </span>
+            </div>
+
             {activeImg ? (
               <img
                 src={activeImg}
                 alt={product.name}
+                onLoad={() => setIsImgLoaded(true)}
                 onError={handleImageError}
-                className="w-full h-full object-cover object-top"
+                className={
+                  isBrandLogoImage(activeImg)
+                    ? "w-full h-full object-contain p-8 relative z-[1]"
+                    : `w-full h-full object-cover object-top relative z-[1] transition-opacity duration-300 ${
+                        isImgLoaded ? "opacity-100" : "opacity-0"
+                      }`
+                }
               />
-            ) : (
-              <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-b from-neutral-50 to-neutral-200/80 p-4 text-center">
-                <Sparkles className="w-8 h-8 mb-2 text-amber-600/60" />
-                <span className="text-[10px] uppercase font-bold tracking-widest text-neutral-500">{product.brand || "Maison"}</span>
-                <span className="text-sm font-heading font-medium text-neutral-800 line-clamp-2 mt-1">{product.name}</span>
-              </div>
-            )}
+            ) : null}
           </div>
 
           {/* Right Product Details */}
