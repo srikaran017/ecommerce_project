@@ -56,6 +56,25 @@ export const LUXURY_FALLBACK_IMAGES = {
   },
 };
 
+/**
+ * =============================================================================
+ * PRODUCT IMAGE DEMO FALLBACK SWITCH (TOGGLE ANYTIME)
+ * =============================================================================
+ * Change this single boolean value to control older / seeded catalog products:
+ *
+ * • false (default): Strictly show your brand logo (DEFAULT_BRAND_LOGO) for any
+ *   product that does not yet have a verified user-uploaded photo (e.g., Cloudinary).
+ *   Prevents unapproved stock demo photos from appearing on your storefront.
+ *
+ * • true: Allow database stock demo images (Unsplash photos) to show for older
+ *   products until you upload authentic photos for them via the Admin Portal.
+ *
+ * NOTE: Products with authentic Cloudinary uploads (like Blazers) ALWAYS show
+ * their uploaded photos regardless of this setting.
+ * =============================================================================
+ */
+export const ALLOW_STOCK_DEMO_IMAGES = false; //default logo is handled here
+
 export const DEFAULT_BRAND_LOGO = "/images/logo-raw-extracted.png";
 
 /**
@@ -66,6 +85,8 @@ export function isBrandLogoImage(url: unknown): boolean {
   const trimmed = url.trim().toLowerCase();
   return (
     trimmed === DEFAULT_BRAND_LOGO ||
+    trimmed === "/images/logo-raw-extracted.png" ||
+    trimmed === "/images/logo.png" ||
     trimmed === "/images/logo-light.png" ||
     trimmed === "/images/logo.jpg" ||
     trimmed.includes("/images/logo") ||
@@ -107,6 +128,10 @@ export function isFallbackImageUrl(url: unknown): boolean {
   ) {
     return false;
   }
+  // When ALLOW_STOCK_DEMO_IMAGES is true, stock demo photos in the database are allowed to display
+  if (ALLOW_STOCK_DEMO_IMAGES) {
+    return false;
+  }
   return KNOWN_FALLBACK_IMAGE_PATTERNS.some((pattern) => trimmed.includes(pattern));
 }
 
@@ -129,9 +154,20 @@ export function sanitizeImageUrl(url: unknown): string | null {
 }
 
 /**
- * Returns the brand logo as the default product images before API image loads.
+ * Returns default fallback images.
+ * If ALLOW_STOCK_DEMO_IMAGES is true, returns category-specific luxury photos.
+ * Otherwise, returns DEFAULT_BRAND_LOGO.
  */
 export function getProductFallbackImages(product?: ProductLike | null): { primary: string; hover: string } {
+  if (ALLOW_STOCK_DEMO_IMAGES) {
+    const slug = (product?.slug || product?.categorySlug || "").toLowerCase();
+    for (const [key, fallback] of Object.entries(LUXURY_FALLBACK_IMAGES)) {
+      if (key !== "default" && slug.includes(key)) {
+        return fallback;
+      }
+    }
+    return LUXURY_FALLBACK_IMAGES.default;
+  }
   return {
     primary: DEFAULT_BRAND_LOGO,
     hover: DEFAULT_BRAND_LOGO,
@@ -139,9 +175,12 @@ export function getProductFallbackImages(product?: ProductLike | null): { primar
 }
 
 /**
- * Returns the brand logo as the single default fallback image URL before API image loads.
+ * Returns the default fallback image URL.
  */
 export function getProductFallbackImage(product?: ProductLike | null): string {
+  if (ALLOW_STOCK_DEMO_IMAGES) {
+    return getProductFallbackImages(product).primary;
+  }
   return DEFAULT_BRAND_LOGO;
 }
 
