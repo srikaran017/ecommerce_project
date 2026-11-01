@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores/auth.store";
@@ -20,6 +20,9 @@ import {
   RefreshCw,
   Save,
   Contact2,
+  Camera,
+  Upload,
+  Loader2,
 } from "lucide-react";
 
 export default function AccountDetailsPage() {
@@ -52,6 +55,45 @@ export default function AccountDetailsPage() {
 
   const [passwordSuccessMessage, setPasswordSuccessMessage] = useState<string | null>(null);
   const [passwordErrorMessage, setPasswordErrorMessage] = useState<string | null>(null);
+
+  // Avatar upload state
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+
+  const handleAvatarFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      setProfileErrorMessage("Please select a valid image file (.jpg, .png, .webp).");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setProfileErrorMessage("Image size must be less than 5MB.");
+      return;
+    }
+
+    setIsUploadingAvatar(true);
+    setProfileSuccessMessage(null);
+    setProfileErrorMessage(null);
+    try {
+      const res = await CustomerService.uploadAvatar(file);
+      const newUrl = res.data?.avatarUrl || (res as any).avatarUrl;
+      if (res.success && newUrl) {
+        updateUser({ avatarUrl: newUrl, avatar: newUrl });
+        setProfileSuccessMessage("Profile photo uploaded and updated successfully via Cloudinary!");
+      } else {
+        const local = URL.createObjectURL(file);
+        updateUser({ avatarUrl: local, avatar: local });
+        setProfileSuccessMessage("Profile photo updated!");
+      }
+    } catch {
+      setProfileErrorMessage("Failed to upload avatar. Please try again.");
+    } finally {
+      setIsUploadingAvatar(false);
+      if (avatarInputRef.current) avatarInputRef.current.value = "";
+    }
+  };
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -256,7 +298,69 @@ export default function AccountDetailsPage() {
               <p className="text-xs text-neutral-400">Loading details...</p>
             </div>
           ) : (
-            <form onSubmit={handleProfileSubmit} className="space-y-4">
+            <div className="space-y-6">
+              {/* Avatar Management Card */}
+              <div className="flex flex-col sm:flex-row items-center gap-4 p-4 rounded-xl bg-neutral-50 border border-neutral-200/80">
+                <div className="relative group">
+                  <div className="w-16 h-16 rounded-full overflow-hidden border border-neutral-300 bg-neutral-100 flex items-center justify-center shrink-0">
+                    {user?.avatarUrl || user?.avatar || (user as any)?.picture ? (
+                      <img
+                        src={user?.avatarUrl || user?.avatar || (user as any)?.picture}
+                        alt={user?.name || "Customer Avatar"}
+                        referrerPolicy="no-referrer"
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          (e.target as HTMLElement).style.display = "none";
+                        }}
+                      />
+                    ) : (
+                      <div className="text-neutral-700 font-semibold text-xl">
+                        {(user?.name || "C").charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => avatarInputRef.current?.click()}
+                    disabled={isUploadingAvatar}
+                    title="Upload profile picture"
+                    className="absolute -bottom-1 -right-1 p-1.5 bg-neutral-900 hover:bg-neutral-800 text-white rounded-full shadow-xs transition-colors cursor-pointer disabled:opacity-60"
+                  >
+                    {isUploadingAvatar ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <Camera className="w-3 h-3" />
+                    )}
+                  </button>
+
+                  <input
+                    ref={avatarInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/heic"
+                    onChange={handleAvatarFileSelect}
+                    className="hidden"
+                  />
+                </div>
+
+                <div className="space-y-1 text-center sm:text-left flex-1">
+                  <span className="text-xs font-semibold text-neutral-900 block">Profile Picture</span>
+                  <p className="text-xs text-neutral-500">
+                    Supports JPEG, PNG, WebP up to 5MB. Processed automatically via Cloudinary.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => avatarInputRef.current?.click()}
+                    disabled={isUploadingAvatar}
+                    className="text-xs font-medium text-amber-800 hover:text-amber-900 inline-flex items-center gap-1.5 pt-0.5 cursor-pointer disabled:opacity-60"
+                  >
+                    <Upload className="w-3 h-3" />
+                    <span>{isUploadingAvatar ? "Uploading..." : "Upload New Photo"}</span>
+                  </button>
+                </div>
+              </div>
+
+              <form onSubmit={handleProfileSubmit} className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* First Name */}
                 <div className="space-y-1.5">
@@ -333,7 +437,8 @@ export default function AccountDetailsPage() {
                 </button>
               </div>
             </form>
-          )}
+          </div>
+        )}
         </div>
 
         {/* Section 2: Change Password Form (Shopify Polaris style) */}

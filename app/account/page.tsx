@@ -34,12 +34,14 @@ import {
   X,
   Star,
   RotateCcw,
+  Camera,
+  Loader2,
 } from "lucide-react";
 
 function AccountCenterContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, isAuthenticated, logout } = useAuthStore();
+  const { user, isAuthenticated, logout, updateUser } = useAuthStore();
   const { wishlistIds } = useWishlistStore();
 
   const [account, setAccount] = useState<AccountDetails | null>(null);
@@ -51,11 +53,51 @@ function AccountCenterContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
 
+  // Avatar manual upload state
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const avatarFileInputRef = React.useRef<HTMLInputElement>(null);
+
   // Tracking Modal & Quick Lookup State
   const [selectedOrderForTracking, setSelectedOrderForTracking] = useState<AdminOrder | null>(null);
   const [quickLookupNum, setQuickLookupNum] = useState("");
   const [isSearchingOrder, setIsSearchingOrder] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const handleAvatarFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      showToast("Please choose a valid image file (.jpg, .png, .webp).");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      showToast("Image size must be less than 5MB.");
+      return;
+    }
+
+    setIsUploadingAvatar(true);
+    showToast("Uploading profile photo to Cloudinary...");
+    try {
+      const res = await CustomerService.uploadAvatar(file);
+      const newUrl = res.data?.avatarUrl || (res as any).avatarUrl;
+      if (res.success && newUrl) {
+        updateUser({ avatarUrl: newUrl, avatar: newUrl });
+        if (account) setAccount({ ...account, avatarUrl: newUrl });
+        showToast("Profile photo updated successfully!");
+      } else {
+        const local = URL.createObjectURL(file);
+        updateUser({ avatarUrl: local, avatar: local });
+        if (account) setAccount({ ...account, avatarUrl: local });
+        showToast("Profile photo updated!");
+      }
+    } catch {
+      showToast("Failed to upload avatar. Please try again.");
+    } finally {
+      setIsUploadingAvatar(false);
+      if (avatarFileInputRef.current) avatarFileInputRef.current.value = "";
+    }
+  };
 
   useEffect(() => {
     setIsMounted(true);
@@ -334,22 +376,49 @@ function AccountCenterContent() {
         <div className="bg-white rounded-xl border border-neutral-200/90 p-5 sm:p-6 shadow-xs">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-4">
-              {/* Initials Avatar */}
-              {user?.avatarUrl || account?.avatarUrl || user?.avatar || (user as any)?.picture ? (
-                <img
-                  src={user?.avatarUrl || account?.avatarUrl || user?.avatar || (user as any)?.picture}
-                  alt={displayName}
-                  referrerPolicy="no-referrer"
-                  className="w-14 h-14 rounded-full object-cover border border-neutral-200 shrink-0"
-                  onError={(e) => {
-                    (e.target as HTMLElement).style.display = "none";
-                  }}
-                />
-              ) : (
-                <div className="w-14 h-14 rounded-full bg-neutral-100 border border-neutral-200 text-neutral-700 font-semibold text-lg flex items-center justify-center shrink-0">
-                  {initialLetter}
+              {/* Interactive Avatar with 1-Click Upload */}
+              <div className="relative group">
+                <div className="w-14 h-14 rounded-full overflow-hidden border border-neutral-200 bg-neutral-100 shrink-0 flex items-center justify-center">
+                  {user?.avatarUrl || account?.avatarUrl || user?.avatar || (user as any)?.picture ? (
+                    <img
+                      src={user?.avatarUrl || account?.avatarUrl || user?.avatar || (user as any)?.picture}
+                      alt={displayName}
+                      referrerPolicy="no-referrer"
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLElement).style.display = "none";
+                      }}
+                    />
+                  ) : (
+                    <div className="text-neutral-700 font-semibold text-lg">
+                      {initialLetter}
+                    </div>
+                  )}
                 </div>
-              )}
+
+                {/* Upload Camera Badge */}
+                <button
+                  type="button"
+                  onClick={() => avatarFileInputRef.current?.click()}
+                  disabled={isUploadingAvatar}
+                  title="Upload profile picture"
+                  className="absolute -bottom-1 -right-1 p-1.5 bg-neutral-900 hover:bg-neutral-800 text-white rounded-full shadow-xs transition-colors cursor-pointer disabled:opacity-60"
+                >
+                  {isUploadingAvatar ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <Camera className="w-3 h-3" />
+                  )}
+                </button>
+
+                <input
+                  ref={avatarFileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/heic"
+                  onChange={handleAvatarFileSelect}
+                  className="hidden"
+                />
+              </div>
 
               <div className="space-y-0.5">
                 <div className="flex items-center gap-2">

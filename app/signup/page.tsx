@@ -1,9 +1,24 @@
 "use client";
 
-import React, { useState, Suspense } from "react";
+import React, { useState, useRef, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Eye, EyeOff, Lock, Mail, User, Phone, ArrowRight, AlertCircle, CheckCircle2, Sparkles } from "lucide-react";
+import {
+  Eye,
+  EyeOff,
+  Lock,
+  Mail,
+  User,
+  Phone,
+  ArrowRight,
+  AlertCircle,
+  CheckCircle2,
+  Sparkles,
+  Camera,
+  X,
+  Upload,
+  Link as LinkIcon,
+} from "lucide-react";
 import { useAuthStore } from "@/stores/auth.store";
 import { storeConfig } from "@/config/store.config";
 import { isFeatureEnabled } from "@/config/feature.config";
@@ -24,7 +39,53 @@ function SignupForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [acceptTerms, setAcceptTerms] = useState(false);
 
+  // Profile avatar upload state
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [avatarUrlInput, setAvatarUrlInput] = useState("");
+  const [showUrlMode, setShowUrlMode] = useState(false);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      setAvatarError("Please select a valid image file (.jpg, .jpeg, .png, .webp).");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setAvatarError("Image size must be less than 5MB.");
+      return;
+    }
+
+    setAvatarError(null);
+    setAvatarFile(file);
+    setAvatarUrlInput(""); // Strict mutual exclusivity
+    const preview = URL.createObjectURL(file);
+    setAvatarPreview(preview);
+  };
+
+  const handleUrlChange = (val: string) => {
+    setAvatarUrlInput(val);
+    setAvatarError(null);
+    if (val.trim()) {
+      setAvatarFile(null); // Strict mutual exclusivity
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      setAvatarPreview(val.trim());
+    } else {
+      setAvatarPreview(null);
+    }
+  };
+
+  const handleRemoveAvatar = () => {
+    setAvatarFile(null);
+    setAvatarPreview(null);
+    setAvatarUrlInput("");
+    setAvatarError(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
 
   // Field validation errors
   const [fieldErrors, setFieldErrors] = useState<{
@@ -95,14 +156,14 @@ function SignupForm() {
       email: email.trim(),
       phone: phone.trim() || undefined,
       password,
+      avatar: avatarFile || undefined,
+      avatarUrl: !avatarFile && avatarUrlInput.trim() ? avatarUrlInput.trim() : undefined,
     });
 
     if (success) {
       router.push(redirectTarget);
     }
   };
-
-
 
   return (
     <div className="min-h-[85vh] flex items-center justify-center px-4 sm:px-6 lg:px-8 py-12">
@@ -148,6 +209,99 @@ function SignupForm() {
 
         {/* Signup Form */}
         <form onSubmit={handleSignup} className="space-y-4 text-xs">
+
+          {/* Profile Picture Upload (Optional) */}
+          <div className="flex flex-col items-center justify-center p-3.5 bg-neutral-50/80 border border-dashed border-neutral-200 rounded-2xl space-y-2.5">
+            <div className="relative group">
+              <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-white shadow-sm bg-neutral-200 flex items-center justify-center">
+                {avatarPreview ? (
+                  <img
+                    src={avatarPreview}
+                    alt="Avatar preview"
+                    referrerPolicy="no-referrer"
+                    className="w-full h-full object-cover"
+                    onError={() => {
+                      setAvatarError("Could not load preview image URL.");
+                    }}
+                  />
+                ) : (
+                  <div className="text-neutral-500 font-semibold text-xl">
+                    {name.trim() ? name.trim().charAt(0).toUpperCase() : <User className="w-7 h-7 text-neutral-400" />}
+                  </div>
+                )}
+              </div>
+
+              {/* Camera Trigger Badge */}
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                title="Upload Profile Picture"
+                className="absolute -bottom-1 -right-1 p-1.5 bg-neutral-900 hover:bg-neutral-800 text-white rounded-full shadow-xs transition-colors cursor-pointer"
+              >
+                <Camera className="w-3.5 h-3.5" />
+              </button>
+
+              {/* Remove button if preview exists */}
+              {avatarPreview && (
+                <button
+                  type="button"
+                  onClick={handleRemoveAvatar}
+                  title="Remove Picture"
+                  className="absolute -top-1 -right-1 p-1 bg-rose-600 hover:bg-rose-700 text-white rounded-full shadow-xs transition-colors cursor-pointer"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/heic"
+              onChange={handleFileChange}
+              className="hidden"
+            />
+
+            <div className="text-center space-y-1">
+              <div className="flex items-center justify-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="text-xs font-semibold text-neutral-800 hover:text-amber-800 transition-colors inline-flex items-center gap-1 cursor-pointer"
+                >
+                  <Upload className="w-3 h-3 text-amber-700" />
+                  <span>{avatarPreview ? "Change Photo" : "Upload Photo (Optional)"}</span>
+                </button>
+                <span className="text-neutral-300">·</span>
+                <button
+                  type="button"
+                  onClick={() => setShowUrlMode(!showUrlMode)}
+                  className="text-[11px] font-medium text-neutral-500 hover:text-neutral-800 transition-colors cursor-pointer"
+                >
+                  {showUrlMode ? "Hide URL" : "Paste URL"}
+                </button>
+              </div>
+
+              {showUrlMode && (
+                <div className="pt-1.5 w-full max-w-xs animate-in fade-in">
+                  <div className="relative">
+                    <LinkIcon className="w-3.5 h-3.5 text-neutral-400 absolute left-2.5 top-2.5" />
+                    <input
+                      type="url"
+                      placeholder="https://images.unsplash.com/photo-..."
+                      value={avatarUrlInput}
+                      onChange={(e) => handleUrlChange(e.target.value)}
+                      className="w-full pl-8 pr-3 py-1.5 bg-white border border-neutral-200 rounded-xl text-neutral-900 text-[11px] focus:outline-none focus:border-neutral-900"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {avatarError && (
+                <p className="text-[11px] text-rose-600 font-medium">{avatarError}</p>
+              )}
+            </div>
+          </div>
 
           {/* Full Name */}
           <div className="space-y-1">

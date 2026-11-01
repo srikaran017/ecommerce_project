@@ -156,15 +156,32 @@ export class AuthService {
       const data = await response.json().catch(() => ({}));
 
       if (response.ok && data.success) {
-        const user: AuthUser = data.data?.user || {
-          id: data.data?.id || `usr_${Date.now()}`,
-          name: credentials.name.trim(),
-          email: credentials.email.toLowerCase().trim(),
-          phone: credentials.phone?.trim(),
-          avatarUrl: data.data?.user?.avatarUrl || credentials.avatarUrl,
-          role: "CUSTOMER",
-          createdAt: data.data?.createdAt,
-        };
+        const u = data.data?.user || data.data?.account;
+        const normalizedAvatar =
+          u?.avatarUrl ||
+          u?.avatar ||
+          u?.picture ||
+          u?.image ||
+          data.data?.avatarUrl ||
+          data.data?.avatar ||
+          credentials.avatarUrl;
+
+        const user: AuthUser = u
+          ? {
+              ...u,
+              avatarUrl: normalizedAvatar || undefined,
+              avatar: normalizedAvatar || undefined,
+            }
+          : {
+              id: data.data?.id || `usr_${Date.now()}`,
+              name: credentials.name.trim(),
+              email: credentials.email.toLowerCase().trim(),
+              phone: credentials.phone?.trim(),
+              avatarUrl: normalizedAvatar || undefined,
+              avatar: normalizedAvatar || undefined,
+              role: "CUSTOMER",
+              createdAt: data.data?.createdAt,
+            };
 
         if (data.data?.accessToken) {
           this.setAccessToken(data.data.accessToken);

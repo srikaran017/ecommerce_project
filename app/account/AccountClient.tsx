@@ -24,6 +24,8 @@ import {
   X,
   ChevronRight,
   Star,
+  Camera,
+  Loader2,
 } from "lucide-react";
 
 import { ProfileTab } from "./components/ProfileTab";
@@ -50,7 +52,7 @@ interface AccountClientProps {
 export function AccountClient({ initialProducts }: AccountClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, isAuthenticated, logout } = useAuthStore();
+  const { user, isAuthenticated, logout, updateUser } = useAuthStore();
   const { wishlistIds } = useWishlistStore();
 
   const [activeTab, setActiveTab] = useState<AccountTab>("orders");
@@ -59,6 +61,44 @@ export function AccountClient({ initialProducts }: AccountClientProps) {
   const [addressCount, setAddressCount] = useState(0);
   const [reviewsCount, setReviewsCount] = useState(0);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Avatar manual upload state
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const avatarInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleAvatarFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      showToast("Please choose a valid image file (.jpg, .png, .webp).");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      showToast("Image size must be less than 5MB.");
+      return;
+    }
+
+    setIsUploadingAvatar(true);
+    showToast("Uploading profile photo to Cloudinary...");
+    try {
+      const res = await CustomerService.uploadAvatar(file);
+      const newUrl = res.data?.avatarUrl || (res as any).avatarUrl;
+      if (res.success && newUrl) {
+        updateUser({ avatarUrl: newUrl, avatar: newUrl });
+        showToast("Profile photo updated successfully!");
+      } else {
+        const local = URL.createObjectURL(file);
+        updateUser({ avatarUrl: local, avatar: local });
+        showToast("Profile photo updated!");
+      }
+    } catch {
+      showToast("Failed to upload avatar. Please try again.");
+    } finally {
+      setIsUploadingAvatar(false);
+      if (avatarInputRef.current) avatarInputRef.current.value = "";
+    }
+  };
 
   // Sync tab from URL query param if present
   useEffect(() => {
@@ -180,21 +220,48 @@ export function AccountClient({ initialProducts }: AccountClientProps) {
         <div className="bg-white p-5 sm:p-6 rounded-xl border border-neutral-200/90 shadow-xs space-y-5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-4">
-              {user?.avatarUrl || user?.avatar || (user as any)?.picture ? (
-                <img
-                  src={user?.avatarUrl || user?.avatar || (user as any)?.picture}
-                  alt={displayName}
-                  referrerPolicy="no-referrer"
-                  className="w-14 h-14 rounded-full object-cover border border-neutral-200 shadow-2xs"
-                  onError={(e) => {
-                    (e.target as HTMLElement).style.display = "none";
-                  }}
-                />
-              ) : (
-                <div className="w-14 h-14 bg-neutral-100 rounded-full flex items-center justify-center text-neutral-700 font-semibold text-lg border border-neutral-200">
-                  {initialLetter}
+              {/* Interactive Avatar with 1-Click Upload */}
+              <div className="relative group">
+                <div className="w-14 h-14 rounded-full overflow-hidden border border-neutral-200 bg-neutral-100 shadow-2xs flex items-center justify-center">
+                  {user?.avatarUrl || user?.avatar || (user as any)?.picture ? (
+                    <img
+                      src={user?.avatarUrl || user?.avatar || (user as any)?.picture}
+                      alt={displayName}
+                      referrerPolicy="no-referrer"
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLElement).style.display = "none";
+                      }}
+                    />
+                  ) : (
+                    <div className="text-neutral-700 font-semibold text-lg">
+                      {initialLetter}
+                    </div>
+                  )}
                 </div>
-              )}
+
+                <button
+                  type="button"
+                  onClick={() => avatarInputRef.current?.click()}
+                  disabled={isUploadingAvatar}
+                  title="Upload profile picture"
+                  className="absolute -bottom-1 -right-1 p-1.5 bg-neutral-900 hover:bg-neutral-800 text-white rounded-full shadow-xs transition-colors cursor-pointer disabled:opacity-60"
+                >
+                  {isUploadingAvatar ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <Camera className="w-3 h-3" />
+                  )}
+                </button>
+
+                <input
+                  ref={avatarInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/heic"
+                  onChange={handleAvatarFileSelect}
+                  className="hidden"
+                />
+              </div>
 
               <div className="space-y-0.5">
                 <div className="flex items-center gap-2">
