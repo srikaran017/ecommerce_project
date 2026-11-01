@@ -65,8 +65,21 @@ function AuthCallbackContent() {
               AuthService.setAccessToken(parsed.token);
             }
 
-            // 2. Set user session in Zustand persisted auth store
-            setUser(parsed.user);
+            // 2. Set user session in Zustand persisted auth store with robust avatar preservation
+            const effectiveAvatar =
+              parsed.user.avatarUrl ||
+              parsed.user.avatar ||
+              parsed.user.picture ||
+              parsed.user.image ||
+              undefined;
+
+            const normalizedUser = {
+              ...parsed.user,
+              avatarUrl: effectiveAvatar,
+              avatar: effectiveAvatar,
+            };
+
+            setUser(normalizedUser);
 
             // 3. Seamlessly merge anonymous guest cart with customer account
             useCartStore.getState().mergeGuestCartOnLogin().catch(() => {});

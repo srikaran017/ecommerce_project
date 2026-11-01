@@ -335,11 +335,15 @@ function AccountCenterContent() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-4">
               {/* Initials Avatar */}
-              {user?.avatarUrl ? (
+              {user?.avatarUrl || account?.avatarUrl || user?.avatar || (user as any)?.picture ? (
                 <img
-                  src={user.avatarUrl}
+                  src={user?.avatarUrl || account?.avatarUrl || user?.avatar || (user as any)?.picture}
                   alt={displayName}
+                  referrerPolicy="no-referrer"
                   className="w-14 h-14 rounded-full object-cover border border-neutral-200 shrink-0"
+                  onError={(e) => {
+                    (e.target as HTMLElement).style.display = "none";
+                  }}
                 />
               ) : (
                 <div className="w-14 h-14 rounded-full bg-neutral-100 border border-neutral-200 text-neutral-700 font-semibold text-lg flex items-center justify-center shrink-0">

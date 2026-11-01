@@ -30,11 +30,18 @@ const LUXURY_AVATARS = [
 export function ProfileTab({ onShowToast }: ProfileTabProps) {
   const { user, updateUser } = useAuthStore();
 
+  const initialAvatar =
+    user?.avatarUrl ||
+    user?.avatar ||
+    (user as any)?.picture ||
+    (user as any)?.image ||
+    "";
+
   const [formData, setFormData] = useState({
     name: user?.name || "",
     email: user?.email || "",
     phone: user?.phone || "",
-    avatarUrl: user?.avatarUrl || "",
+    avatarUrl: initialAvatar,
     dateOfBirth: "",
     genderPreference: "ALL" as "WOMENSWEAR" | "MENSWEAR" | "ALL",
   });
@@ -54,7 +61,7 @@ export function ProfileTab({ onShowToast }: ProfileTabProps) {
           name: extra.name || prev.name,
           email: extra.email || prev.email,
           phone: extra.phone || prev.phone,
-          avatarUrl: extra.avatarUrl || prev.avatarUrl,
+          avatarUrl: extra.avatarUrl || prev.avatarUrl || initialAvatar,
           dateOfBirth: extra.dateOfBirth || prev.dateOfBirth,
           genderPreference: extra.genderPreference || prev.genderPreference,
         }));
@@ -173,7 +180,11 @@ export function ProfileTab({ onShowToast }: ProfileTabProps) {
               <img
                 src={formData.avatarUrl}
                 alt={formData.name || "Client"}
+                referrerPolicy="no-referrer"
                 className="w-16 h-16 rounded-full object-cover border border-neutral-200 shadow-2xs"
+                onError={(e) => {
+                  (e.target as HTMLElement).style.display = "none";
+                }}
               />
             ) : (
               <div className="w-16 h-16 rounded-full bg-neutral-200 border border-neutral-300 flex items-center justify-center text-neutral-700 font-semibold text-xl">

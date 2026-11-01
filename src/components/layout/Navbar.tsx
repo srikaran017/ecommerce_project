@@ -506,10 +506,32 @@ export function Navbar({ initialCategories }: NavbarProps = {}) {
             {featureConfig.customerAccounts && (
               <Link
                 href="/account"
-                aria-label="Customer Account"
-                className="p-1.5 text-[var(--foreground)] hover:opacity-75 transition-opacity hidden sm:block"
+                aria-label={isMounted && isAuthenticated && user?.name ? `${user.name}'s Account` : "Customer Account"}
+                title={isMounted && isAuthenticated && user?.name ? `Signed in as ${user.name}` : "Customer Account"}
+                className="p-1 text-[var(--foreground)] hover:opacity-85 transition-opacity hidden sm:inline-flex items-center justify-center rounded-full"
               >
-                <User className="w-5 h-5" />
+                {isMounted && isAuthenticated && (user?.avatarUrl || user?.avatar || (user as any)?.picture) ? (
+                  <div className="relative w-7 h-7 rounded-full overflow-hidden border border-neutral-300 shadow-2xs hover:border-amber-600 transition-colors bg-neutral-100 flex items-center justify-center shrink-0">
+                    <img
+                      src={user?.avatarUrl || user?.avatar || (user as any)?.picture}
+                      alt={user?.name || "Customer Avatar"}
+                      referrerPolicy="no-referrer"
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLElement).style.display = "none";
+                      }}
+                    />
+                    <span className="text-[10px] font-bold text-neutral-700 uppercase -z-10 absolute select-none">
+                      {(user?.name || "C").charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                ) : isMounted && isAuthenticated && user?.name ? (
+                  <div className="w-7 h-7 rounded-full bg-neutral-100 border border-neutral-300 text-neutral-800 font-bold text-[11px] flex items-center justify-center hover:border-amber-600 transition-colors select-none">
+                    {user.name.charAt(0).toUpperCase()}
+                  </div>
+                ) : (
+                  <User className="w-5 h-5" />
+                )}
               </Link>
             )}
 
@@ -713,9 +735,34 @@ export function Navbar({ initialCategories }: NavbarProps = {}) {
               <Link
                 href="/account"
                 onClick={closeMobileMenu}
-                className="block text-sm font-semibold uppercase tracking-widest text-[var(--foreground)]"
+                className="flex items-center gap-3 text-sm font-semibold uppercase tracking-widest text-[var(--foreground)] hover:text-amber-800 transition-colors py-1"
               >
-                My Account
+                {isMounted && isAuthenticated && (user?.avatarUrl || user?.avatar || (user as any)?.picture) ? (
+                  <div className="relative w-8 h-8 rounded-full overflow-hidden border border-neutral-300 bg-neutral-100 flex items-center justify-center shrink-0">
+                    <img
+                      src={user?.avatarUrl || user?.avatar || (user as any)?.picture}
+                      alt={user?.name || "Customer Avatar"}
+                      referrerPolicy="no-referrer"
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLElement).style.display = "none";
+                      }}
+                    />
+                    <span className="text-xs font-bold text-neutral-700 uppercase -z-10 absolute select-none">
+                      {(user?.name || "C").charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                ) : (
+                  <User className="w-4 h-4 text-amber-700 shrink-0" />
+                )}
+                <div className="flex flex-col text-left overflow-hidden">
+                  <span className="truncate">{isMounted && isAuthenticated && user?.name ? user.name : "My Account"}</span>
+                  {isMounted && isAuthenticated && user?.email && (
+                    <span className="text-[11px] text-neutral-400 font-normal lowercase tracking-normal font-mono truncate">
+                      {user.email}
+                    </span>
+                  )}
+                </div>
               </Link>
             )}
 

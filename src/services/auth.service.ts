@@ -7,6 +7,9 @@ export interface AuthUser {
   phone?: string;
   role?: UserRole | string;
   avatarUrl?: string;
+  avatar?: string;
+  picture?: string;
+  image?: string;
   createdAt?: string;
   isActive?: boolean;
 }
@@ -222,12 +225,18 @@ export class AuthService {
           this.setAccessToken(token);
         }
 
-        const user: AuthUser = data.data?.user || {
-          id: `usr_${Date.now()}`,
-          name: credentials.email.split("@")[0],
-          email: credentials.email.toLowerCase().trim(),
-          role: "CUSTOMER",
-        };
+        const u = data.data?.user;
+        const user: AuthUser = u
+          ? {
+              ...u,
+              avatarUrl: u.avatarUrl || u.avatar || u.picture || u.image || undefined,
+            }
+          : {
+              id: `usr_${Date.now()}`,
+              name: credentials.email.split("@")[0],
+              email: credentials.email.toLowerCase().trim(),
+              role: "CUSTOMER",
+            };
 
         return {
           success: true,
@@ -283,13 +292,25 @@ export class AuthService {
           this.setAccessToken(token);
         }
 
-        const user: AuthUser = data.data?.user || {
-          id: `usr_${Date.now()}`,
-          name: credentials.name || `${credentials.provider} User`,
-          email: credentials.email || "user@social.com",
-          avatarUrl: credentials.avatarUrl,
-          role: "CUSTOMER",
-        };
+        const u = data.data?.user;
+        const user: AuthUser = u
+          ? {
+              ...u,
+              avatarUrl:
+                u.avatarUrl ||
+                u.avatar ||
+                u.picture ||
+                u.image ||
+                credentials.avatarUrl ||
+                undefined,
+            }
+          : {
+              id: `usr_${Date.now()}`,
+              name: credentials.name || `${credentials.provider} User`,
+              email: credentials.email || "user@social.com",
+              avatarUrl: credentials.avatarUrl,
+              role: "CUSTOMER",
+            };
 
         return {
           success: true,
@@ -389,7 +410,12 @@ export class AuthService {
 
       const data = await response.json().catch(() => ({}));
       if (data.success && data.data?.user) {
-        return data.data.user;
+        const u = data.data.user;
+        const normalized: AuthUser = {
+          ...u,
+          avatarUrl: u.avatarUrl || u.avatar || u.picture || u.image || undefined,
+        };
+        return normalized;
       }
 
       return null;
@@ -430,9 +456,17 @@ export class AuthService {
             this.setAccessToken(token);
           }
 
+          const u = data.data?.user;
+          const normalizedUser: AuthUser | undefined = u
+            ? {
+                ...u,
+                avatarUrl: u.avatarUrl || u.avatar || u.picture || u.image || undefined,
+              }
+            : undefined;
+
           return {
             success: true,
-            user: data.data?.user,
+            user: normalizedUser,
             accessToken: token,
             message: data.message || "Token refreshed successfully",
           };

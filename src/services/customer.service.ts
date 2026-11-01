@@ -195,9 +195,12 @@ export class CustomerService {
       const json = await res.json().catch(() => ({}));
 
       if (res.ok && json.success && json.data?.account) {
+        const acc = json.data.account;
+        const normalizedAvatar = acc.avatarUrl || acc.avatar || acc.picture || acc.image || null;
+        acc.avatarUrl = normalizedAvatar;
         return {
           success: true,
-          data: json.data.account,
+          data: acc,
           message: json.message,
         };
       }
@@ -226,7 +229,7 @@ export class CustomerService {
         email: acc.data.email,
         phone: acc.data.phone || acc.data.phoneNumber || undefined,
         phoneNumber: acc.data.phoneNumber || acc.data.phone || undefined,
-        avatarUrl: acc.data.avatarUrl || undefined,
+        avatarUrl: acc.data.avatarUrl || (acc.data as any).avatar || (acc.data as any).picture || undefined,
       };
     }
 

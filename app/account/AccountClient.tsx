@@ -180,11 +180,15 @@ export function AccountClient({ initialProducts }: AccountClientProps) {
         <div className="bg-white p-5 sm:p-6 rounded-xl border border-neutral-200/90 shadow-xs space-y-5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-4">
-              {user?.avatarUrl ? (
+              {user?.avatarUrl || user?.avatar || (user as any)?.picture ? (
                 <img
-                  src={user.avatarUrl}
+                  src={user?.avatarUrl || user?.avatar || (user as any)?.picture}
                   alt={displayName}
+                  referrerPolicy="no-referrer"
                   className="w-14 h-14 rounded-full object-cover border border-neutral-200 shadow-2xs"
+                  onError={(e) => {
+                    (e.target as HTMLElement).style.display = "none";
+                  }}
                 />
               ) : (
                 <div className="w-14 h-14 bg-neutral-100 rounded-full flex items-center justify-center text-neutral-700 font-semibold text-lg border border-neutral-200">

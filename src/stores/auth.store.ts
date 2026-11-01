@@ -195,7 +195,24 @@ export const useAuthStore = create<AuthState>()(
 
           const currentUser = await AuthService.getCurrentUser();
           if (currentUser) {
-            set({ user: currentUser, isAuthenticated: true });
+            const activeUser = get().user;
+            const finalAvatarUrl =
+              currentUser.avatarUrl ||
+              currentUser.avatar ||
+              currentUser.picture ||
+              currentUser.image ||
+              activeUser?.avatarUrl ||
+              activeUser?.avatar ||
+              activeUser?.picture ||
+              activeUser?.image;
+
+            const mergedUser: AuthUser = {
+              ...activeUser,
+              ...currentUser,
+              avatarUrl: finalAvatarUrl || undefined,
+              avatar: finalAvatarUrl || undefined,
+            };
+            set({ user: mergedUser, isAuthenticated: true });
             useCartStore.getState().fetchCart().catch(() => {});
           } else {
             // If user has an active OAuth / Google profile in store, preserve it rather than abruptly logging out
@@ -220,11 +237,45 @@ export const useAuthStore = create<AuthState>()(
       },
 
       clearError: () => set({ error: null }),
-      setUser: (user) => set({ user, isAuthenticated: !!user }),
+      setUser: (user) => {
+        if (!user) {
+          set({ user: null, isAuthenticated: false });
+          return;
+        }
+        const existing = get().user;
+        const finalAvatar =
+          user.avatarUrl ||
+          user.avatar ||
+          user.picture ||
+          user.image ||
+          (existing?.email?.toLowerCase() === user.email?.toLowerCase()
+            ? existing?.avatarUrl || existing?.avatar || existing?.picture
+            : undefined);
+
+        const normalizedUser: AuthUser = {
+          ...user,
+          avatarUrl: finalAvatar || undefined,
+          avatar: finalAvatar || undefined,
+        };
+        set({ user: normalizedUser, isAuthenticated: true });
+      },
       updateUser: (partial) => {
         const current = get().user;
         if (!current) return;
-        const updated = { ...current, ...partial };
+        const finalAvatar =
+          partial.avatarUrl ||
+          partial.avatar ||
+          partial.picture ||
+          partial.image ||
+          current.avatarUrl ||
+          current.avatar;
+
+        const updated: AuthUser = {
+          ...current,
+          ...partial,
+          avatarUrl: finalAvatar || undefined,
+          avatar: finalAvatar || undefined,
+        };
         set({ user: updated });
       },
     }),

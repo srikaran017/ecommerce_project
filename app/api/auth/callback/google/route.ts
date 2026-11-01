@@ -88,6 +88,26 @@ export async function GET(req: NextRequest) {
       return NextResponse.redirect(loginUrl);
     }
 
+    // Extract Google profile picture with high-res and alias fallbacks
+    let googleAvatar: string | undefined =
+      profile.picture ||
+      profile.avatar_url ||
+      profile.avatar ||
+      profile.image ||
+      undefined;
+
+    if (!googleAvatar && tokenData.id_token) {
+      try {
+        const parts = tokenData.id_token.split(".");
+        if (parts.length === 3) {
+          const payload = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf-8"));
+          if (payload?.picture) {
+            googleAvatar = payload.picture;
+          }
+        }
+      } catch {}
+    }
+
     // 3. Synchronize customer with backend server database via official Social OAuth endpoint
     // Document Reference: document/29.social_login_and_pagination_audit.md
     const TARGET_API_URL =
@@ -108,7 +128,9 @@ export async function GET(req: NextRequest) {
           providerAccountId: profile.sub,
           email: profile.email.toLowerCase().trim(),
           name: profile.name || profile.email.split("@")[0],
-          avatarUrl: profile.picture || undefined,
+          avatarUrl: googleAvatar,
+          avatar: googleAvatar,
+          picture: googleAvatar,
         }),
       });
 
@@ -117,6 +139,18 @@ export async function GET(req: NextRequest) {
       if (socialLoginRes.ok && socialData.success && socialData.data?.accessToken) {
         backendToken = socialData.data.accessToken;
         backendUser = socialData.data.user;
+
+        // If customer authenticated with backend but backendUser has no avatarUrl, sync it
+        if (googleAvatar && !backendUser?.avatarUrl && !backendUser?.avatar) {
+          fetch(`${TARGET_API_URL}/customer/account/avatar`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${backendToken}`,
+            },
+            body: JSON.stringify({ avatarUrl: googleAvatar }),
+          }).catch(() => {});
+        }
       } else {
         console.warn("[Backend Google Social Login Sync Error]:", socialData);
       }
@@ -125,11 +159,22 @@ export async function GET(req: NextRequest) {
     }
 
     // 4. Create customer session (strictly "CUSTOMER" role - zero admin elevation)
+    const finalAvatar =
+      backendUser?.avatarUrl ||
+      backendUser?.avatar ||
+      backendUser?.picture ||
+      backendUser?.image ||
+      googleAvatar ||
+      undefined;
+
     const userSession = {
       id: backendUser?.id || (profile.sub ? `usr_google_${profile.sub}` : `usr_${Date.now()}`),
       name: backendUser?.name || profile.name || profile.email.split("@")[0],
       email: (backendUser?.email || profile.email).toLowerCase().trim(),
-      avatarUrl: backendUser?.avatarUrl || profile.picture || undefined,
+      avatarUrl: finalAvatar,
+      avatar: finalAvatar,
+      picture: finalAvatar,
+      image: finalAvatar,
       role: "CUSTOMER" as const,
       createdAt: backendUser?.createdAt || new Date().toISOString(),
     };
