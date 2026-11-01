@@ -45,6 +45,84 @@ import {
 import { useAuthStore } from "@/stores/auth.store";
 import { rbac } from "@/lib/rbac";
 
+/**
+ * Normalizes variant attributes (size, color, stock, price) across backend API and local data
+ */
+function resolveVariantDisplay(v: any) {
+  // 1. Resolve Size
+  let size = v.size;
+  if (!size && Array.isArray(v.attributes)) {
+    const sizeAttr = v.attributes.find(
+      (a: any) =>
+        a.attributeSlug === "size" ||
+        a.attribute?.toLowerCase() === "size" ||
+        a.attributeName?.toLowerCase() === "size" ||
+        a.name?.toLowerCase() === "size"
+    );
+    if (sizeAttr) size = sizeAttr.value || sizeAttr.attributeValue?.value;
+  }
+  if (!size && v.name && v.name.includes("-")) {
+    const parts = v.name.split("-");
+    const candidate = parts[parts.length - 1]?.trim();
+    if (candidate && ["XS", "S", "M", "L", "XL", "XXL", "2XL", "3XL", "FS", "FREE SIZE"].includes(candidate.toUpperCase())) {
+      size = candidate.toUpperCase();
+    }
+  }
+  if (!size && v.sku) {
+    const parts = v.sku.split("-");
+    if (parts.length >= 2 && ["XS", "S", "M", "L", "XL", "XXL", "2XL", "3XL", "FS"].includes(parts[1]?.toUpperCase())) {
+      size = parts[1].toUpperCase();
+    }
+  }
+
+  // 2. Resolve Color Name & Hex
+  let colorName = v.colorName || v.color;
+  let colorHex = v.colorHex;
+  if (!colorName && Array.isArray(v.attributes)) {
+    const colorAttr = v.attributes.find(
+      (a: any) =>
+        a.attributeSlug === "color" ||
+        a.attribute?.toLowerCase() === "color" ||
+        a.attributeName?.toLowerCase() === "color" ||
+        a.name?.toLowerCase() === "color"
+    );
+    if (colorAttr) {
+      colorName = colorAttr.value || colorAttr.attributeValue?.value;
+    }
+  }
+  if (!colorHex && colorName) {
+    const lower = colorName.toLowerCase();
+    if (lower.includes("navy")) colorHex = "#0b1b3d";
+    else if (lower.includes("emerald") || lower.includes("green")) colorHex = "#046307";
+    else if (lower.includes("pink") || lower.includes("rose")) colorHex = "#e05297";
+    else if (lower.includes("red") || lower.includes("ruby") || lower.includes("crimson")) colorHex = "#990000";
+    else if (lower.includes("gold") || lower.includes("yellow") || lower.includes("champagne")) colorHex = "#d4af37";
+    else if (lower.includes("black") || lower.includes("onyx")) colorHex = "#111111";
+    else if (lower.includes("white") || lower.includes("ivory")) colorHex = "#f8f9fa";
+    else if (lower.includes("purple") || lower.includes("plum") || lower.includes("lavender")) colorHex = "#581845";
+    else if (lower.includes("blue") || lower.includes("royal")) colorHex = "#1e3a8a";
+    else if (lower.includes("teal")) colorHex = "#0d9488";
+    else colorHex = "#334155";
+  }
+
+  // 3. Resolve Stock
+  const stock = typeof v.stock === "number" ? v.stock : typeof v.stockQuantity === "number" ? v.stockQuantity : 0;
+
+  // 4. Resolve Price
+  const effectivePrice =
+    typeof v.price === "object" && v.price !== null
+      ? v.price.effective ?? v.price.sale ?? v.price.regular ?? 0
+      : Number(v.salePrice || v.regularPrice || v.price || 0);
+
+  return {
+    size: size || "Standard",
+    colorName: colorName || "Standard",
+    colorHex: colorHex || "#0b1b3d",
+    stock,
+    price: effectivePrice,
+  };
+}
+
 export default function AdminProductsPage() {
   const { user } = useAuthStore();
   const [products, setProducts] = useState<AdminProduct[]>([]);
@@ -1532,14 +1610,17 @@ export default function AdminProductsPage() {
                         <div className="space-y-1.5">
                           {/* Color Hex Swatches */}
                           <div className="flex items-center gap-1">
-                            {(p.variants || []).slice(0, 4).map((v) => (
-                              <div
-                                key={v.id}
-                                title={`${v.colorName || v.color} (${v.size})`}
-                                className="w-3.5 h-3.5 rounded-full border border-slate-700 shadow-sm"
-                                style={{ backgroundColor: v.colorHex || "#0b1b3d" }}
-                              />
-                            ))}
+                            {(p.variants || []).slice(0, 4).map((v, vIdx) => {
+                              const { size, colorName, colorHex } = resolveVariantDisplay(v);
+                              return (
+                                <div
+                                  key={v.id ? `v-swatch-${v.id}` : `swatch-${p.id}-${vIdx}`}
+                                  title={`${colorName} (${size})`}
+                                  className="w-3.5 h-3.5 rounded-full border border-slate-700 shadow-sm"
+                                  style={{ backgroundColor: colorHex }}
+                                />
+                              );
+                            })}
                             {(p.variants || []).length > 4 && (
                               <span className="text-[10px] text-slate-500 font-mono">
                                 +{(p.variants || []).length - 4}
@@ -1555,12 +1636,12 @@ export default function AdminProductsPage() {
                           {/* Sizing Tags */}
                           {(p.variants && p.variants.length > 0) ? (
                             <div className="flex items-center gap-1">
-                              {Array.from(new Set(p.variants.map((v) => v.size)))
+                              {Array.from(new Set(p.variants.map((v) => resolveVariantDisplay(v).size).filter(Boolean)))
                                 .slice(0, 4)
-                                .map((sz) => (
+                                .map((sz, szIdx) => (
                                   <span
-                                    key={sz}
-                                    className="px-1.5 py-0.2 rounded bg-slate-900 border border-slate-800 text-slate-400 text-[9px] font-mono"
+                                    key={`prod-${p.id}-sz-${sz}-${szIdx}`}
+                                    className="px-1.5 py-0.2 rounded bg-slate-900 border border-slate-800 text-slate-400 text-[9px] font-mono font-bold"
                                   >
                                     {sz}
                                   </span>
@@ -1814,44 +1895,47 @@ export default function AdminProductsPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/80 text-slate-300">
-                      {(viewingProduct.variants || []).map((v) => (
-                        <tr key={v.id} className="hover:bg-slate-900/40">
-                          <td className="py-3 px-4 font-mono font-medium text-[11px] text-amber-400">
-                            {v.sku}
-                          </td>
-                          <td className="py-3 px-4">
-                            <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 font-mono font-bold text-[10px]">
-                              {v.size}
-                            </span>
-                          </td>
-                          <td className="py-3 px-4">
-                            <div className="flex items-center gap-2">
+                      {(viewingProduct.variants || []).map((v) => {
+                        const { size, colorName, colorHex, stock, price } = resolveVariantDisplay(v);
+                        return (
+                          <tr key={v.id || v.sku} className="hover:bg-slate-900/40">
+                            <td className="py-3 px-4 font-mono font-medium text-[11px] text-amber-400">
+                              {v.sku}
+                            </td>
+                            <td className="py-3 px-4">
+                              <span className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 font-mono font-bold text-[10px] text-slate-200">
+                                {size}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4">
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className="w-3.5 h-3.5 rounded-full border border-slate-700 shrink-0 shadow-2xs"
+                                  style={{ backgroundColor: colorHex }}
+                                />
+                                <span className="text-[11px] text-slate-200">{colorName}</span>
+                              </div>
+                            </td>
+                            <td className="py-3 px-4 font-medium">
+                              {storeConfig.currency.symbol}
+                              {Number(price).toLocaleString()}
+                            </td>
+                            <td className="py-3 px-4 text-right font-mono font-bold">
                               <span
-                                className="w-3.5 h-3.5 rounded-full border border-slate-700 shrink-0"
-                                style={{ backgroundColor: v.colorHex || "#0b1b3d" }}
-                              />
-                              <span className="text-[11px]">{v.colorName || v.color}</span>
-                            </div>
-                          </td>
-                          <td className="py-3 px-4 font-medium">
-                            {storeConfig.currency.symbol}
-                            {Number(v.salePrice || v.regularPrice || v.price).toLocaleString()}
-                          </td>
-                          <td className="py-3 px-4 text-right font-mono font-bold">
-                            <span
-                              className={
-                                v.stock === 0
-                                ? "text-rose-400"
-                                : v.stock <= (v.lowStockThreshold || 5)
-                                ? "text-amber-400"
-                                : "text-emerald-400"
-                              }
-                            >
-                              {v.stock}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
+                                className={
+                                  stock === 0
+                                    ? "text-rose-400"
+                                    : stock <= (v.lowStockThreshold || 5)
+                                    ? "text-amber-400"
+                                    : "text-emerald-400"
+                                }
+                              >
+                                {stock} {stock === 1 ? "unit" : "units"}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
