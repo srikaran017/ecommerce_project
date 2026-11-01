@@ -660,7 +660,7 @@ function AccountCenterContent() {
         </section>
 
         {/* ========================================================================= */}
-        {/* 6 Logical Shopify / Luxury Navigation Cards Grid                          */}
+        {/* Navigation Cards Grid                                                     */}
         {/* ========================================================================= */}
         <div>
           <h2 className="text-sm font-semibold text-neutral-900 uppercase tracking-wider mb-3">
@@ -696,7 +696,8 @@ function AccountCenterContent() {
               </div>
             </Link>
 
-            {/* Card 2: Dedicated Order Tracking Card */}
+            {/* 
+            Card: Dedicated Order Tracking Card (Commented out - already accessible via dedicated tracking section above)
             <div
               onClick={() => {
                 if (activeOrder) {
@@ -729,8 +730,9 @@ function AccountCenterContent() {
                 </div>
               </div>
             </div>
+            */}
 
-            {/* Card 3: Account Details & Security */}
+            {/* Card 2: Account Details & Security */}
             <Link
               href="/account/details"
               className="group p-5 bg-white hover:bg-neutral-50/50 border border-neutral-200/90 hover:border-neutral-300 rounded-xl shadow-xs transition-all flex items-start gap-4"
@@ -757,7 +759,7 @@ function AccountCenterContent() {
               </div>
             </Link>
 
-            {/* Card 4: Addresses */}
+            {/* Card 3: Addresses */}
             <Link
               href="/account/addresses"
               className="group p-5 bg-white hover:bg-neutral-50/50 border border-neutral-200/90 hover:border-neutral-300 rounded-xl shadow-xs transition-all flex items-start gap-4"
@@ -784,7 +786,7 @@ function AccountCenterContent() {
               </div>
             </Link>
 
-            {/* Card 5: Wishlist */}
+            {/* Card 4: Wishlist */}
             <Link
               href="/account/wishlist"
               className="group p-5 bg-white hover:bg-neutral-50/50 border border-neutral-200/90 hover:border-neutral-300 rounded-xl shadow-xs transition-all flex items-start gap-4"
@@ -811,7 +813,7 @@ function AccountCenterContent() {
               </div>
             </Link>
 
-            {/* Card 6: Reviews */}
+            {/* Card 5: Reviews */}
             <Link
               href="/account/reviews"
               className="group p-5 bg-white hover:bg-neutral-50/50 border border-neutral-200/90 hover:border-neutral-300 rounded-xl shadow-xs transition-all flex items-start gap-4"
