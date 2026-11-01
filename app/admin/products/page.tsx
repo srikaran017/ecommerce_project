@@ -227,7 +227,7 @@ export default function AdminProductsPage() {
   const [drawerImageFile, setDrawerImageFile] = useState<File | null>(null);
   const [drawerImagePreview, setDrawerImagePreview] = useState<string | null>(null);
   const [drawerImageUrl, setDrawerImageUrl] = useState("");
-  const [drawerIsThumbnail, setDrawerIsThumbnail] = useState(false);
+  const [drawerIsThumbnail, setDrawerIsThumbnail] = useState(true);
   const drawerFileInputRef = useRef<HTMLInputElement>(null);
 
   // Catalyst Modifiers Drawer State
@@ -943,10 +943,44 @@ export default function AdminProductsPage() {
           })
         );
 
+        // Update local storage so storefront reflects this immediately!
+        try {
+          const local = AdminService.getLocalProducts();
+          const lIdx = local.findIndex((p) => p.id === viewingProduct.id || p.slug === viewingProduct.slug);
+          if (lIdx !== -1) {
+            local[lIdx] = {
+              ...local[lIdx],
+              ...(updated || {}),
+              thumbnail: updated?.thumbnail || newThumb,
+              images: updated?.images || mergedImages,
+              updatedAt: new Date().toISOString(),
+            };
+            AdminService.setLocalProducts(local);
+          }
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(
+              new CustomEvent("products-changed", {
+                detail: {
+                  action: "update",
+                  product: {
+                    ...viewingProduct,
+                    ...(updated || {}),
+                    thumbnail: updated?.thumbnail || newThumb,
+                    images: updated?.images || mergedImages,
+                  },
+                },
+              })
+            );
+            window.dispatchEvent(new Event("storage"));
+          }
+        } catch (syncErr) {
+          console.warn("Storage sync error on image upload:", syncErr);
+        }
+
         setDrawerImageFile(null);
         setDrawerImagePreview(null);
         setDrawerImageUrl("");
-        setDrawerIsThumbnail(false);
+        setDrawerIsThumbnail(true);
         if (drawerFileInputRef.current) drawerFileInputRef.current.value = "";
         setDrawerFeedback({
           type: "success",
@@ -971,6 +1005,106 @@ export default function AdminProductsPage() {
     }
   };
 
+  // Set an existing gallery photo as the primary thumbnail across the entire storefront
+  const handleSetPrimaryThumbnail = async (targetImg: AdminProductImage) => {
+    if (!viewingProduct || !viewingProduct.id) return;
+    try {
+      setIsDrawerUploading(true);
+      setDrawerFeedback(null);
+      const targetUrl = targetImg.url;
+
+      // 1. Tell backend to set this image as thumbnail
+      await AdminService.uploadProductImages(viewingProduct.id, {
+        url: targetUrl,
+        altText: targetImg.altText || viewingProduct.name,
+        isThumbnail: true,
+        sortOrder: 0,
+      });
+
+      // 2. Fetch fresh product details from backend if available
+      const updated = await AdminService.getProductById(viewingProduct.id);
+
+      // Re-order images so thumbnail is first
+      const currentImgs = updated?.images?.length ? updated.images : viewingProduct.images || [];
+      const updatedImgs = currentImgs.map((i) => ({
+        ...i,
+        isThumbnail: i.url === targetUrl || (targetImg.id ? i.id === targetImg.id : false),
+      })).sort((a, b) => (b.isThumbnail ? 1 : 0) - (a.isThumbnail ? 1 : 0));
+
+      const newThumb = targetUrl;
+
+      // Update viewingProduct state
+      setViewingProduct((prev) =>
+        prev
+          ? {
+              ...prev,
+              ...(updated || {}),
+              thumbnail: newThumb,
+              images: updatedImgs,
+            }
+          : null
+      );
+
+      // Update table products list
+      setProducts((prev) =>
+        prev.map((p) =>
+          p.id === viewingProduct.id
+            ? {
+                ...p,
+                ...(updated || {}),
+                thumbnail: newThumb,
+                images: updatedImgs,
+              }
+            : p
+        )
+      );
+
+      // Update localStorage products so storefront reflects this immediately!
+      try {
+        const local = AdminService.getLocalProducts();
+        const lIdx = local.findIndex((p) => p.id === viewingProduct.id || p.slug === viewingProduct.slug);
+        if (lIdx !== -1) {
+          local[lIdx] = {
+            ...local[lIdx],
+            ...(updated || {}),
+            thumbnail: newThumb,
+            images: updatedImgs,
+            updatedAt: new Date().toISOString(),
+          };
+          AdminService.setLocalProducts(local);
+        }
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(
+            new CustomEvent("products-changed", {
+              detail: {
+                action: "update",
+                product: {
+                  ...viewingProduct,
+                  ...(updated || {}),
+                  thumbnail: newThumb,
+                  images: updatedImgs,
+                },
+              },
+            })
+          );
+          window.dispatchEvent(new Event("storage"));
+        }
+      } catch (syncErr) {
+        console.warn("Storage sync error on setting thumbnail:", syncErr);
+      }
+
+      setDrawerFeedback({
+        type: "success",
+        message: "Primary thumbnail updated! Your storefront products page reflects this image immediately.",
+      });
+      setTimeout(() => setDrawerFeedback(null), 4000);
+    } catch (err: any) {
+      setDrawerFeedback({ type: "error", message: err.message || "Failed to set primary thumbnail." });
+    } finally {
+      setIsDrawerUploading(false);
+    }
+  };
+
   // Delete Image from Existing Product
   const handleDeleteDrawerImage = async (imageId: string) => {
     if (!viewingProduct) return;
@@ -986,21 +1120,58 @@ export default function AdminProductsPage() {
           const remainingImages = (viewingProduct.images || []).filter(
             (img) => img.id !== imageId && (img as any).url !== imageId
           );
+          const newThumb = updated?.thumbnail || remainingImages[0]?.url || viewingProduct.thumbnail;
+
           if (updated) {
             setViewingProduct(updated);
             setProducts((prev) => prev.map((p) => (p.id === viewingProduct.id ? updated : p)));
           } else {
             setViewingProduct((prev) =>
-              prev ? { ...prev, images: remainingImages, thumbnail: remainingImages[0]?.url || prev.thumbnail } : null
+              prev ? { ...prev, images: remainingImages, thumbnail: newThumb } : null
             );
             setProducts((prev) =>
               prev.map((p) =>
                 p.id === viewingProduct.id
-                  ? { ...p, images: remainingImages, thumbnail: remainingImages[0]?.url || p.thumbnail }
+                  ? { ...p, images: remainingImages, thumbnail: newThumb }
                   : p
               )
             );
           }
+
+          // Update local storage so storefront reflects this immediately!
+          try {
+            const local = AdminService.getLocalProducts();
+            const lIdx = local.findIndex((p) => p.id === viewingProduct.id || p.slug === viewingProduct.slug);
+            if (lIdx !== -1) {
+              local[lIdx] = {
+                ...local[lIdx],
+                ...(updated || {}),
+                thumbnail: newThumb,
+                images: remainingImages,
+                updatedAt: new Date().toISOString(),
+              };
+              AdminService.setLocalProducts(local);
+            }
+            if (typeof window !== "undefined") {
+              window.dispatchEvent(
+                new CustomEvent("products-changed", {
+                  detail: {
+                    action: "update",
+                    product: {
+                      ...viewingProduct,
+                      ...(updated || {}),
+                      thumbnail: newThumb,
+                      images: remainingImages,
+                    },
+                  },
+                })
+              );
+              window.dispatchEvent(new Event("storage"));
+            }
+          } catch (syncErr) {
+            console.warn("Storage sync error on image delete:", syncErr);
+          }
+
           setDrawerFeedback({ type: "success", message: "Photo removed from gallery. Catalog refreshed." });
           setFeedback({ type: "success", message: "Image removed from gallery." });
           setTimeout(() => setDrawerFeedback(null), 3500);
@@ -2394,6 +2565,20 @@ export default function AdminProductsPage() {
                             <Sparkles className="w-2.5 h-2.5 fill-slate-950" />
                             THUMBNAIL
                           </span>
+                        )}
+                        {rbac.canWriteProducts(user?.role) && !img.isThumbnail && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSetPrimaryThumbnail(img);
+                            }}
+                            className="absolute bottom-2 inset-x-2 py-1.5 bg-amber-400 hover:bg-amber-300 text-slate-950 text-[10px] font-bold rounded-lg opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer z-10 flex items-center justify-center gap-1 shadow-lg"
+                            title="Set as primary product photo for storefront"
+                          >
+                            <Star className="w-3 h-3 fill-slate-950" />
+                            <span>Set as Primary</span>
+                          </button>
                         )}
                         {rbac.canWriteProducts(user?.role) && (
                           <button

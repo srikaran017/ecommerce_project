@@ -539,11 +539,18 @@ export function transformApiDetailToProduct(detail: ApiProductDetail): any {
         img.url !== "null" &&
         !isFallbackImageUrl(img.url)
     )
-    .map((img) => ({
+    .sort((a, b) => {
+      const aThumb = Boolean(a.isThumbnail);
+      const bThumb = Boolean(b.isThumbnail);
+      if (aThumb && !bThumb) return -1;
+      if (!aThumb && bThumb) return 1;
+      return (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
+    })
+    .map((img, idx) => ({
       id: img.id,
       url: img.url.trim(),
       altText: img.altText || detail.name,
-      isPrimary: Boolean(img.isThumbnail),
+      isPrimary: Boolean(img.isThumbnail || idx === 0),
     }));
 
   if (images.length === 0) {

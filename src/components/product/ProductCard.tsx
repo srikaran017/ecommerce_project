@@ -38,6 +38,27 @@ export function ProductCard({ product }: ProductCardProps) {
     setIsImgLoaded(false);
   }, [resolvedImages.primary, resolvedImages.hover]);
 
+  // Listen for real-time products-changed events dispatched from admin drawer or image updates
+  useEffect(() => {
+    const handleProductChange = (e: any) => {
+      const changed = e.detail?.product;
+      if (!changed) return;
+      if (changed.id === product.id || changed.slug === product.slug) {
+        const detailRes = resolveProductImage(changed);
+        if (detailRes.primary) {
+          setCurrentImg(detailRes.primary);
+          setHoverImg(detailRes.hover || detailRes.primary);
+          setIsImgLoaded(false);
+        }
+      }
+    };
+
+    window.addEventListener("products-changed", handleProductChange);
+    return () => {
+      window.removeEventListener("products-changed", handleProductChange);
+    };
+  }, [product.id, product.slug]);
+
   // If the product card does not have a confirmed uploaded image (only static fallback),
   // fetch the product details from the live backend (the exact same endpoint powering "Choose Options" / PDP)
   // so the user's uploaded image displays seamlessly on the card.

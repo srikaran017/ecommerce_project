@@ -64,6 +64,13 @@ export function transformAdminProductToProductData(adminProd: AdminProduct): Pro
         img.url !== "null" &&
         !isFallbackImageUrl(img.url)
     )
+    .sort((a, b) => {
+      const aThumb = Boolean(a.isPrimary || a.isThumbnail);
+      const bThumb = Boolean(b.isPrimary || b.isThumbnail);
+      if (aThumb && !bThumb) return -1;
+      if (!aThumb && bThumb) return 1;
+      return (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
+    })
     .map((img, idx) => ({
       id: img.id || `img-${idx}`,
       url: img.url.trim(),
@@ -72,19 +79,25 @@ export function transformAdminProductToProductData(adminProd: AdminProduct): Pro
     }));
 
   if (
-    validImages.length === 0 &&
     adminProd.thumbnail &&
     typeof adminProd.thumbnail === "string" &&
     adminProd.thumbnail.trim().length > 0 &&
     adminProd.thumbnail !== "null" &&
     !isFallbackImageUrl(adminProd.thumbnail)
   ) {
-    validImages.push({
-      id: "img-thumb",
-      url: adminProd.thumbnail.trim(),
-      altText: adminProd.name,
-      isPrimary: true,
-    });
+    const thumbUrl = adminProd.thumbnail.trim();
+    const existingIdx = validImages.findIndex((img) => img.url === thumbUrl);
+    if (existingIdx > 0) {
+      const [matched] = validImages.splice(existingIdx, 1);
+      validImages.unshift({ ...matched, isPrimary: true });
+    } else if (existingIdx === -1) {
+      validImages.unshift({
+        id: "img-thumb",
+        url: thumbUrl,
+        altText: adminProd.name,
+        isPrimary: true,
+      });
+    }
   }
 
   const fallbackUrl = getProductFallbackImage(adminProd);
@@ -305,17 +318,27 @@ export class ProductService {
                   (prodData.thumbnail && !isFallbackImageUrl(prodData.thumbnail)) ||
                   (prodData.images && prodData.images.some((img) => !isFallbackImageUrl(img.url)));
 
-                const finalThumbnail = prodDataHasRealImg
+                const localIsNewer = Boolean(
+                  adminP.updatedAt &&
+                  (existing as any).updatedAt &&
+                  new Date(adminP.updatedAt).getTime() > new Date((existing as any).updatedAt).getTime()
+                );
+
+                const finalThumbnail = (localIsNewer && prodDataHasRealImg)
                   ? prodData.thumbnail
                   : existingHasRealImg
                   ? existing.thumbnail
-                  : prodData.thumbnail || existing.thumbnail;
+                  : prodDataHasRealImg
+                  ? prodData.thumbnail
+                  : existing.thumbnail || prodData.thumbnail;
 
-                const finalImages = prodDataHasRealImg
+                const finalImages = (localIsNewer && prodDataHasRealImg)
                   ? prodData.images
                   : existingHasRealImg
                   ? existing.images
-                  : prodData.images || existing.images;
+                  : prodDataHasRealImg
+                  ? prodData.images
+                  : existing.images || prodData.images;
 
                 const finalCatName =
                   existing.categoryName && existing.categoryName !== "Apparel"
@@ -331,6 +354,18 @@ export class ProductService {
                   thumbnail: finalThumbnail,
                   images: finalImages,
                 };
+
+                // Heal local admin item if server has a verified real image
+                if (existingHasRealImg && !localIsNewer && existing.thumbnail) {
+                  try {
+                    const stored = AdminService.getLocalProducts();
+                    const sIdx = stored.findIndex((p) => p.id === adminP.id || p.slug === adminP.slug);
+                    if (sIdx !== -1 && stored[sIdx].thumbnail !== existing.thumbnail) {
+                      stored[sIdx].thumbnail = existing.thumbnail;
+                      AdminService.setLocalProducts(stored);
+                    }
+                  } catch {}
+                }
               } else if (prodData.thumbnail && !isFallbackImageUrl(prodData.thumbnail)) {
                 transformed.unshift(prodData);
               }

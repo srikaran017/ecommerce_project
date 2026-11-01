@@ -65,6 +65,14 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
   const addItem = useCartStore((state) => state.addItem);
 
   const validImages = (product.images || [])
+    .slice()
+    .sort((a, b) => {
+      const aThumb = Boolean(a?.isPrimary || (a as any)?.isThumbnail);
+      const bThumb = Boolean(b?.isPrimary || (b as any)?.isThumbnail);
+      if (aThumb && !bThumb) return -1;
+      if (!aThumb && bThumb) return 1;
+      return 0;
+    })
     .map((img) => img?.url)
     .filter(
       (url): url is string =>
@@ -95,6 +103,13 @@ export function ProductDetailClient({ product, relatedProducts }: ProductDetailC
     : [fallbackImg];
 
   const [activeImage, setActiveImage] = useState(images[0]);
+
+  // Synchronize activeImage if product images update
+  useEffect(() => {
+    if (images.length > 0) {
+      setActiveImage(images[0]);
+    }
+  }, [product.thumbnail, product.images]);
   const [selectedVariant, setSelectedVariant] = useState<ProductVariantData>(
     product.variants?.[0] || {
       id: "default",

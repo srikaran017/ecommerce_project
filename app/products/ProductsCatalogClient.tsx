@@ -251,18 +251,28 @@ export function ProductsCatalogClient({
                 (transformed.thumbnail && !isFallbackImageUrl(transformed.thumbnail)) ||
                 (transformed.images && transformed.images.some((img) => !isFallbackImageUrl(img.url)));
 
-              // Preserve real uploaded image: never overwrite real server image with fallback
-              const finalThumbnail = transformedHasRealImg
+              const localIsNewer = Boolean(
+                adminP.updatedAt &&
+                (existing as any).updatedAt &&
+                new Date(adminP.updatedAt).getTime() > new Date((existing as any).updatedAt).getTime()
+              );
+
+              // Preserve live server image; only allow local override if admin updated locally more recently
+              const finalThumbnail = (localIsNewer && transformedHasRealImg)
                 ? transformed.thumbnail
                 : existingHasRealImg
                 ? existing.thumbnail
-                : transformed.thumbnail || existing.thumbnail;
+                : transformedHasRealImg
+                ? transformed.thumbnail
+                : existing.thumbnail || transformed.thumbnail;
 
-              const finalImages = transformedHasRealImg
+              const finalImages = (localIsNewer && transformedHasRealImg)
                 ? transformed.images
                 : existingHasRealImg
                 ? existing.images
-                : transformed.images || existing.images;
+                : transformedHasRealImg
+                ? transformed.images
+                : existing.images || transformed.images;
 
               const finalCatName =
                 existing.categoryName && existing.categoryName !== "Apparel"
@@ -280,7 +290,7 @@ export function ProductsCatalogClient({
               };
 
               // Heal localStorage item if server has the real image
-              if (existingHasRealImg && !transformedHasRealImg) {
+              if (existingHasRealImg && !localIsNewer) {
                 try {
                   const storedProducts = AdminService.getLocalProducts();
                   const storedIdx = storedProducts.findIndex(
@@ -292,7 +302,7 @@ export function ProductsCatalogClient({
                   );
                   if (storedIdx !== -1) {
                     const realImgUrl = existing.thumbnail || existing.images?.[0]?.url;
-                    if (realImgUrl) {
+                    if (realImgUrl && storedProducts[storedIdx].thumbnail !== realImgUrl) {
                       storedProducts[storedIdx].thumbnail = realImgUrl;
                       if (!storedProducts[storedIdx].images || storedProducts[storedIdx].images.length === 0) {
                         storedProducts[storedIdx].images = [

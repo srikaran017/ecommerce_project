@@ -220,7 +220,16 @@ export function resolveProductImage(product?: ProductLike | null): {
     }
   };
 
-  // Check thumbnail first (usually set directly on the product record)
+  // Prioritize explicit thumbnail or primary image from images array
+  if (Array.isArray(product.images)) {
+    for (const item of product.images) {
+      if (item && typeof item === "object" && (item.isThumbnail || item.isPrimary)) {
+        addCandidate(item.url);
+      }
+    }
+  }
+
+  // Check thumbnail (usually set directly on the product record)
   addCandidate(product.thumbnail);
 
   // Check product.images

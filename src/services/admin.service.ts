@@ -1995,6 +1995,33 @@ export class AdminService {
         (Array.isArray(res.data) ? res.data : []) ||
         (res as any)?.images ||
         [];
+
+      // Always synchronize local storage products when upload succeeds
+      try {
+        const products = this.getLocalProducts();
+        const prodIdx = products.findIndex((p) => p.id === id);
+        if (prodIdx !== -1) {
+          const existingImages = products[prodIdx].images || [];
+          const merged = [...existingImages, ...imagesArr];
+          products[prodIdx].images = merged;
+          products[prodIdx].imagesCount = merged.length;
+          const thumbCandidate = imagesArr.find((img: any) => img.isThumbnail) || imagesArr[0];
+          if (thumbCandidate?.url && (imagesArr.some((img: any) => img.isThumbnail) || !products[prodIdx].thumbnail)) {
+            products[prodIdx].thumbnail = thumbCandidate.url;
+          }
+          products[prodIdx].updatedAt = new Date().toISOString();
+          setLocalData(STORAGE_KEYS.PRODUCTS, products);
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(
+              new CustomEvent("products-changed", { detail: { action: "update", product: products[prodIdx] } })
+            );
+            window.dispatchEvent(new Event("storage"));
+          }
+        }
+      } catch (syncErr) {
+        console.warn("[uploadProductImages] Local storage sync error:", syncErr);
+      }
+
       return {
         success: true,
         statusCode: res.statusCode || 200,
@@ -2060,7 +2087,30 @@ export class AdminService {
     const res = await this.request<any>(`/products/${productId}/images/${imageId}`, {
       method: "DELETE",
     });
-    if (res.success && res.data) return { success: true, data: res.data };
+    if (res.success && res.data) {
+      try {
+        const products = this.getLocalProducts();
+        const prod = products.find((p) => p.id === productId);
+        if (prod) {
+          prod.images = (prod.images || []).filter((img) => img.id !== imageId && (img as any).url !== imageId);
+          prod.imagesCount = prod.images.length;
+          if (prod.images.length > 0 && (!prod.thumbnail || prod.thumbnail === imageId)) {
+            prod.thumbnail = prod.images[0].url;
+          }
+          prod.updatedAt = new Date().toISOString();
+          setLocalData(STORAGE_KEYS.PRODUCTS, products);
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(
+              new CustomEvent("products-changed", { detail: { action: "update", product: prod } })
+            );
+            window.dispatchEvent(new Event("storage"));
+          }
+        }
+      } catch (err) {
+        console.warn("[deleteProductImage] Local storage sync error:", err);
+      }
+      return { success: true, data: res.data };
+    }
 
     const products = this.getLocalProducts();
     const prod = products.find((p) => p.id === productId);
