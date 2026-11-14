@@ -367,6 +367,12 @@ export const fetchProducts = async (
     delete normalizedParams.q;
   }
 
+  // Subcategory normalization for /products endpoint (backend catalog scopes hierarchically via category slug)
+  if (normalizedParams.subcategory) {
+    normalizedParams.category = normalizedParams.subcategory;
+    delete normalizedParams.subcategory;
+  }
+
   const query = new URLSearchParams();
   Object.entries(normalizedParams).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== "") {
@@ -455,8 +461,8 @@ export const fetchCatalogFilters = async (
   params?: CatalogFilterQueryParams
 ): Promise<CatalogFilterResponse> => {
   const query = new URLSearchParams();
-  if (params?.category) query.set("category", params.category);
-  if (params?.subcategory) query.set("subcategory", params.subcategory);
+  const effectiveCategory = params?.subcategory || params?.category;
+  if (effectiveCategory) query.set("category", effectiveCategory);
   const searchVal = params?.search || params?.q;
   if (searchVal) query.set("search", searchVal);
   if (params?.brand) query.set("brand", params.brand);
@@ -516,19 +522,19 @@ export function transformApiCardToProduct(card: ApiProductCard): any {
 
   const validThumbnail =
     card.thumbnail &&
-    typeof card.thumbnail === "string" &&
-    card.thumbnail.trim().length > 0 &&
-    card.thumbnail !== "null" &&
-    !isFallbackImageUrl(card.thumbnail)
+      typeof card.thumbnail === "string" &&
+      card.thumbnail.trim().length > 0 &&
+      card.thumbnail !== "null" &&
+      !isFallbackImageUrl(card.thumbnail)
       ? card.thumbnail.trim()
       : null;
 
   const validSecondary =
     card.secondaryImage &&
-    typeof card.secondaryImage === "string" &&
-    card.secondaryImage.trim().length > 0 &&
-    card.secondaryImage !== "null" &&
-    !isFallbackImageUrl(card.secondaryImage)
+      typeof card.secondaryImage === "string" &&
+      card.secondaryImage.trim().length > 0 &&
+      card.secondaryImage !== "null" &&
+      !isFallbackImageUrl(card.secondaryImage)
       ? card.secondaryImage.trim()
       : null;
 
@@ -627,10 +633,10 @@ export function transformApiDetailToProduct(detail: ApiProductDetail): any {
       colorHex: colorAttr.toLowerCase().includes("emerald")
         ? "#046307"
         : colorAttr.toLowerCase().includes("crimson")
-        ? "#990000"
-        : colorAttr.toLowerCase().includes("navy")
-        ? "#000080"
-        : undefined,
+          ? "#990000"
+          : colorAttr.toLowerCase().includes("navy")
+            ? "#000080"
+            : undefined,
       imageUrl: v.images?.[0]?.url || images[0]?.url,
       isActive: v.inStock,
       attributes: v.attributes,

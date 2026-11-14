@@ -237,7 +237,7 @@ export class CustomerService {
       try {
         const extraRaw = localStorage.getItem(STORAGE_KEYS.PROFILE_EXTRA);
         return extraRaw ? JSON.parse(extraRaw) : null;
-      } catch {}
+      } catch { }
     }
     return null;
   }
@@ -359,7 +359,7 @@ export class CustomerService {
     if (typeof window !== "undefined") {
       try {
         localStorage.setItem(STORAGE_KEYS.PROFILE_EXTRA, JSON.stringify(payload));
-      } catch {}
+      } catch { }
     }
 
     return {
@@ -431,7 +431,7 @@ export class CustomerService {
   static async getAddresses(): Promise<CustomerAddress[]> {
     const baseUrl = getApiBaseUrl();
     try {
-      const res = await fetch(`${baseUrl}/customer/addresses?_t=${Date.now()}`, {
+      const res = await fetch(`${baseUrl}/customer/addresses?all=true&_t=${Date.now()}`, {
         headers: this.getHeaders(),
         cache: "no-store",
       });
@@ -550,7 +550,7 @@ export class CustomerService {
             return [migrated];
           }
         }
-      } catch {}
+      } catch { }
     }
 
     return [];
@@ -690,7 +690,7 @@ export class CustomerService {
     if (typeof window !== "undefined") {
       try {
         localStorage.setItem(STORAGE_KEYS.ADDRESSES, JSON.stringify(updatedList));
-      } catch {}
+      } catch { }
     }
 
     return {
@@ -765,7 +765,7 @@ export class CustomerService {
         } else {
           localStorage.removeItem(STORAGE_KEYS.LEGACY_ADDRESS);
         }
-      } catch {}
+      } catch { }
     }
 
     return { success: true, data: updatedList, message: "Address deleted successfully." };
@@ -860,7 +860,7 @@ export class CustomerService {
             })
           );
         }
-      } catch {}
+      } catch { }
     }
 
     const defaultAddress = updatedList.find((a) => a.id === id);
@@ -891,7 +891,7 @@ export class CustomerService {
       try {
         const raw = localStorage.getItem(STORAGE_KEYS.PREFERENCES);
         if (raw) return { ...defaults, ...JSON.parse(raw) };
-      } catch {}
+      } catch { }
     }
     return defaults;
   }
@@ -903,7 +903,7 @@ export class CustomerService {
     if (typeof window !== "undefined") {
       try {
         localStorage.setItem(STORAGE_KEYS.PREFERENCES, JSON.stringify(updated));
-      } catch {}
+      } catch { }
     }
 
     return { success: true, data: updated, message: "Preferences saved successfully." };
