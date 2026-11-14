@@ -129,6 +129,8 @@ export interface ProductData {
   inStock?: boolean;
   stockQuantity?: number;
   thumbnail?: string;
+  secondaryImage?: string | null;
+  colors?: Array<{ name: string; slug: string }>;
   categoryData?: {
     id: string;
     name: string;

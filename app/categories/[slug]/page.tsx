@@ -27,6 +27,8 @@ interface CategoryPageProps {
     minPrice?: string;
     maxPrice?: string;
     search?: string;
+    q?: string;
+    subcategory?: string;
     color?: string;
     size?: string;
     fabric?: string;
@@ -75,7 +77,8 @@ export default async function CategoryPage({
       maxPrice: resolvedSearchParams.maxPrice
         ? Number(resolvedSearchParams.maxPrice)
         : undefined,
-      search: resolvedSearchParams.search,
+      search: resolvedSearchParams.search || resolvedSearchParams.q,
+      subcategory: resolvedSearchParams.subcategory,
       color: resolvedSearchParams.color,
       size: resolvedSearchParams.size,
       fabric: resolvedSearchParams.fabric,

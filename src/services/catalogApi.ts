@@ -106,7 +106,9 @@ export interface CatalogFilterResponse {
 
 export interface CatalogFilterQueryParams {
   category?: string;
+  subcategory?: string;
   search?: string;
+  q?: string;
   brand?: string;
   minPrice?: number;
   maxPrice?: number;
@@ -126,7 +128,9 @@ export interface ApiProductCard {
     slug: string;
   };
   thumbnail: string;
+  secondaryImage?: string | null;
   price: ApiPrice;
+  colors?: Array<{ name: string; slug: string }>;
   rating?: number;
   reviewCount?: number;
   hasVariants: boolean;
@@ -303,8 +307,17 @@ export const fetchCategoryProducts = async (
   products: ApiProductCard[];
   pagination: ApiPagination;
 }> => {
+  const normalizedParams = { ...params };
+  // Search query normalization (q vs search alias)
+  if (normalizedParams.q && !normalizedParams.search) {
+    normalizedParams.search = normalizedParams.q;
+    delete normalizedParams.q;
+  } else if (normalizedParams.q && normalizedParams.search) {
+    delete normalizedParams.q;
+  }
+
   const query = new URLSearchParams();
-  Object.entries(params).forEach(([key, value]) => {
+  Object.entries(normalizedParams).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== "") {
       query.append(key, String(value));
     }
@@ -345,8 +358,17 @@ export const fetchProducts = async (
   products: ApiProductCard[];
   pagination: ApiPagination;
 }> => {
+  const normalizedParams = { ...params };
+  // Search query normalization (q vs search alias)
+  if (normalizedParams.q && !normalizedParams.search) {
+    normalizedParams.search = normalizedParams.q;
+    delete normalizedParams.q;
+  } else if (normalizedParams.q && normalizedParams.search) {
+    delete normalizedParams.q;
+  }
+
   const query = new URLSearchParams();
-  Object.entries(params).forEach(([key, value]) => {
+  Object.entries(normalizedParams).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== "") {
       query.append(key, String(value));
     }
@@ -434,7 +456,9 @@ export const fetchCatalogFilters = async (
 ): Promise<CatalogFilterResponse> => {
   const query = new URLSearchParams();
   if (params?.category) query.set("category", params.category);
-  if (params?.search) query.set("search", params.search);
+  if (params?.subcategory) query.set("subcategory", params.subcategory);
+  const searchVal = params?.search || params?.q;
+  if (searchVal) query.set("search", searchVal);
   if (params?.brand) query.set("brand", params.brand);
   if (params?.minPrice !== undefined) query.set("minPrice", String(params.minPrice));
   if (params?.maxPrice !== undefined) query.set("maxPrice", String(params.maxPrice));
@@ -460,7 +484,9 @@ export const fetchCategoryFilters = async (
   params?: Omit<CatalogFilterQueryParams, "category">
 ): Promise<CatalogFilterResponse> => {
   const query = new URLSearchParams();
-  if (params?.search) query.set("search", params.search);
+  if (params?.subcategory) query.set("subcategory", params.subcategory);
+  const searchVal = params?.search || params?.q;
+  if (searchVal) query.set("search", searchVal);
   if (params?.brand) query.set("brand", params.brand);
   if (params?.minPrice !== undefined) query.set("minPrice", String(params.minPrice));
   if (params?.maxPrice !== undefined) query.set("maxPrice", String(params.maxPrice));
@@ -497,7 +523,24 @@ export function transformApiCardToProduct(card: ApiProductCard): any {
       ? card.thumbnail.trim()
       : null;
 
+  const validSecondary =
+    card.secondaryImage &&
+    typeof card.secondaryImage === "string" &&
+    card.secondaryImage.trim().length > 0 &&
+    card.secondaryImage !== "null" &&
+    !isFallbackImageUrl(card.secondaryImage)
+      ? card.secondaryImage.trim()
+      : null;
+
   const resolvedThumb = validThumbnail || getProductFallbackImage(card);
+
+  const images: Array<{ url: string; isPrimary: boolean; altText?: string }> = [
+    { url: resolvedThumb, isPrimary: true, altText: card.name },
+  ];
+
+  if (validSecondary && validSecondary !== resolvedThumb) {
+    images.push({ url: validSecondary, isPrimary: false, altText: card.name });
+  }
 
   return {
     id: card.id,
@@ -513,8 +556,10 @@ export function transformApiCardToProduct(card: ApiProductCard): any {
     categorySlug: card.category?.slug || "",
     categoryName: card.category?.name || "Apparel",
     stock: 20,
-    images: [{ url: resolvedThumb, isPrimary: true, altText: card.name }],
+    images,
     thumbnail: resolvedThumb,
+    secondaryImage: validSecondary,
+    colors: card.colors || [],
     variants: [],
     hasVariants: card.hasVariants,
     hasModifiers: card.hasModifiers,

@@ -216,6 +216,7 @@ export class ProductService {
    */
   static async getAllProducts(filters?: {
     category?: string;
+    subcategory?: string;
     gender?: string;
     size?: string;
     color?: string;
@@ -229,6 +230,7 @@ export class ProductService {
     fabric?: string;
     sort?: string;
     search?: string;
+    q?: string;
     featured?: boolean;
     newArrivals?: boolean;
     bestSellers?: boolean;
@@ -241,8 +243,10 @@ export class ProductService {
     try {
       // Build API query parameters
       const apiParams: Record<string, any> = {};
-      if (filters?.search) apiParams.search = filters.search;
+      const searchVal = filters?.search || filters?.q;
+      if (searchVal) apiParams.search = searchVal;
       if (filters?.category) apiParams.category = filters.category;
+      if (filters?.subcategory) apiParams.subcategory = filters.subcategory;
       if (filters?.brand) apiParams.brand = filters.brand;
       if (filters?.minPrice !== undefined) apiParams.minPrice = filters.minPrice;
       if (filters?.maxPrice !== undefined) apiParams.maxPrice = filters.maxPrice;

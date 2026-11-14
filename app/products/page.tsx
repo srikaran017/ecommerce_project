@@ -14,6 +14,7 @@ export const metadata = {
 interface ProductsPageProps {
   searchParams: Promise<{
     category?: string;
+    subcategory?: string;
     gender?: string;
     collection?: string;
     occasion?: string;
@@ -27,6 +28,7 @@ interface ProductsPageProps {
     inStock?: string;
     sort?: string;
     search?: string;
+    q?: string;
     page?: string;
     limit?: string;
   }>;
@@ -36,6 +38,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
   const resolvedParams = await searchParams;
   const {
     category,
+    subcategory,
     gender,
     collection,
     occasion,
@@ -49,11 +52,15 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
     inStock,
     sort,
     search,
+    q,
   } = resolvedParams;
+
+  const effectiveSearch = search || q;
 
   const [products, categoriesTree, catalogFilters] = await Promise.all([
     ProductService.getAllProducts({
       category,
+      subcategory,
       gender,
       collection,
       occasion,
@@ -66,12 +73,13 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
       rating: rating ? Number(rating) : undefined,
       inStockOnly: inStock === "true",
       sort,
-      search,
+      search: effectiveSearch,
     }),
     ProductService.getCategoryTree({ tree: true }),
     ProductService.getCatalogFilters({
       category,
-      search,
+      subcategory,
+      search: effectiveSearch,
       brand,
       minPrice: minPrice ? Number(minPrice) : undefined,
       maxPrice: maxPrice ? Number(maxPrice) : undefined,

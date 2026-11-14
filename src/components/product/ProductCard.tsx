@@ -11,7 +11,7 @@ import { useWishlistStore } from "@/stores/wishlist.store";
 import { useAuthStore } from "@/stores/auth.store";
 import { ProductData, ProductVariantData } from "@/data/products.data";
 import { QuickViewModal } from "./QuickViewModal";
-import { resolveProductImage, getProductFallbackImage, isBrandLogoImage, DEFAULT_BRAND_LOGO } from "@/utils/image.utils";
+import { resolveProductImage, getProductFallbackImage, isBrandLogoImage, DEFAULT_BRAND_LOGO, getColorHex } from "@/utils/image.utils";
 import { ProductService } from "@/services/product.service";
 
 export interface ProductCardProps {
@@ -82,8 +82,6 @@ export function ProductCard({ product }: ProductCardProps) {
       active = false;
     };
   }, [product.slug, resolvedImages.hasRealImage]);
-
-  const displayImg = isHovered && hoverImg ? hoverImg : currentImg;
 
   const handleImageError = () => {
     const fallback = getProductFallbackImage(product) || DEFAULT_BRAND_LOGO;
@@ -199,22 +197,30 @@ export function ProductCard({ product }: ProductCardProps) {
           </div>
 
           <Link href={`/products/${product.slug}`} className="block w-full h-full relative z-[1]">
-            {displayImg ? (
+            {currentImg ? (
               <img
-                src={displayImg}
+                src={currentImg}
                 alt={product.name}
                 loading="lazy"
                 onLoad={() => setIsImgLoaded(true)}
                 onError={handleImageError}
                 className={
-                  isBrandLogoImage(displayImg)
+                  isBrandLogoImage(currentImg)
                     ? "w-full h-full object-contain p-8 bg-neutral-50/70 transition-transform duration-500 group-hover:scale-105"
                     : `w-full h-full object-cover object-top transition-all duration-500 group-hover:scale-105 ${
                         isImgLoaded ? "opacity-100" : "opacity-0"
-                      }`
+                      } ${hoverImg && hoverImg !== currentImg && !isBrandLogoImage(hoverImg) ? "group-hover:opacity-0" : ""}`
                 }
               />
             ) : null}
+            {hoverImg && hoverImg !== currentImg && !isBrandLogoImage(hoverImg) && (
+              <img
+                src={hoverImg}
+                alt={`${product.name} alternate view`}
+                loading="lazy"
+                className="absolute inset-0 w-full h-full object-cover object-top transition-all duration-500 group-hover:scale-105 opacity-0 group-hover:opacity-100"
+              />
+            )}
           </Link>
 
           {/* Badges: Special Offer or Discount */}
@@ -281,6 +287,25 @@ export function ProductCard({ product }: ProductCardProps) {
                 </span>
               )}
             </div>
+
+            {/* Color Swatches preview if provided by category / catalog API */}
+            {product.colors && product.colors.length > 0 && (
+              <div className="flex items-center gap-1.5 pt-1.5">
+                {product.colors.slice(0, 5).map((col) => (
+                  <span
+                    key={col.slug || col.name}
+                    title={col.name}
+                    className="w-2.5 h-2.5 rounded-full border border-black/20 shadow-2xs inline-block shrink-0"
+                    style={{ backgroundColor: getColorHex(col.slug || col.name) }}
+                  />
+                ))}
+                {product.colors.length > 5 && (
+                  <span className="text-[10px] text-neutral-400 font-medium">
+                    +{product.colors.length - 5}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Simple Size Selector Pills */}

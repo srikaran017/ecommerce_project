@@ -16,6 +16,8 @@ export interface ProductLike {
   tags?: string[];
   description?: string;
   thumbnail?: string | null;
+  secondaryImage?: string | null;
+  colors?: Array<{ name: string; slug: string }> | null;
   image?: string | null;
   imageUrl?: string | null;
   images?: any[] | null;
@@ -232,6 +234,9 @@ export function resolveProductImage(product?: ProductLike | null): {
   // Check thumbnail (usually set directly on the product record)
   addCandidate(product.thumbnail);
 
+  // Check secondaryImage from backend enriched category & product card responses
+  addCandidate(product.secondaryImage);
+
   // Check product.images
   if (Array.isArray(product.images)) {
     for (const item of product.images) {
@@ -271,4 +276,72 @@ export function resolveProductImage(product?: ProductLike | null): {
     hover: DEFAULT_BRAND_LOGO,
     hasRealImage: false,
   };
+}
+
+/**
+ * Luxury Swatch Color Hex Map for Storefront Cards and PDP
+ */
+export const LUXURY_COLOR_HEX_MAP: Record<string, string> = {
+  "midnight-black": "#111111",
+  black: "#111111",
+  noir: "#111111",
+  "onyx-black": "#111111",
+  "emerald-green": "#046307",
+  emerald: "#046307",
+  green: "#046307",
+  "sage-green": "#87ae73",
+  "mint-green": "#98ff98",
+  "crimson-red": "#990000",
+  crimson: "#990000",
+  red: "#990000",
+  "ruby-red": "#9b111e",
+  ruby: "#9b111e",
+  maroon: "#800000",
+  burgundy: "#800020",
+  "navy-blue": "#000080",
+  navy: "#000080",
+  "royal-blue": "#4169e1",
+  "sky-blue": "#87ceeb",
+  blue: "#000080",
+  "ivory-white": "#fcfbf7",
+  ivory: "#fffff0",
+  white: "#ffffff",
+  "champagne-gold": "#d4af37",
+  gold: "#ffd700",
+  zari: "#d4af37",
+  "rose-gold": "#b76e79",
+  "rose-pink": "#ff66cc",
+  "blush-pink": "#ffd1dc",
+  pink: "#ffc0cb",
+  rose: "#e890a5",
+  plum: "#dda0dd",
+  lavender: "#e6e6fa",
+  purple: "#800080",
+  silver: "#c0c0c0",
+  bronze: "#cd7f32",
+  teal: "#008080",
+  mustard: "#ffdb58",
+  yellow: "#eab308",
+  coral: "#ff7f50",
+  rust: "#d35400",
+  beige: "#f5f5dc",
+  tan: "#c2b280",
+  brown: "#4e3629",
+  coffee: "#4e3629",
+  charcoal: "#333333",
+  grey: "#555555",
+  gray: "#555555",
+};
+
+/**
+ * Resolves a hex color representation from an attribute value name or slug
+ */
+export function getColorHex(nameOrSlug?: string | null): string {
+  if (!nameOrSlug) return "#222222";
+  const normalized = nameOrSlug.toLowerCase().trim().replace(/\s+/g, "-");
+  if (LUXURY_COLOR_HEX_MAP[normalized]) return LUXURY_COLOR_HEX_MAP[normalized];
+  for (const [key, hex] of Object.entries(LUXURY_COLOR_HEX_MAP)) {
+    if (normalized.includes(key)) return hex;
+  }
+  return "#333333";
 }
